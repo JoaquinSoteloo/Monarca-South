@@ -12,9 +12,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { ShoppingCart, AlertCircle, Banknote, CreditCard } from "lucide-react"
+import { ShoppingCart, AlertCircle, Banknote, CreditCard, AlertTriangle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface VentasManagerProps {
   socios: Socio[]
@@ -27,6 +35,7 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const [showLimitDialog, setShowLimitDialog] = useState(false)
 
   const [formData, setFormData] = useState({
     socio_id: "",
@@ -47,27 +56,11 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
   const limiteMensual = selectedSocio?.gramos_mensuales || 0
   const consumidoMes = selectedSocio?.gramos_consumidos_mes || 0
   const disponibleSocio = limiteMensual - consumidoMes
+  const excedeLimit = limiteMensual > 0 && gramosInput > disponibleSocio
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
-    if (gramosInput <= 0) {
-      setError("Ingresa una cantidad válida de gramos")
-      return
-    }
-
-    if (gramosInput > gramosDisponibles) {
-      setError(`Stock insuficiente. Disponible: ${gramosDisponibles}g`)
-      return
-    }
-
-    if (limiteMensual > 0 && gramosInput > disponibleSocio) {
-      setError(`El socio excede su límite mensual. Disponible: ${disponibleSocio}g`)
-      return
-    }
-
+  const procesarVenta = async () => {
     setLoading(true)
+    setShowLimitDialog(false)
     const supabase = createClient()
 
     const ventaData = {
@@ -92,7 +85,6 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
       return
     }
 
-    // Actualizar stock de la genética
     await supabase
       .from("geneticas")
       .update({
@@ -101,7 +93,6 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
       })
       .eq("id", formData.genetica_id)
 
-    // Actualizar gramos consumidos del socio
     await supabase
       .from("socios")
       .update({
@@ -116,8 +107,77 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
     router.refresh()
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    if (gramosInput <= 0) {
+      setError("Ingresa una cantidad válida de gramos")
+      return
+    }
+
+    if (gramosInput > gramosDisponibles) {
+      setError(`Stock insuficiente. Disponible: ${gramosDisponibles}g`)
+      return
+    }
+
+    if (excedeLimit) {
+      setShowLimitDialog(true)
+      return
+    }
+
+    await procesarVenta()
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                <AlertTriangle className="h-6 w-6 text-amber-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-foreground">Límite mensual excedido</DialogTitle>
+                <DialogDescription className="text-muted-foreground">
+                  El socio superará su límite mensual
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-3">
+              <strong className="text-foreground">
+                {selectedSocio?.nombre} {selectedSocio?.apellido}
+              </strong>{" "}
+              tiene un límite de <strong className="text-foreground">{limiteMensual}g</strong> por mes.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">
+              <p className="text-sm text-amber-800">
+                Consumido este mes: <strong>{consumidoMes}g</strong>
+              </p>
+              <p className="text-sm text-amber-800">
+                Intentando comprar: <strong>{gramosInput}g</strong>
+              </p>
+              <p className="text-sm text-amber-800">
+                Nuevo total: <strong>{consumidoMes + gramosInput}g</strong> (
+                {consumidoMes + gramosInput - limiteMensual}g sobre el límite)
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground mt-3">¿Deseas continuar con la venta de todas formas?</p>
+          </div>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowLimitDialog(false)} className="border-border">
+              Cancelar
+            </Button>
+            <Button onClick={procesarVenta} disabled={loading} className="bg-amber-600 hover:bg-amber-700">
+              {loading ? "Registrando..." : "Sí, continuar con la venta"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
@@ -178,7 +238,7 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                 type="number"
                 step="0.5"
                 min="0.5"
-                max={Math.min(40, gramosDisponibles, disponibleSocio > 0 ? disponibleSocio : gramosDisponibles)}
+                max={Math.min(40, gramosDisponibles)}
                 value={formData.gramos}
                 onChange={(e) => setFormData({ ...formData, gramos: e.target.value })}
                 placeholder="Ej: 5"

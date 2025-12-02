@@ -56,9 +56,9 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
   const gramosInput = Number.parseFloat(formData.gramos) || 0
   const cantidadEnrolados = Number.parseInt(formData.cantidad_enrolados) || 0
   const pesoPorEnrolado = Number.parseFloat(formData.peso_por_enrolado) || 0
-  const pesoTotalEnrolados = cantidadEnrolados * pesoPorEnrolado
-  const gramosTotales = gramosInput + pesoTotalEnrolados
-  const total = gramosTotales * precioUnitario
+  const pesoTotalEnrolados = Math.round(cantidadEnrolados * pesoPorEnrolado * 10) / 10
+  const gramosTotales = Math.round((gramosInput + pesoTotalEnrolados) * 10) / 10
+  const total = Math.round(gramosTotales * precioUnitario * 100) / 100
 
   const limiteMensual = selectedSocio?.gramos_mensuales || 0
   const consumidoMes = selectedSocio?.gramos_consumidos_mes || 0
@@ -458,7 +458,8 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                               <Scale className="h-3 w-3" />
                             </Badge>
                             <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                              <Cigarette className="h-3 w-3" />
+                              <Cigarette className="h-3 w-3 mr-1" />
+                              Enrolados
                             </Badge>
                           </div>
                         ) : venta.tipo_venta === "enrolados" ? (

@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import type { Venta } from "@/lib/types"
+import type { Venta, DetalleVenta } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   CalendarIcon,
-  TrendingUp,
   Package,
   DollarSign,
   FileDown,
@@ -18,6 +17,10 @@ import {
   CreditCard,
   Check,
   Filter,
+  ChevronDown,
+  ChevronRight,
+  Cigarette,
+  Scale,
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -37,18 +40,23 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
 
+interface VentaConDetalles extends Venta {
+  detalles?: DetalleVenta[]
+}
+
 export function HistorialVentas() {
-  const [ventas, setVentas] = useState<Venta[]>([])
+  const [ventas, setVentas] = useState<VentaConDetalles[]>([])
   const [loading, setLoading] = useState(false)
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined)
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined)
   const [exportando, setExportando] = useState(false)
   const [popoverDesdeOpen, setPopoverDesdeOpen] = useState(false)
   const [popoverHastaOpen, setPopoverHastaOpen] = useState(false)
-  const [editingVenta, setEditingVenta] = useState<Venta | null>(null)
+  const [editingVenta, setEditingVenta] = useState<VentaConDetalles | null>(null)
   const [nuevoMetodoPago, setNuevoMetodoPago] = useState<"efectivo" | "transferencia">("efectivo")
   const [updatingPago, setUpdatingPago] = useState(false)
   const [soloNoPagados, setSoloNoPagados] = useState(false)
+  const [expandedVentas, setExpandedVentas] = useState<Set<number>>(new Set())
   const router = useRouter()
 
   useEffect(() => {
@@ -71,7 +79,9 @@ export function HistorialVentas() {
 
     const { data, error } = await supabase
       .from("ventas")
-      .select("*, socio:socios(nombre, apellido, dni), genetica:geneticas(nombre)")
+      .select(
+        "*, socio:socios(nombre, apellido, dni), genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), detalles:detalle_venta(id, gramos, cantidad_enrolados, peso_por_enrolado, peso_enrolados, precio_unitario, precio_enrolado, subtotal, genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado))",
+      )
       .gte("created_at", `${desdeStr}T00:00:00`)
       .lte("created_at", `${hastaStr}T23:59:59`)
       .order("created_at", { ascending: false })
@@ -104,10 +114,51 @@ export function HistorialVentas() {
     setUpdatingPago(false)
   }
 
+  const toggleExpand = (ventaId: number) => {
+    const newExpanded = new Set(expandedVentas)
+    if (newExpanded.has(ventaId)) {
+      newExpanded.delete(ventaId)
+    } else {
+      newExpanded.add(ventaId)
+    }
+    setExpandedVentas(newExpanded)
+  }
+
+  const getVentaInfo = (venta: VentaConDetalles) => {
+    if (venta.detalles && venta.detalles.length > 0) {
+      const geneticas = venta.detalles.map((d) => d.genetica?.nombre).filter(Boolean)
+      const geneticasUnicas = [...new Set(geneticas)]
+      const totalGramosSueltos = venta.detalles.reduce((sum, d) => sum + (d.gramos || 0), 0)
+      const totalEnrolados = venta.detalles.reduce((sum, d) => sum + (d.cantidad_enrolados || 0), 0)
+      const totalPesoEnrolados = venta.detalles.reduce((sum, d) => sum + (d.peso_enrolados || 0), 0)
+      const totalGramos = totalGramosSueltos + totalPesoEnrolados
+      return {
+        genetica: geneticasUnicas.length > 1 ? `${geneticasUnicas.length} genéticas` : geneticasUnicas[0] || "-",
+        esMultiple: geneticasUnicas.length > 1,
+        gramos: totalGramos,
+        enrolados: totalEnrolados,
+        tieneDetalle: true,
+      }
+    }
+    const gramosSueltos = Number(venta.gramos) || 0
+    const pesoEnrolados = Number(venta.peso_enrolados) || 0
+    const totalGramos = gramosSueltos + pesoEnrolados
+    return {
+      genetica: venta.genetica?.nombre || "-",
+      esMultiple: false,
+      gramos: totalGramos,
+      enrolados: venta.cantidad_enrolados || 0,
+      tieneDetalle: (venta.cantidad_enrolados || 0) > 0 || (Number(venta.gramos) || 0) > 0,
+    }
+  }
+
   const ventasFiltradas = soloNoPagados ? ventas.filter((v) => v.metodo_pago === "pendiente") : ventas
 
   const totalVentas = ventasFiltradas.reduce((sum, v) => sum + Number(v.total), 0)
-  const totalGramos = ventasFiltradas.reduce((sum, v) => sum + Number(v.gramos), 0)
+  const totalGramos = ventasFiltradas.reduce((sum, v) => {
+    const info = getVentaInfo(v)
+    return sum + info.gramos
+  }, 0)
   const ventasEfectivo = ventas.filter((v) => v.metodo_pago === "efectivo").reduce((sum, v) => sum + Number(v.total), 0)
   const ventasTransferencia = ventas
     .filter((v) => v.metodo_pago === "transferencia")
@@ -115,6 +166,15 @@ export function HistorialVentas() {
   const ventasPendientes = ventas
     .filter((v) => v.metodo_pago === "pendiente")
     .reduce((sum, v) => sum + Number(v.total), 0)
+
+  const formatDni = (dni: string) => {
+    const cleaned = dni.replace(/\D/g, "")
+    if (cleaned.length <= 6) return cleaned
+    if (cleaned.length === 7) {
+      return `${cleaned.slice(0, 1)}.${cleaned.slice(1, 4)}.${cleaned.slice(4)}`
+    }
+    return `${cleaned.slice(0, 2)}.${cleaned.slice(2, 5)}.${cleaned.slice(5, 8)}`
+  }
 
   const exportarPDF = async () => {
     if (!fechaDesde || !fechaHasta) return
@@ -162,23 +222,55 @@ export function HistorialVentas() {
       doc.text(`Transferencia: $${ventasTransferencia.toFixed(2)}`, 100, 102)
       doc.text(`Pendiente: $${ventasPendientes.toFixed(2)}`, 100, 108)
 
-      const tableData = ventasFiltradas.map((venta) => [
-        new Date(venta.created_at).toLocaleDateString("es-AR"),
-        `${venta.socio?.apellido}, ${venta.socio?.nombre}`,
-        venta.genetica?.nombre || "",
-        `${venta.gramos}g`,
-        `$${venta.precio_unitario}`,
-        venta.metodo_pago === "efectivo"
-          ? "Efectivo"
-          : venta.metodo_pago === "transferencia"
-            ? "Transferencia"
-            : "Pendiente",
-        `$${Number(venta.total).toFixed(2)}`,
-      ])
+      const tableData: string[][] = []
+      ventasFiltradas.forEach((venta) => {
+        const info = getVentaInfo(venta)
+        if (venta.detalles && venta.detalles.length > 0) {
+          venta.detalles.forEach((detalle, idx) => {
+            const gramosStr = detalle.gramos ? `${detalle.gramos}g x $${detalle.genetica?.precio_por_gramo || 0}/g` : ""
+            const enroladosStr = detalle.cantidad_enrolados
+              ? `${detalle.cantidad_enrolados} enr. x $${detalle.genetica?.precio_por_enrolado || 0}`
+              : ""
+            const cantidadStr = [gramosStr, enroladosStr].filter(Boolean).join(" + ")
+            tableData.push([
+              idx === 0 ? new Date(venta.created_at).toLocaleDateString("es-AR") : "",
+              idx === 0 ? `${venta.socio?.apellido}, ${venta.socio?.nombre}` : "",
+              detalle.genetica?.nombre || "",
+              cantidadStr,
+              idx === 0
+                ? venta.metodo_pago === "efectivo"
+                  ? "Efectivo"
+                  : venta.metodo_pago === "transferencia"
+                    ? "Transferencia"
+                    : "Pendiente"
+                : "",
+              idx === 0 ? `$${Number(venta.total).toFixed(2)}` : "",
+            ])
+          })
+        } else {
+          const gramosStr = info.gramos ? `${info.gramos}g x $${venta.precio_unitario}/g` : ""
+          const enroladosStr = info.enrolados
+            ? `${info.enrolados} enr. x $${venta.genetica?.precio_por_enrolado || 0}`
+            : ""
+          const cantidadStr = [gramosStr, enroladosStr].filter(Boolean).join(" + ")
+          tableData.push([
+            new Date(venta.created_at).toLocaleDateString("es-AR"),
+            `${venta.socio?.apellido}, ${venta.socio?.nombre}`,
+            info.genetica,
+            cantidadStr,
+            venta.metodo_pago === "efectivo"
+              ? "Efectivo"
+              : venta.metodo_pago === "transferencia"
+                ? "Transferencia"
+                : "Pendiente",
+            `$${Number(venta.total).toFixed(2)}`,
+          ])
+        }
+      })
 
       autoTable(doc, {
         startY: 118,
-        head: [["Fecha", "Socio", "Genética", "Cantidad", "Precio/g", "Pago", "Total"]],
+        head: [["Fecha", "Socio", "Genética", "Detalle", "Pago", "Total"]],
         body: tableData,
         theme: "striped",
         headStyles: {
@@ -195,9 +287,7 @@ export function HistorialVentas() {
         },
         columnStyles: {
           0: { cellWidth: 22 },
-          3: { halign: "right" },
-          4: { halign: "right" },
-          6: { halign: "right", fontStyle: "bold" },
+          5: { halign: "right", fontStyle: "bold" },
         },
       })
 
@@ -222,6 +312,91 @@ export function HistorialVentas() {
     }
 
     setExportando(false)
+  }
+
+  const renderDetalleVenta = (venta: VentaConDetalles) => {
+    const isExpanded = expandedVentas.has(venta.id)
+
+    if (venta.detalles && venta.detalles.length > 0) {
+      return venta.detalles.map((detalle, idx) => {
+        const pesoTotal = detalle.peso_enrolados || 0
+        const cantEnrolados = detalle.cantidad_enrolados || 0
+        const pesoPorEnrolado = cantEnrolados > 0 ? Math.round((pesoTotal / cantEnrolados) * 10) / 10 : 0
+
+        return (
+          <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-emerald-500">
+            <TableCell></TableCell>
+            <TableCell></TableCell>
+            <TableCell></TableCell>
+            <TableCell className="font-medium text-foreground">{detalle.genetica?.nombre}</TableCell>
+            <TableCell>
+              <div className="flex flex-col gap-1">
+                {detalle.gramos > 0 && (
+                  <div className="flex items-center gap-1 text-sm">
+                    <Scale className="h-3 w-3 text-emerald-600" />
+                    <span>
+                      {detalle.gramos}g x ${detalle.genetica?.precio_por_gramo || 0}/g
+                    </span>
+                  </div>
+                )}
+                {cantEnrolados > 0 && (
+                  <div className="flex items-center gap-1 text-sm text-amber-600">
+                    <Cigarette className="h-3 w-3" />
+                    <span>
+                      {cantEnrolados} enr. ({pesoPorEnrolado}g c/u) x ${detalle.genetica?.precio_por_enrolado || 0}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </TableCell>
+            <TableCell></TableCell>
+            <TableCell className="text-right text-muted-foreground">
+              $
+              {(
+                (detalle.gramos || 0) * (detalle.genetica?.precio_por_gramo || 0) +
+                cantEnrolados * (detalle.genetica?.precio_por_enrolado || 0)
+              ).toFixed(2)}
+            </TableCell>
+          </TableRow>
+        )
+      })
+    } else {
+      const gramos = Number(venta.gramos) || 0
+      const enrolados = venta.cantidad_enrolados || 0
+      const pesoTotal = Number(venta.peso_enrolados) || 0
+      const pesoPorEnrolado = enrolados > 0 ? Math.round((pesoTotal / enrolados) * 10) / 10 : 0
+
+      return (
+        <TableRow className="bg-muted/30 border-l-4 border-l-emerald-500">
+          <TableCell></TableCell>
+          <TableCell></TableCell>
+          <TableCell></TableCell>
+          <TableCell className="font-medium text-foreground">{venta.genetica?.nombre}</TableCell>
+          <TableCell>
+            <div className="flex flex-col gap-1">
+              {gramos > 0 && (
+                <div className="flex items-center gap-1 text-sm">
+                  <Scale className="h-3 w-3 text-emerald-600" />
+                  <span>
+                    {gramos}g x ${venta.precio_unitario}/g
+                  </span>
+                </div>
+              )}
+              {enrolados > 0 && (
+                <div className="flex items-center gap-1 text-sm text-amber-600">
+                  <Cigarette className="h-3 w-3" />
+                  <span>
+                    {enrolados} enr. ({pesoPorEnrolado}g c/u) x ${venta.genetica?.precio_por_enrolado || 0}
+                  </span>
+                </div>
+              )}
+            </div>
+          </TableCell>
+          <TableCell></TableCell>
+          <TableCell></TableCell>
+        </TableRow>
+      )
+    }
   }
 
   return (
@@ -447,11 +622,11 @@ export function HistorialVentas() {
 
         <Card className="bg-card border-border border-red-200">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-red-600">Pendiente</CardTitle>
-            <Clock className="h-4 w-4 text-red-600" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Pendiente</CardTitle>
+            <Clock className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">${ventasPendientes.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-red-500">${ventasPendientes.toFixed(2)}</div>
           </CardContent>
         </Card>
       </div>
@@ -459,88 +634,121 @@ export function HistorialVentas() {
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
-            <TrendingUp className="h-5 w-5 text-emerald-600" />
+            <Package className="h-5 w-5 text-emerald-600" />
             Detalle de Ventas
             {soloNoPagados && (
-              <Badge variant="outline" className="ml-2 bg-red-100 text-red-700 border-red-200">
+              <Badge variant="outline" className="ml-2 border-red-300 text-red-600">
                 Solo Pendientes
               </Badge>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {ventasFiltradas.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              {loading
-                ? "Cargando ventas..."
-                : soloNoPagados
-                  ? "No hay ventas pendientes de pago"
-                  : "No hay ventas en el período seleccionado"}
-            </p>
+          {loading ? (
+            <div className="text-center py-8 text-muted-foreground">Cargando ventas...</div>
+          ) : ventasFiltradas.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {soloNoPagados ? "No hay ventas pendientes de pago en este período" : "No hay ventas en este período"}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="border-border">
+                    <TableHead className="w-8"></TableHead>
                     <TableHead className="text-muted-foreground">Fecha</TableHead>
                     <TableHead className="text-muted-foreground">Socio</TableHead>
-                    <TableHead className="text-muted-foreground">DNI</TableHead>
                     <TableHead className="text-muted-foreground">Genética</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Cantidad</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Precio/g</TableHead>
+                    <TableHead className="text-muted-foreground">Gramos</TableHead>
                     <TableHead className="text-muted-foreground">Pago</TableHead>
                     <TableHead className="text-muted-foreground text-right">Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ventasFiltradas.map((venta) => (
-                    <TableRow key={venta.id} className="border-border">
-                      <TableCell className="text-muted-foreground text-sm">
-                        {new Date(venta.created_at).toLocaleDateString("es-AR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </TableCell>
-                      <TableCell className="text-foreground font-medium">
-                        {venta.socio?.apellido}, {venta.socio?.nombre}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{venta.socio?.dni}</TableCell>
-                      <TableCell className="text-foreground">{venta.genetica?.nombre}</TableCell>
-                      <TableCell className="text-right text-foreground">{venta.gramos}g</TableCell>
-                      <TableCell className="text-right text-muted-foreground">${venta.precio_unitario}</TableCell>
-                      <TableCell>
-                        {venta.metodo_pago === "pendiente" ? (
-                          <Badge
-                            variant="outline"
-                            className="bg-red-100 text-red-700 border-red-200 cursor-pointer hover:bg-red-200"
-                            onClick={() => {
-                              setEditingVenta(venta)
-                              setNuevoMetodoPago("efectivo")
-                            }}
-                          >
-                            <Clock className="h-3 w-3 mr-1" />
-                            Pendiente
-                          </Badge>
-                        ) : venta.metodo_pago === "efectivo" ? (
-                          <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200">
-                            <Banknote className="h-3 w-3 mr-1" />
-                            Efectivo
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">
-                            <CreditCard className="h-3 w-3 mr-1" />
-                            Transferencia
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-emerald-600">
-                        ${Number(venta.total).toFixed(2)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {ventasFiltradas.map((venta) => {
+                    const info = getVentaInfo(venta)
+                    const isExpanded = expandedVentas.has(venta.id)
+
+                    return (
+                      <>
+                        <TableRow
+                          key={venta.id}
+                          className="border-border hover:bg-muted/50 cursor-pointer"
+                          onClick={() => toggleExpand(venta.id)}
+                        >
+                          <TableCell className="w-8">
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-emerald-600" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </Button>
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            {new Date(venta.created_at).toLocaleDateString("es-AR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </TableCell>
+                          <TableCell className="font-medium text-foreground">
+                            {venta.socio?.apellido}, {venta.socio?.nombre}
+                          </TableCell>
+                          <TableCell>
+                            {info.esMultiple ? (
+                              <Badge variant="outline" className="border-emerald-300 text-emerald-600">
+                                {info.genetica}
+                              </Badge>
+                            ) : (
+                              <span className="text-foreground">{info.genetica}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="text-foreground">{info.gramos}g</span>
+                              {info.enrolados > 0 && (
+                                <Badge variant="outline" className="border-amber-300 text-amber-600">
+                                  +{info.enrolados} enr.
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {venta.metodo_pago === "pendiente" ? (
+                              <Badge
+                                variant="outline"
+                                className="border-red-300 text-red-600 cursor-pointer hover:bg-red-50"
+                                onClick={() => {
+                                  setEditingVenta(venta)
+                                  setNuevoMetodoPago("efectivo")
+                                }}
+                              >
+                                <Clock className="h-3 w-3 mr-1" />
+                                Pendiente
+                              </Badge>
+                            ) : venta.metodo_pago === "efectivo" ? (
+                              <Badge variant="outline" className="border-emerald-300 text-emerald-600">
+                                <Banknote className="h-3 w-3 mr-1" />
+                                Efectivo
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-blue-300 text-blue-600">
+                                <CreditCard className="h-3 w-3 mr-1" />
+                                Transferencia
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-emerald-600">
+                            ${Number(venta.total).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && renderDetalleVenta(venta)}
+                      </>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>

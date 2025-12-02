@@ -31,6 +31,7 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
     descripcion: "",
     gramos_disponibles: "",
     precio_por_gramo: "",
+    precio_por_enrolado: "",
   })
 
   const resetForm = () => {
@@ -39,6 +40,7 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
       descripcion: "",
       gramos_disponibles: "",
       precio_por_gramo: "",
+      precio_por_enrolado: "",
     })
     setEditingGenetica(null)
   }
@@ -53,6 +55,7 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
       descripcion: formData.descripcion || null,
       gramos_disponibles: Number.parseFloat(formData.gramos_disponibles),
       precio_por_gramo: Number.parseFloat(formData.precio_por_gramo),
+      precio_por_enrolado: Number.parseFloat(formData.precio_por_enrolado) || 0,
     }
 
     if (editingGenetica) {
@@ -85,6 +88,7 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
       descripcion: genetica.descripcion || "",
       gramos_disponibles: genetica.gramos_disponibles.toString(),
       precio_por_gramo: genetica.precio_por_gramo.toString(),
+      precio_por_enrolado: (genetica.precio_por_enrolado || 0).toString(),
     })
     setIsOpen(true)
   }
@@ -186,6 +190,25 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="precio_enrolado">Precio por Enrolado ($)</Label>
+                <Input
+                  id="precio_enrolado"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.precio_por_enrolado}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      precio_por_enrolado: e.target.value,
+                    })
+                  }
+                  placeholder="0"
+                  className="bg-background border-border"
+                />
+                <p className="text-xs text-muted-foreground">Precio unitario de cada enrolado armado</p>
+              </div>
               <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
                 {loading ? "Guardando..." : editingGenetica ? "Actualizar" : "Agregar"}
               </Button>
@@ -211,6 +234,7 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
                   <TableHead className="text-muted-foreground">Descripción</TableHead>
                   <TableHead className="text-muted-foreground text-right">Stock (g)</TableHead>
                   <TableHead className="text-muted-foreground text-right">Precio/g</TableHead>
+                  <TableHead className="text-muted-foreground text-right">Precio/enr</TableHead>
                   <TableHead className="text-muted-foreground text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -231,6 +255,9 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
                         {genetica.gramos_disponibles}g
                       </TableCell>
                       <TableCell className="text-right text-foreground">${genetica.precio_por_gramo}</TableCell>
+                      <TableCell className="text-right text-amber-600">
+                        {genetica.precio_por_enrolado ? `$${genetica.precio_por_enrolado}` : "-"}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button

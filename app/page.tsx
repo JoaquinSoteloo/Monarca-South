@@ -1,0 +1,182 @@
+import Link from "next/link"
+import { createClient } from "@/lib/supabase/server"
+import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Header } from "@/components/header"
+
+export default async function Dashboard() {
+  const supabase = await createClient()
+
+  const [
+    { count: totalSocios },
+    { count: totalGeneticas },
+    { data: ventasHoy },
+    { data: stockBajo },
+    { data: geneticasGramos },
+  ] = await Promise.all([
+    supabase.from("socios").select("*", { count: "exact", head: true }).eq("activo", true),
+    supabase.from("geneticas").select("*", { count: "exact", head: true }).eq("activo", true),
+    supabase.from("ventas").select("total").gte("created_at", new Date().toISOString().split("T")[0]),
+    supabase.from("geneticas").select("nombre, gramos_disponibles").eq("activo", true).lt("gramos_disponibles", 100),
+    supabase.from("geneticas").select("gramos_disponibles").eq("activo", true),
+  ])
+
+  const ventasHoyTotal = ventasHoy?.reduce((sum, v) => sum + Number(v.total), 0) || 0
+  const totalGramosDisponibles = geneticasGramos?.reduce((sum, g) => sum + Number(g.gramos_disponibles), 0) || 0
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+
+      <main className="container mx-auto px-4 py-8">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mb-8">
+          <Card className="bg-card border-emerald-200/50 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Socios Activos</CardTitle>
+              <Users className="h-4 w-4 text-emerald-700" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-900">{totalSocios || 0}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-emerald-200/50 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Genéticas en Stock</CardTitle>
+              <Package className="h-4 w-4 text-emerald-700" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-900">{totalGeneticas || 0}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-emerald-200/50 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Gramos Disponibles</CardTitle>
+              <Scale className="h-4 w-4 text-emerald-700" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-900">{totalGramosDisponibles.toFixed(2)}g</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-emerald-200/50 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Ventas Hoy</CardTitle>
+              <ShoppingCart className="h-4 w-4 text-emerald-700" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-900">${ventasHoyTotal.toFixed(2)}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-amber-300/50 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Stock Bajo</CardTitle>
+              <TrendingUp className="h-4 w-4 text-amber-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-700">{stockBajo?.length || 0}</div>
+              <p className="text-xs text-muted-foreground">{"<"} 100g disponibles</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+          <Link href="/stock" className="group">
+            <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-200/50 hover:border-emerald-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-emerald-800">
+                  <Package className="h-5 w-5 text-emerald-600" />
+                  Gestión de Stock
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">
+                  Administra las genéticas, cantidades y precios del inventario.
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/socios" className="group">
+            <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-200/50 hover:border-emerald-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-emerald-800">
+                  <Users className="h-5 w-5 text-emerald-600" />
+                  Gestión de Socios
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">
+                  Registra y administra socios con sus membresías correspondientes.
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/sucursales" className="group">
+            <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200/50 hover:border-blue-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-800">
+                  <MapPin className="h-5 w-5 text-blue-600" />
+                  Sucursales
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">Administra las sucursales y sus direcciones.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/ventas" className="group">
+            <Card className="bg-gradient-to-br from-amber-50 to-white border-amber-200/50 hover:border-amber-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-amber-800">
+                  <ShoppingCart className="h-5 w-5 text-amber-600" />
+                  Registrar Venta
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">
+                  Registra entregas a socios seleccionando genética y cantidad.
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/historial" className="group">
+            <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-200/50 hover:border-emerald-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-emerald-800">
+                  <History className="h-5 w-5 text-emerald-600" />
+                  Historial de Ventas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">Consulta el historial de ventas por período de fechas.</p>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+
+        {stockBajo && stockBajo.length > 0 && (
+          <Card className="mt-8 bg-amber-50 border-amber-300">
+            <CardHeader>
+              <CardTitle className="text-amber-700">Alerta de Stock Bajo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-1">
+                {stockBajo.map((item, i) => (
+                  <li key={i} className="text-foreground">
+                    {item.nombre}: <span className="text-amber-600 font-medium">{item.gramos_disponibles}g</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+      </main>
+    </div>
+  )
+}

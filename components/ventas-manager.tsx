@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { ShoppingCart, AlertCircle, Banknote, CreditCard, AlertTriangle } from "lucide-react"
+import { ShoppingCart, AlertCircle, Banknote, CreditCard, AlertTriangle, Scale, Cigarette, Clock } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -41,8 +41,10 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
     socio_id: "",
     genetica_id: "",
     gramos: "",
+    cantidad_enrolados: "",
+    peso_por_enrolado: "",
     notas: "",
-    metodo_pago: "efectivo" as "efectivo" | "transferencia",
+    metodo_pago: "efectivo" as "efectivo" | "transferencia" | "pendiente",
   })
 
   const selectedSocio = socios.find((s) => s.id === formData.socio_id)
@@ -50,13 +52,24 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
 
   const gramosDisponibles = selectedGenetica?.gramos_disponibles || 0
   const precioUnitario = selectedGenetica?.precio_por_gramo || 0
+
   const gramosInput = Number.parseFloat(formData.gramos) || 0
-  const total = gramosInput * precioUnitario
+  const cantidadEnrolados = Number.parseInt(formData.cantidad_enrolados) || 0
+  const pesoPorEnrolado = Number.parseFloat(formData.peso_por_enrolado) || 0
+  const pesoTotalEnrolados = cantidadEnrolados * pesoPorEnrolado
+  const gramosTotales = gramosInput + pesoTotalEnrolados
+  const total = gramosTotales * precioUnitario
 
   const limiteMensual = selectedSocio?.gramos_mensuales || 0
   const consumidoMes = selectedSocio?.gramos_consumidos_mes || 0
   const disponibleSocio = limiteMensual - consumidoMes
-  const excedeLimit = limiteMensual > 0 && gramosInput > disponibleSocio
+  const excedeLimit = limiteMensual > 0 && gramosTotales > disponibleSocio
+
+  const getTipoVenta = () => {
+    if (gramosInput > 0 && cantidadEnrolados > 0) return "mixto"
+    if (cantidadEnrolados > 0) return "enrolados"
+    return "gramos"
+  }
 
   const procesarVenta = async () => {
     setLoading(true)
@@ -66,7 +79,9 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
     const ventaData = {
       socio_id: formData.socio_id,
       genetica_id: formData.genetica_id,
-      gramos: gramosInput,
+      tipo_venta: getTipoVenta(),
+      gramos: gramosTotales,
+      cantidad_enrolados: cantidadEnrolados > 0 ? cantidadEnrolados : null,
       precio_unitario: precioUnitario,
       total: total,
       metodo_pago: formData.metodo_pago,
@@ -88,7 +103,7 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
     await supabase
       .from("geneticas")
       .update({
-        gramos_disponibles: gramosDisponibles - gramosInput,
+        gramos_disponibles: gramosDisponibles - gramosTotales,
         updated_at: new Date().toISOString(),
       })
       .eq("id", formData.genetica_id)
@@ -96,13 +111,21 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
     await supabase
       .from("socios")
       .update({
-        gramos_consumidos_mes: consumidoMes + gramosInput,
+        gramos_consumidos_mes: consumidoMes + gramosTotales,
         updated_at: new Date().toISOString(),
       })
       .eq("id", formData.socio_id)
 
     setVentas([newVenta, ...ventas])
-    setFormData({ socio_id: "", genetica_id: "", gramos: "", notas: "", metodo_pago: "efectivo" })
+    setFormData({
+      socio_id: "",
+      genetica_id: "",
+      gramos: "",
+      cantidad_enrolados: "",
+      peso_por_enrolado: "",
+      notas: "",
+      metodo_pago: "efectivo",
+    })
     setLoading(false)
     router.refresh()
   }
@@ -111,12 +134,17 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
     e.preventDefault()
     setError(null)
 
-    if (gramosInput <= 0) {
-      setError("Ingresa una cantidad válida de gramos")
+    if (gramosTotales <= 0) {
+      setError("Ingresa una cantidad válida de gramos o enrolados")
       return
     }
 
-    if (gramosInput > gramosDisponibles) {
+    if (cantidadEnrolados > 0 && pesoPorEnrolado <= 0) {
+      setError("Ingresa el peso por enrolado")
+      return
+    }
+
+    if (gramosTotales > gramosDisponibles) {
       setError(`Stock insuficiente. Disponible: ${gramosDisponibles}g`)
       return
     }
@@ -158,11 +186,11 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                 Consumido este mes: <strong>{consumidoMes}g</strong>
               </p>
               <p className="text-sm text-amber-800">
-                Intentando comprar: <strong>{gramosInput}g</strong>
+                Intentando comprar: <strong>{gramosTotales}g</strong>
               </p>
               <p className="text-sm text-amber-800">
-                Nuevo total: <strong>{consumidoMes + gramosInput}g</strong> (
-                {consumidoMes + gramosInput - limiteMensual}g sobre el límite)
+                Nuevo total: <strong>{consumidoMes + gramosTotales}g</strong> (
+                {consumidoMes + gramosTotales - limiteMensual}g sobre el límite)
               </p>
             </div>
             <p className="text-sm text-muted-foreground mt-3">¿Deseas continuar con la venta de todas formas?</p>
@@ -231,28 +259,72 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="gramos">Cantidad (gramos)</Label>
-              <Input
-                id="gramos"
-                type="number"
-                step="0.5"
-                min="0.5"
-                max={Math.min(40, gramosDisponibles)}
-                value={formData.gramos}
-                onChange={(e) => setFormData({ ...formData, gramos: e.target.value })}
-                placeholder="Ej: 5"
-                required
-                className="bg-background border-border"
-              />
-              <p className="text-xs text-muted-foreground">Máximo por venta: 40g</p>
+            <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Scale className="h-4 w-4 text-emerald-600" />
+                Gramos
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gramos">Cantidad de gramos</Label>
+                <Input
+                  id="gramos"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max={gramosDisponibles}
+                  value={formData.gramos}
+                  onChange={(e) => setFormData({ ...formData, gramos: e.target.value })}
+                  placeholder="Ej: 5"
+                  className="bg-background border-border"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Cigarette className="h-4 w-4 text-amber-600" />
+                Enrolados
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="cantidad_enrolados">Cantidad</Label>
+                  <Input
+                    id="cantidad_enrolados"
+                    type="number"
+                    min="0"
+                    value={formData.cantidad_enrolados}
+                    onChange={(e) => setFormData({ ...formData, cantidad_enrolados: e.target.value })}
+                    placeholder="Ej: 3"
+                    className="bg-background border-border"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="peso_por_enrolado">Peso c/u (g)</Label>
+                  <Input
+                    id="peso_por_enrolado"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={formData.peso_por_enrolado}
+                    onChange={(e) => setFormData({ ...formData, peso_por_enrolado: e.target.value })}
+                    placeholder="Ej: 0.5"
+                    className="bg-background border-border"
+                    disabled={!formData.cantidad_enrolados || Number(formData.cantidad_enrolados) <= 0}
+                  />
+                </div>
+              </div>
+              {cantidadEnrolados > 0 && pesoPorEnrolado > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Peso total: {cantidadEnrolados} x {pesoPorEnrolado}g = <strong>{pesoTotalEnrolados}g</strong>
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="metodo_pago">Método de Pago</Label>
               <Select
                 value={formData.metodo_pago}
-                onValueChange={(value: "efectivo" | "transferencia") =>
+                onValueChange={(value: "efectivo" | "transferencia" | "pendiente") =>
                   setFormData({ ...formData, metodo_pago: value })
                 }
               >
@@ -270,6 +342,12 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                     <div className="flex items-center gap-2">
                       <CreditCard className="h-4 w-4" />
                       Transferencia
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="pendiente">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Pendiente
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -299,17 +377,37 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                 <span className="text-muted-foreground">Total a cobrar:</span>
                 <span className="text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
               </div>
-              {gramosInput > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {gramosInput}g x ${precioUnitario}/g
-                </p>
+              {gramosTotales > 0 && (
+                <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                  {gramosInput > 0 && (
+                    <p className="flex items-center gap-1">
+                      <Scale className="h-3 w-3" />
+                      Gramos: {gramosInput}g x ${precioUnitario}/g = ${(gramosInput * precioUnitario).toFixed(2)}
+                    </p>
+                  )}
+                  {cantidadEnrolados > 0 && pesoPorEnrolado > 0 && (
+                    <p className="flex items-center gap-1">
+                      <Cigarette className="h-3 w-3" />
+                      {cantidadEnrolados} enrolado{cantidadEnrolados > 1 ? "s" : ""} ({cantidadEnrolados} x{" "}
+                      {pesoPorEnrolado}g = {pesoTotalEnrolados}g) x ${precioUnitario}/g = $
+                      {(pesoTotalEnrolados * precioUnitario).toFixed(2)}
+                    </p>
+                  )}
+                  <p className="font-medium pt-1 border-t border-emerald-200">Total: {gramosTotales}g</p>
+                </div>
               )}
             </div>
 
             <Button
               type="submit"
               className="w-full bg-emerald-600 hover:bg-emerald-700"
-              disabled={loading || !formData.socio_id || !formData.genetica_id || !formData.gramos}
+              disabled={
+                loading ||
+                !formData.socio_id ||
+                !formData.genetica_id ||
+                gramosTotales <= 0 ||
+                (cantidadEnrolados > 0 && pesoPorEnrolado <= 0)
+              }
             >
               {loading ? "Registrando..." : "Registrar Venta"}
             </Button>
@@ -332,6 +430,7 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                     <TableHead className="text-muted-foreground">Fecha</TableHead>
                     <TableHead className="text-muted-foreground">Socio</TableHead>
                     <TableHead className="text-muted-foreground">Genética</TableHead>
+                    <TableHead className="text-muted-foreground">Tipo</TableHead>
                     <TableHead className="text-muted-foreground text-right">Cantidad</TableHead>
                     <TableHead className="text-muted-foreground">Pago</TableHead>
                     <TableHead className="text-muted-foreground text-right">Total</TableHead>
@@ -352,18 +451,60 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                         {venta.socio?.apellido}, {venta.socio?.nombre}
                       </TableCell>
                       <TableCell className="text-foreground">{venta.genetica?.nombre}</TableCell>
-                      <TableCell className="text-right text-foreground">{venta.gramos}g</TableCell>
                       <TableCell>
-                        <Badge variant={venta.metodo_pago === "efectivo" ? "secondary" : "outline"} className="text-xs">
+                        {venta.tipo_venta === "mixto" ? (
+                          <div className="flex gap-1">
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                              <Scale className="h-3 w-3" />
+                            </Badge>
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                              <Cigarette className="h-3 w-3" />
+                            </Badge>
+                          </div>
+                        ) : venta.tipo_venta === "enrolados" ? (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                            <Cigarette className="h-3 w-3 mr-1" />
+                            Enrolados
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                            <Scale className="h-3 w-3 mr-1" />
+                            Gramos
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-foreground">
+                        {venta.cantidad_enrolados
+                          ? `${venta.cantidad_enrolados} enr. (${venta.gramos}g)`
+                          : `${venta.gramos}g`}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            venta.metodo_pago === "pendiente"
+                              ? "destructive"
+                              : venta.metodo_pago === "efectivo"
+                                ? "secondary"
+                                : "outline"
+                          }
+                          className={
+                            venta.metodo_pago === "pendiente" ? "bg-red-100 text-red-700 border-red-200" : "text-xs"
+                          }
+                        >
                           {venta.metodo_pago === "efectivo" ? (
                             <>
                               <Banknote className="h-3 w-3 mr-1" />
                               Efectivo
                             </>
-                          ) : (
+                          ) : venta.metodo_pago === "transferencia" ? (
                             <>
                               <CreditCard className="h-3 w-3 mr-1" />
                               Transferencia
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="h-3 w-3 mr-1" />
+                              Pendiente
                             </>
                           )}
                         </Badge>

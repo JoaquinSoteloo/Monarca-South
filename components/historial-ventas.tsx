@@ -7,7 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CalendarIcon, TrendingUp, Package, DollarSign, FileDown } from "lucide-react"
+import {
+  CalendarIcon,
+  TrendingUp,
+  Package,
+  DollarSign,
+  FileDown,
+  Clock,
+  Banknote,
+  CreditCard,
+  Check,
+  Filter,
+} from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -15,6 +26,16 @@ import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useRouter } from "next/navigation"
 
 export function HistorialVentas() {
   const [ventas, setVentas] = useState<Venta[]>([])
@@ -24,6 +45,11 @@ export function HistorialVentas() {
   const [exportando, setExportando] = useState(false)
   const [popoverDesdeOpen, setPopoverDesdeOpen] = useState(false)
   const [popoverHastaOpen, setPopoverHastaOpen] = useState(false)
+  const [editingVenta, setEditingVenta] = useState<Venta | null>(null)
+  const [nuevoMetodoPago, setNuevoMetodoPago] = useState<"efectivo" | "transferencia">("efectivo")
+  const [updatingPago, setUpdatingPago] = useState(false)
+  const [soloNoPagados, setSoloNoPagados] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     const hoy = new Date()
@@ -62,11 +88,32 @@ export function HistorialVentas() {
     }
   }, [fechaDesde, fechaHasta])
 
-  const totalVentas = ventas.reduce((sum, v) => sum + Number(v.total), 0)
-  const totalGramos = ventas.reduce((sum, v) => sum + Number(v.gramos), 0)
+  const handleUpdateMetodoPago = async () => {
+    if (!editingVenta) return
+
+    setUpdatingPago(true)
+    const supabase = createClient()
+
+    const { error } = await supabase.from("ventas").update({ metodo_pago: nuevoMetodoPago }).eq("id", editingVenta.id)
+
+    if (!error) {
+      setVentas(ventas.map((v) => (v.id === editingVenta.id ? { ...v, metodo_pago: nuevoMetodoPago } : v)))
+      setEditingVenta(null)
+      router.refresh()
+    }
+    setUpdatingPago(false)
+  }
+
+  const ventasFiltradas = soloNoPagados ? ventas.filter((v) => v.metodo_pago === "pendiente") : ventas
+
+  const totalVentas = ventasFiltradas.reduce((sum, v) => sum + Number(v.total), 0)
+  const totalGramos = ventasFiltradas.reduce((sum, v) => sum + Number(v.gramos), 0)
   const ventasEfectivo = ventas.filter((v) => v.metodo_pago === "efectivo").reduce((sum, v) => sum + Number(v.total), 0)
   const ventasTransferencia = ventas
     .filter((v) => v.metodo_pago === "transferencia")
+    .reduce((sum, v) => sum + Number(v.total), 0)
+  const ventasPendientes = ventas
+    .filter((v) => v.metodo_pago === "pendiente")
     .reduce((sum, v) => sum + Number(v.total), 0)
 
   const exportarPDF = async () => {
@@ -110,17 +157,22 @@ export function HistorialVentas() {
       doc.setFontSize(10)
       doc.text(`Total Ventas: $${totalVentas.toFixed(2)}`, 14, 96)
       doc.text(`Total Gramos: ${totalGramos.toFixed(1)}g`, 14, 102)
-      doc.text(`Transacciones: ${ventas.length}`, 14, 108)
+      doc.text(`Transacciones: ${ventasFiltradas.length}`, 14, 108)
       doc.text(`Efectivo: $${ventasEfectivo.toFixed(2)}`, 100, 96)
       doc.text(`Transferencia: $${ventasTransferencia.toFixed(2)}`, 100, 102)
+      doc.text(`Pendiente: $${ventasPendientes.toFixed(2)}`, 100, 108)
 
-      const tableData = ventas.map((venta) => [
+      const tableData = ventasFiltradas.map((venta) => [
         new Date(venta.created_at).toLocaleDateString("es-AR"),
         `${venta.socio?.apellido}, ${venta.socio?.nombre}`,
         venta.genetica?.nombre || "",
         `${venta.gramos}g`,
         `$${venta.precio_unitario}`,
-        venta.metodo_pago === "efectivo" ? "Efectivo" : "Transferencia",
+        venta.metodo_pago === "efectivo"
+          ? "Efectivo"
+          : venta.metodo_pago === "transferencia"
+            ? "Transferencia"
+            : "Pendiente",
         `$${Number(venta.total).toFixed(2)}`,
       ])
 
@@ -174,6 +226,76 @@ export function HistorialVentas() {
 
   return (
     <div className="space-y-6">
+      <Dialog open={!!editingVenta} onOpenChange={(open) => !open && setEditingVenta(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+                <Check className="h-6 w-6 text-emerald-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-foreground">Confirmar Pago</DialogTitle>
+                <DialogDescription className="text-muted-foreground">Registrar el pago de esta venta</DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="py-4">
+            {editingVenta && (
+              <div className="space-y-4">
+                <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Socio:{" "}
+                    <strong className="text-foreground">
+                      {editingVenta.socio?.apellido}, {editingVenta.socio?.nombre}
+                    </strong>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Total: <strong className="text-emerald-600">${Number(editingVenta.total).toFixed(2)}</strong>
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Método de pago</label>
+                  <Select
+                    value={nuevoMetodoPago}
+                    onValueChange={(value: "efectivo" | "transferencia") => setNuevoMetodoPago(value)}
+                  >
+                    <SelectTrigger className="bg-background border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="efectivo">
+                        <div className="flex items-center gap-2">
+                          <Banknote className="h-4 w-4" />
+                          Efectivo
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="transferencia">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="h-4 w-4" />
+                          Transferencia
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditingVenta(null)} className="border-border">
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleUpdateMetodoPago}
+              disabled={updatingPago}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {updatingPago ? "Guardando..." : "Confirmar Pago"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
@@ -212,11 +334,6 @@ export function HistorialVentas() {
                     }}
                     locale={es}
                     className="rounded-md"
-                    classNames={{
-                      day_selected: "bg-emerald-600 text-white hover:bg-emerald-700 focus:bg-emerald-700",
-                      day_today: "bg-emerald-100 text-emerald-900",
-                      day: "hover:bg-emerald-50",
-                    }}
                   />
                 </PopoverContent>
               </Popover>
@@ -251,15 +368,23 @@ export function HistorialVentas() {
                     }}
                     locale={es}
                     className="rounded-md"
-                    classNames={{
-                      day_selected: "bg-emerald-600 text-white hover:bg-emerald-700 focus:bg-emerald-700",
-                      day_today: "bg-emerald-100 text-emerald-900",
-                      day: "hover:bg-emerald-50",
-                    }}
                   />
                 </PopoverContent>
               </Popover>
             </div>
+
+            <Button
+              onClick={() => setSoloNoPagados(!soloNoPagados)}
+              variant={soloNoPagados ? "default" : "outline"}
+              className={cn(
+                soloNoPagados
+                  ? "bg-red-600 hover:bg-red-700 text-white"
+                  : "border-red-300 text-red-600 hover:bg-red-50",
+              )}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              {soloNoPagados ? "Mostrando Pendientes" : "Ver Pendientes"}
+            </Button>
 
             <Button onClick={buscarVentas} className="bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
               <FileDown className="h-4 w-4 mr-2" />
@@ -278,7 +403,7 @@ export function HistorialVentas() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card className="bg-card border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Ventas</CardTitle>
@@ -286,7 +411,7 @@ export function HistorialVentas() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-600">${totalVentas.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">{ventas.length} transacciones</p>
+            <p className="text-xs text-muted-foreground">{ventasFiltradas.length} transacciones</p>
           </CardContent>
         </Card>
 
@@ -303,7 +428,7 @@ export function HistorialVentas() {
         <Card className="bg-card border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Efectivo</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-600" />
+            <Banknote className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">${ventasEfectivo.toFixed(2)}</div>
@@ -313,10 +438,20 @@ export function HistorialVentas() {
         <Card className="bg-card border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Transferencia</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-600" />
+            <CreditCard className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">${ventasTransferencia.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border border-red-200">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-red-600">Pendiente</CardTitle>
+            <Clock className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">${ventasPendientes.toFixed(2)}</div>
           </CardContent>
         </Card>
       </div>
@@ -326,12 +461,21 @@ export function HistorialVentas() {
           <CardTitle className="flex items-center gap-2 text-foreground">
             <TrendingUp className="h-5 w-5 text-emerald-600" />
             Detalle de Ventas
+            {soloNoPagados && (
+              <Badge variant="outline" className="ml-2 bg-red-100 text-red-700 border-red-200">
+                Solo Pendientes
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {ventas.length === 0 ? (
+          {ventasFiltradas.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              {loading ? "Cargando ventas..." : "No hay ventas en el período seleccionado"}
+              {loading
+                ? "Cargando ventas..."
+                : soloNoPagados
+                  ? "No hay ventas pendientes de pago"
+                  : "No hay ventas en el período seleccionado"}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -349,7 +493,7 @@ export function HistorialVentas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ventas.map((venta) => (
+                  {ventasFiltradas.map((venta) => (
                     <TableRow key={venta.id} className="border-border">
                       <TableCell className="text-muted-foreground text-sm">
                         {new Date(venta.created_at).toLocaleDateString("es-AR", {
@@ -368,19 +512,29 @@ export function HistorialVentas() {
                       <TableCell className="text-right text-foreground">{venta.gramos}g</TableCell>
                       <TableCell className="text-right text-muted-foreground">${venta.precio_unitario}</TableCell>
                       <TableCell>
-                        <Badge variant={venta.metodo_pago === "efectivo" ? "secondary" : "outline"} className="text-xs">
-                          {venta.metodo_pago === "efectivo" ? (
-                            <>
-                              <DollarSign className="h-3 w-3 mr-1" />
-                              Efectivo
-                            </>
-                          ) : (
-                            <>
-                              <DollarSign className="h-3 w-3 mr-1" />
-                              Transferencia
-                            </>
-                          )}
-                        </Badge>
+                        {venta.metodo_pago === "pendiente" ? (
+                          <Badge
+                            variant="outline"
+                            className="bg-red-100 text-red-700 border-red-200 cursor-pointer hover:bg-red-200"
+                            onClick={() => {
+                              setEditingVenta(venta)
+                              setNuevoMetodoPago("efectivo")
+                            }}
+                          >
+                            <Clock className="h-3 w-3 mr-1" />
+                            Pendiente
+                          </Badge>
+                        ) : venta.metodo_pago === "efectivo" ? (
+                          <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                            <Banknote className="h-3 w-3 mr-1" />
+                            Efectivo
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">
+                            <CreditCard className="h-3 w-3 mr-1" />
+                            Transferencia
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-bold text-emerald-600">
                         ${Number(venta.total).toFixed(2)}

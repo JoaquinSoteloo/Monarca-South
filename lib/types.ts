@@ -51,7 +51,9 @@ export interface Venta {
   gramos: number
   precio_unitario: number
   total: number
-  metodo_pago: "efectivo" | "transferencia"
+  metodo_pago: "efectivo" | "transferencia" | "pendiente"
+  tipo_venta: "gramos" | "enrolados" | "mixto"
+  cantidad_enrolados: number | null
   notas: string | null
   created_at: string
   socio?: Socio

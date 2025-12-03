@@ -27,6 +27,7 @@ import {
   Plus,
   Trash2,
   FileText,
+  AlertTriangle,
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -47,6 +48,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import React from "react" // Import React
+// Imported AlertDialog components
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface VentaConDetalles extends Venta {
   detalles?: DetalleVenta[]
@@ -81,27 +93,10 @@ export function HistorialVentas() {
   const [popoverEditFechaOpen, setPopoverEditFechaOpen] = useState(false)
   const router = useRouter()
 
-  useEffect(() => {
-    const hoy = new Date()
-    const hace30Dias = new Date()
-    hace30Dias.setDate(hoy.getDate() - 30)
+  const [ventaABorrar, setVentaABorrar] = useState<VentaConDetalles | null>(null)
+  const [borrando, setBorrando] = useState(false)
 
-    setFechaHasta(hoy)
-    setFechaDesde(hace30Dias)
-
-    const loadData = async () => {
-      const supabase = createClient()
-      const [sociosRes, geneticasRes] = await Promise.all([
-        supabase.from("socios").select("*").eq("activo", true).order("apellido"),
-        supabase.from("geneticas").select("*").order("nombre"),
-      ])
-      if (sociosRes.data) setSocios(sociosRes.data)
-      if (geneticasRes.data) setGeneticas(geneticasRes.data)
-    }
-    loadData()
-  }, [])
-
-  const buscarVentas = async () => {
+  const fetchVentas = async () => {
     if (!fechaDesde || !fechaHasta) return
 
     setLoading(true)
@@ -125,9 +120,37 @@ export function HistorialVentas() {
     setLoading(false)
   }
 
+  const fetchGeneticas = async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase.from("geneticas").select("*").order("nombre")
+    if (!error && data) {
+      setGeneticas(data)
+    }
+  }
+
+  useEffect(() => {
+    const hoy = new Date()
+    const hace30Dias = new Date()
+    hace30Dias.setDate(hoy.getDate() - 30)
+
+    setFechaHasta(hoy)
+    setFechaDesde(hace30Dias)
+
+    const loadData = async () => {
+      const supabase = createClient()
+      const [sociosRes, geneticasRes] = await Promise.all([
+        supabase.from("socios").select("*").eq("activo", true).order("apellido"),
+        supabase.from("geneticas").select("*").order("nombre"),
+      ])
+      if (sociosRes.data) setSocios(sociosRes.data)
+      if (geneticasRes.data) setGeneticas(geneticasRes.data)
+    }
+    loadData()
+  }, [])
+
   useEffect(() => {
     if (fechaDesde && fechaHasta) {
-      buscarVentas()
+      fetchVentas()
     }
   }, [fechaDesde, fechaHasta])
 
@@ -194,9 +217,6 @@ export function HistorialVentas() {
       fecha: new Date(venta.created_at),
     })
 
-    console.log("[v0] Venta a editar:", venta)
-    console.log("[v0] Detalles:", venta.detalles)
-
     if (venta.detalles && venta.detalles.length > 0) {
       const lineas = venta.detalles.map((d: any) => ({
         genetica_id: d.genetica_id || "",
@@ -204,7 +224,6 @@ export function HistorialVentas() {
         cantidad_enrolados: Number(d.cantidad_enrolados) || 0,
         peso_por_enrolado: Number(d.peso_por_enrolado) || 0,
       }))
-      console.log("[v0] Lineas cargadas:", lineas)
       setEditLineas(lineas)
     } else {
       // Ventas legacy sin detalle_venta - usar datos de la tabla ventas
@@ -214,7 +233,6 @@ export function HistorialVentas() {
         cantidad_enrolados: 0,
         peso_por_enrolado: 0,
       }
-      console.log("[v0] Linea legacy:", lineaLegacy)
       setEditLineas([lineaLegacy])
     }
   }
@@ -224,18 +242,53 @@ export function HistorialVentas() {
     setSavingEdit(true)
     const supabase = createClient()
 
-    // Calcular totales
+    const gramosOriginales: Record<string, number> = {}
+    if (editingFullVenta.detalles && editingFullVenta.detalles.length > 0) {
+      for (const detalle of editingFullVenta.detalles) {
+        const geneticaId = detalle.genetica_id
+        const gramosDetalle = Number(detalle.gramos) || 0
+        const pesoEnrolados = (Number(detalle.cantidad_enrolados) || 0) * (Number(detalle.peso_por_enrolado) || 0)
+        gramosOriginales[geneticaId] = (gramosOriginales[geneticaId] || 0) + gramosDetalle + pesoEnrolados
+      }
+    } else if (editingFullVenta.genetica_id) {
+      gramosOriginales[editingFullVenta.genetica_id] = Number(editingFullVenta.gramos) || 0
+    }
+
+    // Calcular totales nuevos
     let totalGramos = 0
     let totalVenta = 0
     const lineasValidas = editLineas.filter((l) => l.genetica_id && (l.gramos > 0 || l.cantidad_enrolados > 0))
 
+    const gramosNuevos: Record<string, number> = {}
     for (const linea of lineasValidas) {
       const genetica = geneticas.find((g) => g.id === linea.genetica_id)
       const pesoEnrolados = linea.cantidad_enrolados * linea.peso_por_enrolado
-      totalGramos += linea.gramos + pesoEnrolados
+      const gramosTotalesLinea = linea.gramos + pesoEnrolados
+      totalGramos += gramosTotalesLinea
       totalVenta +=
         linea.gramos * (genetica?.precio_por_gramo || 0) +
         linea.cantidad_enrolados * (genetica?.precio_por_enrolado || 0)
+      gramosNuevos[linea.genetica_id] = (gramosNuevos[linea.genetica_id] || 0) + gramosTotalesLinea
+    }
+
+    const todasLasGeneticas = new Set([...Object.keys(gramosOriginales), ...Object.keys(gramosNuevos)])
+    for (const geneticaId of todasLasGeneticas) {
+      const original = gramosOriginales[geneticaId] || 0
+      const nuevo = gramosNuevos[geneticaId] || 0
+      const diferencia = original - nuevo // Positivo = devolver, Negativo = descontar más
+
+      if (diferencia !== 0) {
+        const genetica = geneticas.find((g) => g.id === geneticaId)
+        if (genetica) {
+          await supabase
+            .from("geneticas")
+            .update({
+              gramos_disponibles: genetica.gramos_disponibles + diferencia,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", geneticaId)
+        }
+      }
     }
 
     // Actualizar venta principal
@@ -289,8 +342,57 @@ export function HistorialVentas() {
 
     setEditingFullVenta(null)
     setSavingEdit(false)
-    buscarVentas()
+    fetchVentas()
+    fetchGeneticas()
     router.refresh()
+  }
+
+  const handleDeleteVenta = async () => {
+    if (!ventaABorrar) return
+    setBorrando(true)
+    const supabase = createClient()
+
+    // Calcular gramos a devolver por genética
+    const gramosADevolver: Record<string, number> = {}
+    if (ventaABorrar.detalles && ventaABorrar.detalles.length > 0) {
+      for (const detalle of ventaABorrar.detalles) {
+        const geneticaId = detalle.genetica_id
+        const gramosDetalle = Number(detalle.gramos) || 0
+        const pesoEnrolados = (Number(detalle.cantidad_enrolados) || 0) * (Number(detalle.peso_por_enrolado) || 0)
+        gramosADevolver[geneticaId] = (gramosADevolver[geneticaId] || 0) + gramosDetalle + pesoEnrolados
+      }
+    } else if (ventaABorrar.genetica_id) {
+      gramosADevolver[ventaABorrar.genetica_id] = Number(ventaABorrar.gramos) || 0
+    }
+
+    // Devolver stock a cada genética
+    for (const [geneticaId, gramos] of Object.entries(gramosADevolver)) {
+      const genetica = geneticas.find((g) => g.id === geneticaId)
+      if (genetica) {
+        await supabase
+          .from("geneticas")
+          .update({
+            gramos_disponibles: genetica.gramos_disponibles + gramos,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", geneticaId)
+      }
+    }
+
+    // Eliminar detalles
+    await supabase.from("detalle_venta").delete().eq("venta_id", ventaABorrar.id)
+
+    // Eliminar venta
+    const { error } = await supabase.from("ventas").delete().eq("id", ventaABorrar.id)
+
+    if (error) {
+      console.error("Error al borrar venta:", error)
+    }
+
+    setVentaABorrar(null)
+    setBorrando(false)
+    fetchVentas()
+    fetchGeneticas()
   }
 
   const agregarLineaEdit = () => {
@@ -917,6 +1019,40 @@ export function HistorialVentas() {
         </DialogContent>
       </Dialog>
 
+      <AlertDialog open={!!ventaABorrar} onOpenChange={(open) => !open && setVentaABorrar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              ¿Eliminar esta venta?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará la venta y se devolverán los gramos al stock de las
+              genéticas correspondientes.
+              {ventaABorrar && (
+                <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
+                  <p>
+                    <strong>Socio:</strong> {ventaABorrar.socio?.apellido}, {ventaABorrar.socio?.nombre}
+                  </p>
+                  <p>
+                    <strong>Total:</strong> ${ventaABorrar.total?.toLocaleString()}
+                  </p>
+                  <p>
+                    <strong>Gramos a devolver:</strong> {ventaABorrar.gramos}g
+                  </p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteVenta} disabled={borrando} className="bg-red-600 hover:bg-red-700">
+              {borrando ? "Eliminando..." : "Eliminar Venta"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
@@ -1007,7 +1143,7 @@ export function HistorialVentas() {
               {soloNoPagados ? "Mostrando Pendientes" : "Ver Pendientes"}
             </Button>
 
-            <Button onClick={buscarVentas} className="bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
+            <Button onClick={fetchVentas} className="bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
               <FileDown className="h-4 w-4 mr-2" />
               {loading ? "Buscando..." : "Buscar"}
             </Button>
@@ -1228,14 +1364,25 @@ export function HistorialVentas() {
                             ${Number(venta.total).toFixed(2)}
                           </TableCell>
                           <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEditVenta(venta)}
-                              className="h-8 w-8 p-0 hover:bg-emerald-100"
-                            >
-                              <Pencil className="h-4 w-4 text-emerald-600" />
-                            </Button>
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditVenta(venta)}
+                                className="h-8 w-8 p-0 hover:bg-emerald-100"
+                              >
+                                <Pencil className="h-4 w-4 text-emerald-600" />
+                              </Button>
+                              {/* Botón de borrar */}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setVentaABorrar(venta)}
+                                className="h-8 w-8 p-0 text-red-500 hover:bg-red-100 hover:text-red-700"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                         {isExpanded && renderDetalleVenta(venta)}

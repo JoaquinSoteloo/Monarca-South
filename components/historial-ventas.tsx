@@ -50,6 +50,7 @@ import React from "react" // Import React
 
 interface VentaConDetalles extends Venta {
   detalles?: DetalleVenta[]
+  socio?: Socio // Asegúrate de que Socio tenga es_miembro
 }
 
 export function HistorialVentas() {
@@ -112,7 +113,7 @@ export function HistorialVentas() {
     const { data, error } = await supabase
       .from("ventas")
       .select(
-        "*, socio:socios(nombre, apellido, dni), genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), detalles:detalle_venta(id, gramos, cantidad_enrolados, peso_por_enrolado, peso_enrolados, precio_unitario, precio_enrolado, subtotal, genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado))",
+        "*, socio:socios(nombre, apellido, dni, es_miembro), genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), detalles:detalle_venta(id, genetica_id, gramos, cantidad_enrolados, peso_por_enrolado, peso_enrolados, precio_unitario, precio_enrolado, subtotal, genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado))",
       )
       .gte("created_at", `${desdeStr}T00:00:00`)
       .lte("created_at", `${hastaStr}T23:59:59`)
@@ -193,25 +194,28 @@ export function HistorialVentas() {
       fecha: new Date(venta.created_at),
     })
 
-    // Cargar líneas desde detalles o desde la venta principal
+    console.log("[v0] Venta a editar:", venta)
+    console.log("[v0] Detalles:", venta.detalles)
+
     if (venta.detalles && venta.detalles.length > 0) {
-      setEditLineas(
-        venta.detalles.map((d) => ({
-          genetica_id: d.genetica_id || "",
-          gramos: d.gramos || 0,
-          cantidad_enrolados: d.cantidad_enrolados || 0,
-          peso_por_enrolado: d.peso_por_enrolado || 0,
-        })),
-      )
+      const lineas = venta.detalles.map((d: any) => ({
+        genetica_id: d.genetica_id || "",
+        gramos: Number(d.gramos) || 0,
+        cantidad_enrolados: Number(d.cantidad_enrolados) || 0,
+        peso_por_enrolado: Number(d.peso_por_enrolado) || 0,
+      }))
+      console.log("[v0] Lineas cargadas:", lineas)
+      setEditLineas(lineas)
     } else {
-      setEditLineas([
-        {
-          genetica_id: venta.genetica_id || "",
-          gramos: Number(venta.gramos) || 0,
-          cantidad_enrolados: venta.cantidad_enrolados || 0,
-          peso_por_enrolado: 0,
-        },
-      ])
+      // Ventas legacy sin detalle_venta - usar datos de la tabla ventas
+      const lineaLegacy = {
+        genetica_id: venta.genetica_id || "",
+        gramos: Number(venta.gramos) || 0,
+        cantidad_enrolados: 0,
+        peso_por_enrolado: 0,
+      }
+      console.log("[v0] Linea legacy:", lineaLegacy)
+      setEditLineas([lineaLegacy])
     }
   }
 
@@ -482,120 +486,127 @@ export function HistorialVentas() {
 
   const renderDetalleVenta = (venta: VentaConDetalles) => {
     const isExpanded = expandedVentas.has(venta.id)
+    const esMiembro = venta.socio?.es_miembro || false
 
     if (venta.detalles && venta.detalles.length > 0) {
-      return (
-        <>
-          {venta.detalles.map((detalle, idx) => {
-            const pesoTotal = detalle.peso_enrolados || 0
-            const cantEnrolados = detalle.cantidad_enrolados || 0
-            const pesoPorEnrolado = cantEnrolados > 0 ? Math.round((pesoTotal / cantEnrolados) * 10) / 10 : 0
+      const rows: React.ReactNode[] = []
 
-            return (
-              <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-emerald-500">
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell className="font-medium text-foreground">{detalle.genetica?.nombre}</TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    {detalle.gramos > 0 && (
-                      <div className="flex items-center gap-1 text-sm">
-                        <Scale className="h-3 w-3 text-emerald-600" />
-                        <span>
-                          {detalle.gramos}g x ${detalle.genetica?.precio_por_gramo || 0}/g
-                        </span>
-                      </div>
-                    )}
-                    {cantEnrolados > 0 && (
-                      <div className="flex items-center gap-1 text-sm text-amber-600">
-                        <Cigarette className="h-3 w-3" />
-                        <span>
-                          {cantEnrolados} enr. ({pesoPorEnrolado}g c/u) x ${detalle.genetica?.precio_por_enrolado || 0}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell></TableCell>
-                <TableCell className="text-right text-muted-foreground">
-                  $
-                  {(
-                    (detalle.gramos || 0) * (detalle.genetica?.precio_por_gramo || 0) +
-                    cantEnrolados * (detalle.genetica?.precio_por_enrolado || 0)
-                  ).toFixed(2)}
-                </TableCell>
-                <TableCell></TableCell> {/* Added for consistency with main table headers */}
-              </TableRow>
-            )
-          })}
-          {venta.notas && (
-            <TableRow className="bg-muted/20 border-l-4 border-l-blue-500">
-              <TableCell colSpan={8} className="py-2">
-                <div className="flex items-start gap-2 text-sm">
-                  <FileText className="h-4 w-4 text-blue-500 mt-0.5" />
-                  <div>
-                    <span className="font-medium text-blue-600">Nota:</span>{" "}
-                    <span className="text-muted-foreground">{venta.notas}</span>
-                  </div>
-                </div>
-              </TableCell>
-            </TableRow>
-          )}
-        </>
-      )
-    } else {
-      const gramos = Number(venta.gramos) || 0
-      const enrolados = venta.cantidad_enrolados || 0
-      const pesoTotal = Number(venta.peso_enrolados) || 0
-      const pesoPorEnrolado = enrolados > 0 ? Math.round((pesoTotal / enrolados) * 10) / 10 : 0
+      venta.detalles.forEach((detalle, idx) => {
+        const pesoTotal = detalle.peso_enrolados || 0
+        const cantEnrolados = detalle.cantidad_enrolados || 0
+        const pesoPorEnrolado = cantEnrolados > 0 ? Math.round((pesoTotal / cantEnrolados) * 10) / 10 : 0
+        const precioGramo = esMiembro ? 0 : detalle.genetica?.precio_por_gramo || 0
+        const precioEnrolado = esMiembro ? 0 : detalle.genetica?.precio_por_enrolado || 0
 
-      return (
-        <>
-          <TableRow className="bg-muted/30 border-l-4 border-l-emerald-500">
+        rows.push(
+          <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-emerald-500">
             <TableCell></TableCell>
             <TableCell></TableCell>
             <TableCell></TableCell>
-            <TableCell className="font-medium text-foreground">{venta.genetica?.nombre}</TableCell>
+            <TableCell className="font-medium text-foreground">{detalle.genetica?.nombre}</TableCell>
             <TableCell>
               <div className="flex flex-col gap-1">
-                {gramos > 0 && (
+                {detalle.gramos > 0 && (
                   <div className="flex items-center gap-1 text-sm">
                     <Scale className="h-3 w-3 text-emerald-600" />
                     <span>
-                      {gramos}g x ${venta.precio_unitario}/g
+                      {detalle.gramos}g x ${precioGramo}/g
                     </span>
                   </div>
                 )}
-                {enrolados > 0 && (
+                {cantEnrolados > 0 && (
                   <div className="flex items-center gap-1 text-sm text-amber-600">
                     <Cigarette className="h-3 w-3" />
                     <span>
-                      {enrolados} enr. ({pesoPorEnrolado}g c/u) x ${venta.genetica?.precio_por_enrolado || 0}
+                      {cantEnrolados} enr. ({pesoPorEnrolado}g c/u) x ${precioEnrolado}
                     </span>
                   </div>
                 )}
               </div>
             </TableCell>
             <TableCell></TableCell>
+            <TableCell className="text-right text-muted-foreground">
+              ${((detalle.gramos || 0) * precioGramo + cantEnrolados * precioEnrolado).toFixed(2)}
+            </TableCell>
             <TableCell></TableCell>
-            <TableCell></TableCell> {/* Added for consistency with main table headers */}
-          </TableRow>
-          {venta.notas && (
-            <TableRow className="bg-muted/20 border-l-4 border-l-blue-500">
-              <TableCell colSpan={8} className="py-2">
-                <div className="flex items-start gap-2 text-sm">
-                  <FileText className="h-4 w-4 text-blue-500 mt-0.5" />
-                  <div>
-                    <span className="font-medium text-blue-600">Nota:</span>{" "}
-                    <span className="text-muted-foreground">{venta.notas}</span>
-                  </div>
+          </TableRow>,
+        )
+      })
+
+      if (venta.notas) {
+        rows.push(
+          <TableRow key={`${venta.id}-notas`} className="bg-muted/20 border-l-4 border-l-blue-500">
+            <TableCell colSpan={8} className="py-2">
+              <div className="flex items-start gap-2 text-sm">
+                <FileText className="h-4 w-4 text-blue-500 mt-0.5" />
+                <div>
+                  <span className="font-medium text-blue-600">Nota:</span>{" "}
+                  <span className="text-muted-foreground">{venta.notas}</span>
                 </div>
-              </TableCell>
-            </TableRow>
-          )}
-        </>
-      )
+              </div>
+            </TableCell>
+          </TableRow>,
+        )
+      }
+
+      return rows
+    } else {
+      const gramos = Number(venta.gramos) || 0
+      const enrolados = venta.cantidad_enrolados || 0
+      const pesoTotal = Number(venta.peso_enrolados) || 0
+      const pesoPorEnrolado = enrolados > 0 ? Math.round((pesoTotal / enrolados) * 10) / 10 : 0
+      const precioGramo = esMiembro ? 0 : venta.precio_unitario || 0
+      const precioEnrolado = esMiembro ? 0 : venta.genetica?.precio_por_enrolado || 0
+
+      const rows: React.ReactNode[] = [
+        <TableRow key={`${venta.id}-legacy`} className="bg-muted/30 border-l-4 border-l-emerald-500">
+          <TableCell></TableCell>
+          <TableCell></TableCell>
+          <TableCell></TableCell>
+          <TableCell className="font-medium text-foreground">{venta.genetica?.nombre}</TableCell>
+          <TableCell>
+            <div className="flex flex-col gap-1">
+              {gramos > 0 && (
+                <div className="flex items-center gap-1 text-sm">
+                  <Scale className="h-3 w-3 text-emerald-600" />
+                  <span>
+                    {gramos}g x ${precioGramo}/g
+                  </span>
+                </div>
+              )}
+              {enrolados > 0 && (
+                <div className="flex items-center gap-1 text-sm text-amber-600">
+                  <Cigarette className="h-3 w-3" />
+                  <span>
+                    {enrolados} enr. ({pesoPorEnrolado}g c/u) x ${precioEnrolado}
+                  </span>
+                </div>
+              )}
+            </div>
+          </TableCell>
+          <TableCell></TableCell>
+          <TableCell></TableCell>
+          <TableCell></TableCell>
+        </TableRow>,
+      ]
+
+      if (venta.notas) {
+        rows.push(
+          <TableRow key={`${venta.id}-legacy-notas`} className="bg-muted/20 border-l-4 border-l-blue-500">
+            <TableCell colSpan={8} className="py-2">
+              <div className="flex items-start gap-2 text-sm">
+                <FileText className="h-4 w-4 text-blue-500 mt-0.5" />
+                <div>
+                  <span className="font-medium text-blue-600">Nota:</span>{" "}
+                  <span className="text-muted-foreground">{venta.notas}</span>
+                </div>
+              </div>
+            </TableCell>
+          </TableRow>,
+        )
+      }
+
+      return rows
     }
   }
 

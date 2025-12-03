@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import type { Venta, DetalleVenta } from "@/lib/types"
+import type { Venta, DetalleVenta, Socio, Genetica, LineaVenta } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   CalendarIcon,
   Package,
@@ -17,10 +19,14 @@ import {
   CreditCard,
   Check,
   Filter,
-  ChevronDown,
-  ChevronRight,
   Cigarette,
   Scale,
+  Search,
+  Pencil,
+  X,
+  Plus,
+  Trash2,
+  FileText,
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -38,7 +44,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
+import React from "react" // Import React
 
 interface VentaConDetalles extends Venta {
   detalles?: DetalleVenta[]
@@ -57,6 +65,19 @@ export function HistorialVentas() {
   const [updatingPago, setUpdatingPago] = useState(false)
   const [soloNoPagados, setSoloNoPagados] = useState(false)
   const [expandedVentas, setExpandedVentas] = useState<Set<number>>(new Set())
+  const [filtroSocio, setFiltroSocio] = useState("")
+  const [socios, setSocios] = useState<Socio[]>([])
+  const [geneticas, setGeneticas] = useState<Genetica[]>([])
+  const [editingFullVenta, setEditingFullVenta] = useState<VentaConDetalles | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    socio_id: "",
+    metodo_pago: "efectivo" as "efectivo" | "transferencia" | "pendiente",
+    notas: "",
+    fecha: new Date(),
+  })
+  const [editLineas, setEditLineas] = useState<LineaVenta[]>([])
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [popoverEditFechaOpen, setPopoverEditFechaOpen] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -66,6 +87,17 @@ export function HistorialVentas() {
 
     setFechaHasta(hoy)
     setFechaDesde(hace30Dias)
+
+    const loadData = async () => {
+      const supabase = createClient()
+      const [sociosRes, geneticasRes] = await Promise.all([
+        supabase.from("socios").select("*").eq("activo", true).order("apellido"),
+        supabase.from("geneticas").select("*").order("nombre"),
+      ])
+      if (sociosRes.data) setSocios(sociosRes.data)
+      if (geneticasRes.data) setGeneticas(geneticasRes.data)
+    }
+    loadData()
   }, [])
 
   const buscarVentas = async () => {
@@ -152,18 +184,152 @@ export function HistorialVentas() {
     }
   }
 
-  const ventasFiltradas = soloNoPagados ? ventas.filter((v) => v.metodo_pago === "pendiente") : ventas
+  const openEditVenta = (venta: VentaConDetalles) => {
+    setEditingFullVenta(venta)
+    setEditFormData({
+      socio_id: venta.socio_id,
+      metodo_pago: venta.metodo_pago as "efectivo" | "transferencia" | "pendiente",
+      notas: venta.notas || "",
+      fecha: new Date(venta.created_at),
+    })
 
-  const totalVentas = ventasFiltradas.reduce((sum, v) => sum + Number(v.total), 0)
-  const totalGramos = ventasFiltradas.reduce((sum, v) => {
+    // Cargar líneas desde detalles o desde la venta principal
+    if (venta.detalles && venta.detalles.length > 0) {
+      setEditLineas(
+        venta.detalles.map((d) => ({
+          genetica_id: d.genetica_id || "",
+          gramos: d.gramos || 0,
+          cantidad_enrolados: d.cantidad_enrolados || 0,
+          peso_por_enrolado: d.peso_por_enrolado || 0,
+        })),
+      )
+    } else {
+      setEditLineas([
+        {
+          genetica_id: venta.genetica_id || "",
+          gramos: Number(venta.gramos) || 0,
+          cantidad_enrolados: venta.cantidad_enrolados || 0,
+          peso_por_enrolado: 0,
+        },
+      ])
+    }
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingFullVenta) return
+    setSavingEdit(true)
+    const supabase = createClient()
+
+    // Calcular totales
+    let totalGramos = 0
+    let totalVenta = 0
+    const lineasValidas = editLineas.filter((l) => l.genetica_id && (l.gramos > 0 || l.cantidad_enrolados > 0))
+
+    for (const linea of lineasValidas) {
+      const genetica = geneticas.find((g) => g.id === linea.genetica_id)
+      const pesoEnrolados = linea.cantidad_enrolados * linea.peso_por_enrolado
+      totalGramos += linea.gramos + pesoEnrolados
+      totalVenta +=
+        linea.gramos * (genetica?.precio_por_gramo || 0) +
+        linea.cantidad_enrolados * (genetica?.precio_por_enrolado || 0)
+    }
+
+    // Actualizar venta principal
+    const { error: ventaError } = await supabase
+      .from("ventas")
+      .update({
+        socio_id: editFormData.socio_id,
+        metodo_pago: editFormData.metodo_pago,
+        notas: editFormData.notas || null,
+        created_at: editFormData.fecha.toISOString(),
+        gramos: totalGramos,
+        total: totalVenta,
+        genetica_id: lineasValidas[0]?.genetica_id || null,
+        tipo_venta:
+          lineasValidas.some((l) => l.gramos > 0) && lineasValidas.some((l) => l.cantidad_enrolados > 0)
+            ? "mixto"
+            : lineasValidas.some((l) => l.cantidad_enrolados > 0)
+              ? "enrolados"
+              : "gramos",
+      })
+      .eq("id", editingFullVenta.id)
+
+    if (ventaError) {
+      console.error("Error al actualizar venta:", ventaError)
+      setSavingEdit(false)
+      return
+    }
+
+    // Eliminar detalles antiguos y crear nuevos
+    await supabase.from("detalle_venta").delete().eq("venta_id", editingFullVenta.id)
+
+    for (const linea of lineasValidas) {
+      const genetica = geneticas.find((g) => g.id === linea.genetica_id)
+      const pesoEnrolados = linea.cantidad_enrolados * linea.peso_por_enrolado
+      const subtotal =
+        linea.gramos * (genetica?.precio_por_gramo || 0) +
+        linea.cantidad_enrolados * (genetica?.precio_por_enrolado || 0)
+
+      await supabase.from("detalle_venta").insert({
+        venta_id: editingFullVenta.id,
+        genetica_id: linea.genetica_id,
+        gramos: linea.gramos,
+        cantidad_enrolados: linea.cantidad_enrolados > 0 ? linea.cantidad_enrolados : null,
+        peso_por_enrolado: linea.peso_por_enrolado > 0 ? linea.peso_por_enrolado : null,
+        peso_enrolados: pesoEnrolados > 0 ? pesoEnrolados : null,
+        precio_unitario: genetica?.precio_por_gramo || 0,
+        precio_enrolado: genetica?.precio_por_enrolado || null,
+        subtotal: subtotal,
+      })
+    }
+
+    setEditingFullVenta(null)
+    setSavingEdit(false)
+    buscarVentas()
+    router.refresh()
+  }
+
+  const agregarLineaEdit = () => {
+    setEditLineas([...editLineas, { genetica_id: "", gramos: 0, cantidad_enrolados: 0, peso_por_enrolado: 0 }])
+  }
+
+  const eliminarLineaEdit = (index: number) => {
+    if (editLineas.length > 1) {
+      setEditLineas(editLineas.filter((_, i) => i !== index))
+    }
+  }
+
+  const actualizarLineaEdit = (index: number, campo: keyof LineaVenta, valor: string | number) => {
+    const nuevasLineas = [...editLineas]
+    if (campo === "genetica_id") {
+      nuevasLineas[index][campo] = valor as string
+    } else {
+      nuevasLineas[index][campo] = Number(valor) || 0
+    }
+    setEditLineas(nuevasLineas)
+  }
+
+  const initialVentasFiltradas = ventas.filter((v) => {
+    if (soloNoPagados && v.metodo_pago !== "pendiente") return false
+    if (filtroSocio) {
+      const nombreCompleto = `${v.socio?.nombre} ${v.socio?.apellido} ${v.socio?.dni}`.toLowerCase()
+      if (!nombreCompleto.includes(filtroSocio.toLowerCase())) return false
+    }
+    return true
+  })
+
+  const totalVentas = initialVentasFiltradas.reduce((sum, v) => sum + Number(v.total), 0)
+  const totalGramos = initialVentasFiltradas.reduce((sum, v) => {
     const info = getVentaInfo(v)
     return sum + info.gramos
   }, 0)
-  const ventasEfectivo = ventas.filter((v) => v.metodo_pago === "efectivo").reduce((sum, v) => sum + Number(v.total), 0)
-  const ventasTransferencia = ventas
+  const ventasEfectivo = initialVentasFiltradas
+    .filter((v) => v.metodo_pago === "efectivo")
+    .reduce((sum, v) => sum + Number(v.total), 0)
+  const ventasTransferencia = initialVentasFiltradas
     .filter((v) => v.metodo_pago === "transferencia")
     .reduce((sum, v) => sum + Number(v.total), 0)
-  const ventasPendientes = ventas
+  const ventasPendientes = initialVentasFiltradas
     .filter((v) => v.metodo_pago === "pendiente")
     .reduce((sum, v) => sum + Number(v.total), 0)
 
@@ -217,13 +383,13 @@ export function HistorialVentas() {
       doc.setFontSize(10)
       doc.text(`Total Ventas: $${totalVentas.toFixed(2)}`, 14, 96)
       doc.text(`Total Gramos: ${totalGramos.toFixed(1)}g`, 14, 102)
-      doc.text(`Transacciones: ${ventasFiltradas.length}`, 14, 108)
+      doc.text(`Transacciones: ${initialVentasFiltradas.length}`, 14, 108)
       doc.text(`Efectivo: $${ventasEfectivo.toFixed(2)}`, 100, 96)
       doc.text(`Transferencia: $${ventasTransferencia.toFixed(2)}`, 100, 102)
       doc.text(`Pendiente: $${ventasPendientes.toFixed(2)}`, 100, 108)
 
       const tableData: string[][] = []
-      ventasFiltradas.forEach((venta) => {
+      initialVentasFiltradas.forEach((venta) => {
         const info = getVentaInfo(venta)
         if (venta.detalles && venta.detalles.length > 0) {
           venta.detalles.forEach((detalle, idx) => {
@@ -318,48 +484,66 @@ export function HistorialVentas() {
     const isExpanded = expandedVentas.has(venta.id)
 
     if (venta.detalles && venta.detalles.length > 0) {
-      return venta.detalles.map((detalle, idx) => {
-        const pesoTotal = detalle.peso_enrolados || 0
-        const cantEnrolados = detalle.cantidad_enrolados || 0
-        const pesoPorEnrolado = cantEnrolados > 0 ? Math.round((pesoTotal / cantEnrolados) * 10) / 10 : 0
+      return (
+        <>
+          {venta.detalles.map((detalle, idx) => {
+            const pesoTotal = detalle.peso_enrolados || 0
+            const cantEnrolados = detalle.cantidad_enrolados || 0
+            const pesoPorEnrolado = cantEnrolados > 0 ? Math.round((pesoTotal / cantEnrolados) * 10) / 10 : 0
 
-        return (
-          <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-emerald-500">
-            <TableCell></TableCell>
-            <TableCell></TableCell>
-            <TableCell></TableCell>
-            <TableCell className="font-medium text-foreground">{detalle.genetica?.nombre}</TableCell>
-            <TableCell>
-              <div className="flex flex-col gap-1">
-                {detalle.gramos > 0 && (
-                  <div className="flex items-center gap-1 text-sm">
-                    <Scale className="h-3 w-3 text-emerald-600" />
-                    <span>
-                      {detalle.gramos}g x ${detalle.genetica?.precio_por_gramo || 0}/g
-                    </span>
+            return (
+              <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-emerald-500">
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+                <TableCell className="font-medium text-foreground">{detalle.genetica?.nombre}</TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    {detalle.gramos > 0 && (
+                      <div className="flex items-center gap-1 text-sm">
+                        <Scale className="h-3 w-3 text-emerald-600" />
+                        <span>
+                          {detalle.gramos}g x ${detalle.genetica?.precio_por_gramo || 0}/g
+                        </span>
+                      </div>
+                    )}
+                    {cantEnrolados > 0 && (
+                      <div className="flex items-center gap-1 text-sm text-amber-600">
+                        <Cigarette className="h-3 w-3" />
+                        <span>
+                          {cantEnrolados} enr. ({pesoPorEnrolado}g c/u) x ${detalle.genetica?.precio_por_enrolado || 0}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
-                {cantEnrolados > 0 && (
-                  <div className="flex items-center gap-1 text-sm text-amber-600">
-                    <Cigarette className="h-3 w-3" />
-                    <span>
-                      {cantEnrolados} enr. ({pesoPorEnrolado}g c/u) x ${detalle.genetica?.precio_por_enrolado || 0}
-                    </span>
+                </TableCell>
+                <TableCell></TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  $
+                  {(
+                    (detalle.gramos || 0) * (detalle.genetica?.precio_por_gramo || 0) +
+                    cantEnrolados * (detalle.genetica?.precio_por_enrolado || 0)
+                  ).toFixed(2)}
+                </TableCell>
+                <TableCell></TableCell> {/* Added for consistency with main table headers */}
+              </TableRow>
+            )
+          })}
+          {venta.notas && (
+            <TableRow className="bg-muted/20 border-l-4 border-l-blue-500">
+              <TableCell colSpan={8} className="py-2">
+                <div className="flex items-start gap-2 text-sm">
+                  <FileText className="h-4 w-4 text-blue-500 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-blue-600">Nota:</span>{" "}
+                    <span className="text-muted-foreground">{venta.notas}</span>
                   </div>
-                )}
-              </div>
-            </TableCell>
-            <TableCell></TableCell>
-            <TableCell className="text-right text-muted-foreground">
-              $
-              {(
-                (detalle.gramos || 0) * (detalle.genetica?.precio_por_gramo || 0) +
-                cantEnrolados * (detalle.genetica?.precio_por_enrolado || 0)
-              ).toFixed(2)}
-            </TableCell>
-          </TableRow>
-        )
-      })
+                </div>
+              </TableCell>
+            </TableRow>
+          )}
+        </>
+      )
     } else {
       const gramos = Number(venta.gramos) || 0
       const enrolados = venta.cantidad_enrolados || 0
@@ -367,40 +551,72 @@ export function HistorialVentas() {
       const pesoPorEnrolado = enrolados > 0 ? Math.round((pesoTotal / enrolados) * 10) / 10 : 0
 
       return (
-        <TableRow className="bg-muted/30 border-l-4 border-l-emerald-500">
-          <TableCell></TableCell>
-          <TableCell></TableCell>
-          <TableCell></TableCell>
-          <TableCell className="font-medium text-foreground">{venta.genetica?.nombre}</TableCell>
-          <TableCell>
-            <div className="flex flex-col gap-1">
-              {gramos > 0 && (
-                <div className="flex items-center gap-1 text-sm">
-                  <Scale className="h-3 w-3 text-emerald-600" />
-                  <span>
-                    {gramos}g x ${venta.precio_unitario}/g
-                  </span>
+        <>
+          <TableRow className="bg-muted/30 border-l-4 border-l-emerald-500">
+            <TableCell></TableCell>
+            <TableCell></TableCell>
+            <TableCell></TableCell>
+            <TableCell className="font-medium text-foreground">{venta.genetica?.nombre}</TableCell>
+            <TableCell>
+              <div className="flex flex-col gap-1">
+                {gramos > 0 && (
+                  <div className="flex items-center gap-1 text-sm">
+                    <Scale className="h-3 w-3 text-emerald-600" />
+                    <span>
+                      {gramos}g x ${venta.precio_unitario}/g
+                    </span>
+                  </div>
+                )}
+                {enrolados > 0 && (
+                  <div className="flex items-center gap-1 text-sm text-amber-600">
+                    <Cigarette className="h-3 w-3" />
+                    <span>
+                      {enrolados} enr. ({pesoPorEnrolado}g c/u) x ${venta.genetica?.precio_por_enrolado || 0}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </TableCell>
+            <TableCell></TableCell>
+            <TableCell></TableCell>
+            <TableCell></TableCell> {/* Added for consistency with main table headers */}
+          </TableRow>
+          {venta.notas && (
+            <TableRow className="bg-muted/20 border-l-4 border-l-blue-500">
+              <TableCell colSpan={8} className="py-2">
+                <div className="flex items-start gap-2 text-sm">
+                  <FileText className="h-4 w-4 text-blue-500 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-blue-600">Nota:</span>{" "}
+                    <span className="text-muted-foreground">{venta.notas}</span>
+                  </div>
                 </div>
-              )}
-              {enrolados > 0 && (
-                <div className="flex items-center gap-1 text-sm text-amber-600">
-                  <Cigarette className="h-3 w-3" />
-                  <span>
-                    {enrolados} enr. ({pesoPorEnrolado}g c/u) x ${venta.genetica?.precio_por_enrolado || 0}
-                  </span>
-                </div>
-              )}
-            </div>
-          </TableCell>
-          <TableCell></TableCell>
-          <TableCell></TableCell>
-        </TableRow>
+              </TableCell>
+            </TableRow>
+          )}
+        </>
       )
     }
   }
 
+  const ventasFiltradas = ventas.filter((v) => {
+    if (soloNoPagados && v.metodo_pago !== "pendiente") return false
+    if (filtroSocio) {
+      const nombreCompleto = `${v.socio?.nombre} ${v.socio?.apellido} ${v.socio?.dni}`.toLowerCase()
+      if (!nombreCompleto.includes(filtroSocio.toLowerCase())) return false
+    }
+    return true
+  })
+
+  const totalVentasFiltradas = ventasFiltradas.reduce((sum, v) => sum + Number(v.total), 0)
+  const totalGramosFiltradas = ventasFiltradas.reduce((sum, v) => {
+    const info = getVentaInfo(v)
+    return sum + info.gramos
+  }, 0)
+
   return (
     <div className="space-y-6">
+      {/* Dialog para confirmar pago (existente) */}
       <Dialog open={!!editingVenta} onOpenChange={(open) => !open && setEditingVenta(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -466,6 +682,225 @@ export function HistorialVentas() {
               className="bg-emerald-600 hover:bg-emerald-700"
             >
               {updatingPago ? "Guardando..." : "Confirmar Pago"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingFullVenta} onOpenChange={(open) => !open && setEditingFullVenta(null)}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+                <Pencil className="h-6 w-6 text-emerald-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-foreground">Editar Venta</DialogTitle>
+                <DialogDescription className="text-muted-foreground">
+                  Modificar los datos de esta venta
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            {/* Fecha */}
+            <div className="space-y-2">
+              <Label>Fecha de Venta</Label>
+              <Popover open={popoverEditFechaOpen} onOpenChange={setPopoverEditFechaOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal border-border bg-transparent"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
+                    {format(editFormData.fecha, "dd 'de' MMMM, yyyy", { locale: es })}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={editFormData.fecha}
+                    onSelect={(date) => {
+                      if (date) {
+                        setEditFormData({ ...editFormData, fecha: date })
+                      }
+                      setPopoverEditFechaOpen(false)
+                    }}
+                    locale={es}
+                    disabled={(date) => date > new Date()}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Socio */}
+            <div className="space-y-2">
+              <Label>Socio</Label>
+              <Select
+                value={editFormData.socio_id}
+                onValueChange={(value) => setEditFormData({ ...editFormData, socio_id: value })}
+              >
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue placeholder="Seleccionar socio" />
+                </SelectTrigger>
+                <SelectContent>
+                  {socios.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.apellido}, {s.nombre} - {s.dni}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Productos */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Productos</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={agregarLineaEdit}
+                  className="h-8 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 bg-transparent"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Agregar
+                </Button>
+              </div>
+
+              {editLineas.map((linea, index) => {
+                const genetica = geneticas.find((g) => g.id === linea.genetica_id)
+                return (
+                  <div key={index} className="p-3 rounded-lg bg-muted/50 border border-border space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Producto {index + 1}</span>
+                      {editLineas.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => eliminarLineaEdit(index)}
+                          className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <Select
+                      value={linea.genetica_id}
+                      onValueChange={(value) => actualizarLineaEdit(index, "genetica_id", value)}
+                    >
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Seleccionar genética" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {geneticas.map((g) => (
+                          <SelectItem key={g.id} value={g.id}>
+                            {g.nombre} (${g.precio_por_gramo}/g)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Gramos</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={linea.gramos || ""}
+                          onChange={(e) => actualizarLineaEdit(index, "gramos", e.target.value)}
+                          className="bg-background border-border"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Enrolados</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={linea.cantidad_enrolados || ""}
+                          onChange={(e) => actualizarLineaEdit(index, "cantidad_enrolados", e.target.value)}
+                          className="bg-background border-border"
+                        />
+                      </div>
+                    </div>
+
+                    {linea.cantidad_enrolados > 0 && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Peso por enrolado (g)</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={linea.peso_por_enrolado || ""}
+                          onChange={(e) => actualizarLineaEdit(index, "peso_por_enrolado", e.target.value)}
+                          className="bg-background border-border"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Método de pago */}
+            <div className="space-y-2">
+              <Label>Método de Pago</Label>
+              <Select
+                value={editFormData.metodo_pago}
+                onValueChange={(value: "efectivo" | "transferencia" | "pendiente") =>
+                  setEditFormData({ ...editFormData, metodo_pago: value })
+                }
+              >
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="efectivo">
+                    <div className="flex items-center gap-2">
+                      <Banknote className="h-4 w-4" />
+                      Efectivo
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="transferencia">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Transferencia
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="pendiente">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Pendiente
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Notas */}
+            <div className="space-y-2">
+              <Label>Notas</Label>
+              <Textarea
+                value={editFormData.notas}
+                onChange={(e) => setEditFormData({ ...editFormData, notas: e.target.value })}
+                placeholder="Notas adicionales..."
+                className="bg-background border-border"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingFullVenta(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={savingEdit} className="bg-emerald-600 hover:bg-emerald-700">
+              {savingEdit ? "Guardando..." : "Guardar Cambios"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -575,6 +1010,47 @@ export function HistorialVentas() {
               {exportando ? "Exportando..." : "Exportar PDF"}
             </Button>
           </div>
+
+          <div className="mt-4 flex flex-col sm:flex-row gap-4 items-end">
+            <div className="flex-1 space-y-2">
+              <Label className="text-sm font-medium text-foreground">Buscar Socio</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Nombre, apellido o DNI..."
+                  value={filtroSocio}
+                  onChange={(e) => setFiltroSocio(e.target.value)}
+                  className="pl-10 bg-background border-border"
+                />
+                {filtroSocio && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFiltroSocio("")}
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <Button
+              variant={soloNoPagados ? "default" : "outline"}
+              onClick={() => setSoloNoPagados(!soloNoPagados)}
+              className={cn(
+                soloNoPagados
+                  ? "bg-red-600 hover:bg-red-700 text-white"
+                  : "border-border hover:border-red-300 hover:bg-red-50/50",
+              )}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              {soloNoPagados ? "Mostrando Pendientes" : "Ver Pendientes"}
+            </Button>
+
+            {/* ... existing export button ... */}
+          </div>
         </CardContent>
       </Card>
 
@@ -585,7 +1061,7 @@ export function HistorialVentas() {
             <DollarSign className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">${totalVentas.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-emerald-600">${totalVentasFiltradas.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">{ventasFiltradas.length} transacciones</p>
           </CardContent>
         </Card>
@@ -596,7 +1072,7 @@ export function HistorialVentas() {
             <Package className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{totalGramos.toFixed(1)}g</div>
+            <div className="text-2xl font-bold text-foreground">{totalGramosFiltradas.toFixed(1)}g</div>
           </CardContent>
         </Card>
 
@@ -641,6 +1117,11 @@ export function HistorialVentas() {
                 Solo Pendientes
               </Badge>
             )}
+            {filtroSocio && (
+              <Badge variant="outline" className="ml-2 text-emerald-600 border-emerald-300">
+                Filtrado por: {filtroSocio}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -651,17 +1132,18 @@ export function HistorialVentas() {
               {soloNoPagados ? "No hay ventas pendientes de pago en este período" : "No hay ventas en este período"}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="rounded-md border border-border overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-border">
-                    <TableHead className="w-8"></TableHead>
-                    <TableHead className="text-muted-foreground">Fecha</TableHead>
-                    <TableHead className="text-muted-foreground">Socio</TableHead>
-                    <TableHead className="text-muted-foreground">Genética</TableHead>
-                    <TableHead className="text-muted-foreground">Gramos</TableHead>
-                    <TableHead className="text-muted-foreground">Pago</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Total</TableHead>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="text-foreground">Fecha</TableHead>
+                    <TableHead className="text-foreground">Socio</TableHead>
+                    <TableHead className="text-foreground">DNI</TableHead>
+                    <TableHead className="text-foreground">Genética</TableHead>
+                    <TableHead className="text-foreground">Gramos</TableHead>
+                    <TableHead className="text-foreground">Pago</TableHead>
+                    <TableHead className="text-right text-foreground">Total</TableHead>
+                    <TableHead className="text-center text-foreground w-20">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -670,21 +1152,8 @@ export function HistorialVentas() {
                     const isExpanded = expandedVentas.has(venta.id)
 
                     return (
-                      <>
-                        <TableRow
-                          key={venta.id}
-                          className="border-border hover:bg-muted/50 cursor-pointer"
-                          onClick={() => toggleExpand(venta.id)}
-                        >
-                          <TableCell className="w-8">
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                              {isExpanded ? (
-                                <ChevronDown className="h-4 w-4 text-emerald-600" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                              )}
-                            </Button>
-                          </TableCell>
+                      <React.Fragment key={venta.id}>
+                        <TableRow className="hover:bg-muted/50 cursor-pointer" onClick={() => toggleExpand(venta.id)}>
                           <TableCell className="text-foreground">
                             {new Date(venta.created_at).toLocaleDateString("es-AR", {
                               day: "2-digit",
@@ -696,6 +1165,9 @@ export function HistorialVentas() {
                           </TableCell>
                           <TableCell className="font-medium text-foreground">
                             {venta.socio?.apellido}, {venta.socio?.nombre}
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            {venta.socio?.dni ? formatDni(venta.socio.dni) : "-"}
                           </TableCell>
                           <TableCell>
                             {info.esMultiple ? (
@@ -744,9 +1216,19 @@ export function HistorialVentas() {
                           <TableCell className="text-right font-bold text-emerald-600">
                             ${Number(venta.total).toFixed(2)}
                           </TableCell>
+                          <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditVenta(venta)}
+                              className="h-8 w-8 p-0 hover:bg-emerald-100"
+                            >
+                              <Pencil className="h-4 w-4 text-emerald-600" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                         {isExpanded && renderDetalleVenta(venta)}
-                      </>
+                      </React.Fragment>
                     )
                   })}
                 </TableBody>

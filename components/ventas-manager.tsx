@@ -23,6 +23,8 @@ import {
   Clock,
   Plus,
   Trash2,
+  CalendarIcon,
+  Crown,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
@@ -34,6 +36,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
+import { cn } from "@/lib/utils"
 
 interface VentasManagerProps {
   socios: Socio[]
@@ -47,6 +54,8 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const [showLimitDialog, setShowLimitDialog] = useState(false)
+  const [fechaVenta, setFechaVenta] = useState<Date>(new Date())
+  const [popoverFechaOpen, setPopoverFechaOpen] = useState(false)
 
   const [lineas, setLineas] = useState<LineaVenta[]>([
     { genetica_id: "", gramos: 0, cantidad_enrolados: 0, peso_por_enrolado: 0 },
@@ -59,11 +68,12 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
   })
 
   const selectedSocio = socios.find((s) => s.id === formData.socio_id)
+  const esMiembro = selectedSocio?.es_miembro || false
 
   const calcularLinea = (linea: LineaVenta) => {
     const genetica = geneticas.find((g) => g.id === linea.genetica_id)
-    const precioGramo = genetica?.precio_por_gramo || 0
-    const precioEnrolado = genetica?.precio_por_enrolado || 0
+    const precioGramo = esMiembro ? 0 : genetica?.precio_por_gramo || 0
+    const precioEnrolado = esMiembro ? 0 : genetica?.precio_por_enrolado || 0
     const pesoEnrolados = Math.round(linea.cantidad_enrolados * linea.peso_por_enrolado * 10) / 10
     const gramosTotales = Math.round((linea.gramos + pesoEnrolados) * 10) / 10
 
@@ -147,7 +157,6 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
       }
     }
 
-    // Esos campos están en detalle_venta, no en ventas
     const ventaData = {
       socio_id: formData.socio_id,
       genetica_id: lineas[0]?.genetica_id || null,
@@ -157,6 +166,7 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
       total: totalVenta,
       metodo_pago: formData.metodo_pago,
       notas: formData.notas || null,
+      created_at: fechaVenta.toISOString(),
     }
 
     const { data: newVenta, error: ventaError } = await supabase
@@ -225,6 +235,7 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
       notas: "",
       metodo_pago: "efectivo",
     })
+    setFechaVenta(new Date())
     setLoading(false)
     router.refresh()
   }
@@ -260,7 +271,7 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="space-y-6">
       <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -311,36 +322,130 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
-            <ShoppingCart className="h-5 w-5 text-emerald-600" />
-            Nueva Venta
+            <ShoppingCart className="h-5 w-5 text-emerald-500" />
+            Registrar Venta
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="socio">Socio</Label>
-              <Select
-                value={formData.socio_id}
-                onValueChange={(value) => setFormData({ ...formData, socio_id: value })}
-              >
-                <SelectTrigger className="bg-background border-border">
-                  <SelectValue placeholder="Seleccionar socio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {socios.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.apellido}, {s.nombre} - {s.dni}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedSocio && selectedSocio.gramos_mensuales && (
-                <p className="text-xs text-muted-foreground">
-                  Límite mensual: {selectedSocio.gramos_mensuales}g | Disponible:{" "}
-                  <span className={disponibleSocio <= 0 ? "text-red-500" : "text-emerald-600"}>{disponibleSocio}g</span>
+              <Label>Fecha de Venta</Label>
+              <Popover open={popoverFechaOpen} onOpenChange={setPopoverFechaOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal border-border hover:border-emerald-400 hover:bg-emerald-50/50",
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
+                    {format(fechaVenta, "dd 'de' MMMM, yyyy", { locale: es })}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 border-emerald-200" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={fechaVenta}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Mantener la hora actual en la fecha seleccionada
+                        const now = new Date()
+                        date.setHours(now.getHours(), now.getMinutes(), now.getSeconds())
+                        setFechaVenta(date)
+                      }
+                      setPopoverFechaOpen(false)
+                    }}
+                    locale={es}
+                    disabled={(date) => date > new Date()}
+                    className="rounded-md"
+                  />
+                </PopoverContent>
+              </Popover>
+              {fechaVenta.toDateString() !== new Date().toDateString() && (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Registrando venta de fecha anterior
                 </p>
               )}
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>
+                  Socio <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={formData.socio_id}
+                  onValueChange={(value) => setFormData({ ...formData, socio_id: value })}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Seleccionar socio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {socios.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <div className="flex items-center gap-2">
+                          {s.apellido}, {s.nombre} - {s.dni}
+                          {s.es_miembro && (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-400 text-amber-500 bg-amber-500/10 text-xs ml-1"
+                            >
+                              <Crown className="h-3 w-3 mr-1" />
+                              Miembro
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="metodo_pago">Método de Pago</Label>
+                <Select
+                  value={formData.metodo_pago}
+                  onValueChange={(value: "efectivo" | "transferencia" | "pendiente") =>
+                    setFormData({ ...formData, metodo_pago: value })
+                  }
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Seleccionar método de pago" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="efectivo">
+                      <div className="flex items-center gap-2">
+                        <Banknote className="h-4 w-4" />
+                        Efectivo
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="transferencia">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        Transferencia
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="pendiente">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Pendiente
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {esMiembro && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <Crown className="h-5 w-5 text-amber-500" />
+                <span className="text-sm text-amber-600 font-medium">
+                  Este socio es miembro del club - La venta será sin costo ($0)
+                </span>
+              </div>
+            )}
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -490,40 +595,6 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="metodo_pago">Método de Pago</Label>
-              <Select
-                value={formData.metodo_pago}
-                onValueChange={(value: "efectivo" | "transferencia" | "pendiente") =>
-                  setFormData({ ...formData, metodo_pago: value })
-                }
-              >
-                <SelectTrigger className="bg-background border-border">
-                  <SelectValue placeholder="Seleccionar método de pago" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="efectivo">
-                    <div className="flex items-center gap-2">
-                      <Banknote className="h-4 w-4" />
-                      Efectivo
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="transferencia">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      Transferencia
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="pendiente">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Pendiente
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="notas">Notas (opcional)</Label>
               <Textarea
                 id="notas"
@@ -562,7 +633,7 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
-            <ShoppingCart className="h-5 w-5 text-emerald-600" />
+            <ShoppingCart className="h-5 w-5 text-emerald-500" />
             Últimas Ventas
           </CardTitle>
         </CardHeader>

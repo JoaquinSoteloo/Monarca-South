@@ -20,7 +20,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Pencil, Trash2, Search, AlertTriangle } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+import { Plus, Pencil, Trash2, Search, AlertTriangle, Crown } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface SociosManagerProps {
@@ -50,6 +52,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
     gramos_mensuales: "",
     estado_reprocan: "" as "Activo" | "Pendiente" | "",
     sucursal_id: "",
+    es_miembro: false,
   })
 
   const resetForm = () => {
@@ -62,6 +65,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       gramos_mensuales: "",
       estado_reprocan: "",
       sucursal_id: "",
+      es_miembro: false,
     })
     setEditingSocio(null)
   }
@@ -98,6 +102,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       gramos_mensuales: formData.gramos_mensuales ? Number.parseInt(formData.gramos_mensuales) : null,
       estado_reprocan: formData.estado_reprocan || null,
       sucursal_id: formData.sucursal_id ? formData.sucursal_id : null,
+      es_miembro: formData.es_miembro,
     }
 
     if (editingSocio) {
@@ -149,6 +154,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       gramos_mensuales: socio.gramos_mensuales?.toString() || "",
       estado_reprocan: socio.estado_reprocan || "",
       sucursal_id: socio.sucursal_id || "",
+      es_miembro: socio.es_miembro || false,
     })
     setIsOpen(true)
   }
@@ -403,6 +409,23 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                   />
                 </div>
               </div>
+              <div className="flex items-center space-x-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <Checkbox
+                  id="es_miembro"
+                  checked={formData.es_miembro}
+                  onCheckedChange={(checked) => setFormData({ ...formData, es_miembro: checked === true })}
+                  className="border-amber-500 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                />
+                <div className="flex-1">
+                  <Label htmlFor="es_miembro" className="flex items-center gap-2 cursor-pointer">
+                    <Crown className="h-4 w-4 text-amber-500" />
+                    <span className="font-medium text-foreground">Es miembro del club</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Los miembros trabajan en el club y no pagan por los productos
+                  </p>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email (opcional)</Label>
@@ -476,7 +499,15 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                     return (
                       <TableRow key={socio.id} className="border-border">
                         <TableCell className="font-medium text-foreground">
-                          {socio.apellido}, {socio.nombre}
+                          <div className="flex items-center gap-2">
+                            {socio.apellido}, {socio.nombre}
+                            {socio.es_miembro && (
+                              <Badge variant="outline" className="border-amber-400 text-amber-500 bg-amber-500/10">
+                                <Crown className="h-3 w-3 mr-1" />
+                                Miembro
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground">{formatDni(socio.dni)}</TableCell>
                         <TableCell>
@@ -516,13 +547,13 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                           <span
                             className={
                               porcentaje >= 100
-                                ? "text-red-500"
+                                ? "text-red-500 font-medium"
                                 : porcentaje >= 80
                                   ? "text-amber-500"
-                                  : "text-foreground"
+                                  : "text-emerald-500"
                             }
                           >
-                            {consumido}g / {limite}g
+                            {consumido}g
                           </span>
                         </TableCell>
                         <TableCell className="text-right">

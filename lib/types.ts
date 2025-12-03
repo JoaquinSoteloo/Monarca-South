@@ -26,6 +26,7 @@ export interface Socio {
   sucursal_id: string | null
   gramos_mensuales: number | null
   gramos_consumidos_mes: number
+  es_miembro: boolean
   activo: boolean
   created_at: string
   updated_at: string

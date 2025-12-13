@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import type { Socio, Genetica, Venta, LineaVenta } from "@/lib/types"
+import type { Socio, Genetica, Venta, LineaVenta, Producto } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -45,10 +45,11 @@ import { cn } from "@/lib/utils"
 interface VentasManagerProps {
   socios: Socio[]
   geneticas: Genetica[]
+  productos: Producto[]
   initialVentas: Venta[]
 }
 
-export function VentasManager({ socios, geneticas, initialVentas }: VentasManagerProps) {
+export function VentasManager({ socios, geneticas, productos, initialVentas }: VentasManagerProps) {
   const [ventas, setVentas] = useState(initialVentas)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -58,7 +59,15 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
   const [popoverFechaOpen, setPopoverFechaOpen] = useState(false)
 
   const [lineas, setLineas] = useState<LineaVenta[]>([
-    { genetica_id: "", gramos: 0, cantidad_enrolados: 0, peso_por_enrolado: 0 },
+    {
+      tipo: "genetica",
+      genetica_id: "",
+      producto_id: "",
+      gramos: 0,
+      cantidad_enrolados: 0,
+      peso_por_enrolado: 0,
+      cantidad_producto: 0,
+    },
   ])
 
   const [formData, setFormData] = useState({
@@ -71,21 +80,41 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
   const esMiembro = selectedSocio?.es_miembro || false
 
   const calcularLinea = (linea: LineaVenta) => {
+    if (linea.tipo === "producto") {
+      const producto = productos.find((p) => p.id === linea.producto_id)
+      const precioProducto = esMiembro ? 0 : producto?.precio || 0
+      const subtotal = Math.round(linea.cantidad_producto * precioProducto * 100) / 100
+
+      return {
+        genetica: null,
+        producto,
+        precioGramo: 0,
+        precioEnrolado: 0,
+        precioProducto,
+        pesoEnrolados: 0,
+        gramosTotales: 0,
+        subtotal,
+        subtotalGramos: 0,
+        subtotalEnrolados: 0,
+      }
+    }
+
     const genetica = geneticas.find((g) => g.id === linea.genetica_id)
     const precioGramo = esMiembro ? 0 : genetica?.precio_por_gramo || 0
     const precioEnrolado = esMiembro ? 0 : genetica?.precio_por_enrolado || 0
     const pesoEnrolados = Math.round(linea.cantidad_enrolados * linea.peso_por_enrolado * 10) / 10
     const gramosTotales = Math.round((linea.gramos + pesoEnrolados) * 10) / 10
 
-    // Subtotal = gramos * precio/g + enrolados * precio/enrolado
     const subtotalGramos = Math.round(linea.gramos * precioGramo * 100) / 100
     const subtotalEnrolados = Math.round(linea.cantidad_enrolados * precioEnrolado * 100) / 100
     const subtotal = Math.round((subtotalGramos + subtotalEnrolados) * 100) / 100
 
     return {
       genetica,
+      producto: null,
       precioGramo,
       precioEnrolado,
+      precioProducto: 0,
       pesoEnrolados,
       gramosTotales,
       subtotal,
@@ -109,8 +138,34 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
   const disponibleSocio = limiteMensual - consumidoMes
   const excedeLimit = limiteMensual > 0 && gramosTotalesVenta > disponibleSocio
 
-  const agregarLinea = () => {
-    setLineas([...lineas, { genetica_id: "", gramos: 0, cantidad_enrolados: 0, peso_por_enrolado: 0 }])
+  const agregarLineaGenetica = () => {
+    setLineas([
+      ...lineas,
+      {
+        tipo: "genetica",
+        genetica_id: "",
+        producto_id: "",
+        gramos: 0,
+        cantidad_enrolados: 0,
+        peso_por_enrolado: 0,
+        cantidad_producto: 0,
+      },
+    ])
+  }
+
+  const agregarLineaProducto = () => {
+    setLineas([
+      ...lineas,
+      {
+        tipo: "producto",
+        genetica_id: "",
+        producto_id: "",
+        gramos: 0,
+        cantidad_enrolados: 0,
+        peso_por_enrolado: 0,
+        cantidad_producto: 1,
+      },
+    ])
   }
 
   const eliminarLinea = (index: number) => {
@@ -121,8 +176,8 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
 
   const actualizarLinea = (index: number, campo: keyof LineaVenta, valor: string | number) => {
     const nuevasLineas = [...lineas]
-    if (campo === "genetica_id") {
-      nuevasLineas[index][campo] = valor as string
+    if (campo === "genetica_id" || campo === "producto_id" || campo === "tipo") {
+      nuevasLineas[index][campo] = valor as any
     } else {
       nuevasLineas[index][campo] = Number(valor) || 0
     }
@@ -132,12 +187,19 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
   const getTipoVenta = () => {
     let tieneGramos = false
     let tieneEnrolados = false
+    let tieneProducto = false
     for (const linea of lineas) {
-      if (linea.gramos > 0) tieneGramos = true
-      if (linea.cantidad_enrolados > 0) tieneEnrolados = true
+      if (linea.tipo === "genetica") {
+        if (linea.gramos > 0) tieneGramos = true
+        if (linea.cantidad_enrolados > 0) tieneEnrolados = true
+      } else if (linea.tipo === "producto") {
+        if (linea.cantidad_producto > 0) tieneProducto = true
+      }
     }
-    if (tieneGramos && tieneEnrolados) return "mixto"
+    if (tieneGramos && tieneEnrolados && tieneProducto) return "mixto"
+    if (tieneGramos && tieneEnrolados) return "genetica_y_enrolados"
     if (tieneEnrolados) return "enrolados"
+    if (tieneProducto) return "productos"
     return "gramos"
   }
 
@@ -146,23 +208,30 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
     setShowLimitDialog(false)
     const supabase = createClient()
 
-    // Validar stock de cada línea
     for (const linea of lineas) {
-      if (!linea.genetica_id) continue
-      const { gramosTotales, genetica } = calcularLinea(linea)
-      if (genetica && gramosTotales > genetica.gramos_disponibles) {
-        setError(`Stock insuficiente de ${genetica.nombre}. Disponible: ${genetica.gramos_disponibles}g`)
-        setLoading(false)
-        return
+      if (linea.tipo === "genetica" && linea.genetica_id) {
+        const { gramosTotales, genetica } = calcularLinea(linea)
+        if (genetica && gramosTotales > genetica.gramos_disponibles) {
+          setError(`Stock insuficiente de ${genetica.nombre}. Disponible: ${genetica.gramos_disponibles}g`)
+          setLoading(false)
+          return
+        }
+      } else if (linea.tipo === "producto" && linea.producto_id) {
+        const { producto } = calcularLinea(linea)
+        if (producto && linea.cantidad_producto > producto.cantidad) {
+          setError(`Stock insuficiente de ${producto.nombre}. Disponible: ${producto.cantidad}`)
+          setLoading(false)
+          return
+        }
       }
     }
 
     const ventaData = {
       socio_id: formData.socio_id,
-      genetica_id: lineas[0]?.genetica_id || null,
+      genetica_id: lineas.find((l) => l.tipo === "genetica")?.genetica_id || null,
       tipo_venta: getTipoVenta(),
       gramos: gramosTotalesVenta,
-      precio_unitario: lineas.length === 1 ? calcularLinea(lineas[0]).precioGramo : 0,
+      precio_unitario: lineas.length === 1 && lineas[0].tipo === "genetica" ? calcularLinea(lineas[0]).precioGramo : 0,
       total: totalVenta,
       metodo_pago: formData.metodo_pago,
       notas: formData.notas || null,
@@ -181,38 +250,62 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
       return
     }
 
-    // Insertar detalles de venta y actualizar stock
     for (const linea of lineas) {
-      if (!linea.genetica_id) continue
-      const { gramosTotales, subtotal, precioGramo, precioEnrolado, genetica, pesoEnrolados } = calcularLinea(linea)
-      if (linea.gramos <= 0 && linea.cantidad_enrolados <= 0) continue
+      if (linea.tipo === "genetica" && linea.genetica_id) {
+        const { gramosTotales, subtotal, precioGramo, precioEnrolado, genetica, pesoEnrolados } = calcularLinea(linea)
+        if (linea.gramos <= 0 && linea.cantidad_enrolados <= 0) continue
 
-      // Insertar detalle con precio de enrolado
-      await supabase.from("detalle_venta").insert({
-        venta_id: newVenta.id,
-        genetica_id: linea.genetica_id,
-        gramos: linea.gramos,
-        cantidad_enrolados: linea.cantidad_enrolados > 0 ? linea.cantidad_enrolados : null,
-        peso_por_enrolado: linea.peso_por_enrolado > 0 ? linea.peso_por_enrolado : null,
-        peso_enrolados: pesoEnrolados > 0 ? pesoEnrolados : null,
-        precio_unitario: precioGramo,
-        precio_enrolado: precioEnrolado > 0 ? precioEnrolado : null,
-        subtotal: subtotal,
-      })
+        await supabase.from("detalle_venta").insert({
+          venta_id: newVenta.id,
+          genetica_id: linea.genetica_id,
+          producto_id: null,
+          gramos: linea.gramos,
+          cantidad_enrolados: linea.cantidad_enrolados > 0 ? linea.cantidad_enrolados : null,
+          peso_por_enrolado: linea.peso_por_enrolado > 0 ? linea.peso_por_enrolado : null,
+          peso_enrolados: pesoEnrolados > 0 ? pesoEnrolados : null,
+          precio_unitario: precioGramo,
+          precio_enrolado: precioEnrolado > 0 ? precioEnrolado : null,
+          subtotal: subtotal,
+        })
 
-      // Actualizar stock
-      if (genetica) {
-        await supabase
-          .from("geneticas")
-          .update({
-            gramos_disponibles: genetica.gramos_disponibles - gramosTotales,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", linea.genetica_id)
+        if (genetica) {
+          await supabase
+            .from("geneticas")
+            .update({
+              gramos_disponibles: genetica.gramos_disponibles - gramosTotales,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", linea.genetica_id)
+        }
+      } else if (linea.tipo === "producto" && linea.producto_id) {
+        const { subtotal, precioProducto, producto } = calcularLinea(linea)
+        if (linea.cantidad_producto <= 0) continue
+
+        await supabase.from("detalle_venta").insert({
+          venta_id: newVenta.id,
+          genetica_id: null,
+          producto_id: linea.producto_id,
+          gramos: 0,
+          cantidad_enrolados: linea.cantidad_producto,
+          peso_por_enrolado: null,
+          peso_enrolados: null,
+          precio_unitario: precioProducto,
+          precio_enrolado: null,
+          subtotal: subtotal,
+        })
+
+        if (producto) {
+          await supabase
+            .from("productos")
+            .update({
+              cantidad: producto.cantidad - linea.cantidad_producto,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", linea.producto_id)
+        }
       }
     }
 
-    // Actualizar consumo del socio
     await supabase
       .from("socios")
       .update({
@@ -221,15 +314,33 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
       })
       .eq("id", formData.socio_id)
 
-    // Agregar nombres de genéticas a la venta para mostrar
     const geneticasNombres = lineas
-      .filter((l) => l.genetica_id)
+      .filter((l) => l.tipo === "genetica" && l.genetica_id)
       .map((l) => geneticas.find((g) => g.id === l.genetica_id)?.nombre)
       .filter(Boolean)
       .join(", ")
 
-    setVentas([{ ...newVenta, genetica: { nombre: geneticasNombres } as any }, ...ventas])
-    setLineas([{ genetica_id: "", gramos: 0, cantidad_enrolados: 0, peso_por_enrolado: 0 }])
+    const productosNombres = lineas
+      .filter((l) => l.tipo === "producto" && l.producto_id)
+      .map((l) => productos.find((p) => p.id === l.producto_id)?.nombre)
+      .filter(Boolean)
+      .join(", ")
+
+    setVentas([
+      { ...newVenta, genetica: { nombre: geneticasNombres } as any, producto: { nombre: productosNombres } as any },
+      ...ventas,
+    ])
+    setLineas([
+      {
+        tipo: "genetica",
+        genetica_id: "",
+        producto_id: "",
+        gramos: 0,
+        cantidad_enrolados: 0,
+        peso_por_enrolado: 0,
+        cantidad_producto: 0,
+      },
+    ])
     setFormData({
       socio_id: "",
       notas: "",
@@ -244,16 +355,18 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
     e.preventDefault()
     setError(null)
 
-    // Validar que hay al menos una línea con datos
     const lineasValidas = lineas.filter(
-      (l) => l.genetica_id && (l.gramos > 0 || (l.cantidad_enrolados > 0 && l.peso_por_enrolado > 0)),
+      (l) =>
+        (l.tipo === "genetica" &&
+          l.genetica_id &&
+          (l.gramos > 0 || (l.cantidad_enrolados > 0 && l.peso_por_enrolado > 0))) ||
+        (l.tipo === "producto" && l.producto_id && l.cantidad_producto > 0),
     )
     if (lineasValidas.length === 0) {
-      setError("Agrega al menos una genética con cantidad válida")
+      setError("Agrega al menos un producto con cantidad válida")
       return
     }
 
-    // Validar enrolados sin peso
     for (const linea of lineas) {
       if (linea.cantidad_enrolados > 0 && linea.peso_por_enrolado <= 0) {
         const gen = geneticas.find((g) => g.id === linea.genetica_id)
@@ -349,7 +462,6 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                     selected={fechaVenta}
                     onSelect={(date) => {
                       if (date) {
-                        // Mantener la hora actual en la fecha seleccionada
                         const now = new Date()
                         date.setHours(now.getHours(), now.getMinutes(), now.getSeconds())
                         setFechaVenta(date)
@@ -450,35 +562,39 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">Productos</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={agregarLinea}
-                  className="h-8 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 bg-transparent"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Agregar genética
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={agregarLineaGenetica}
+                    className="h-8 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 bg-transparent"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Genética
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={agregarLineaProducto}
+                    className="h-8 text-xs border-blue-300 text-blue-700 hover:bg-blue-50 bg-transparent"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Producto
+                  </Button>
+                </div>
               </div>
 
               {lineas.map((linea, index) => {
-                const {
-                  genetica,
-                  gramosTotales,
-                  subtotal,
-                  pesoEnrolados,
-                  precioGramo,
-                  precioEnrolado,
-                  subtotalGramos,
-                  subtotalEnrolados,
-                } = calcularLinea(linea)
-                const gramosDisponibles = genetica?.gramos_disponibles || 0
+                const calc = calcularLinea(linea)
 
                 return (
                   <div key={index} className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground">Producto {index + 1}</span>
+                      <span className="text-sm font-medium text-foreground">
+                        {linea.tipo === "genetica" ? "Genética" : "Producto"} {index + 1}
+                      </span>
                       {lineas.length > 1 && (
                         <Button
                           type="button"
@@ -492,102 +608,153 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                       )}
                     </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-xs">Genética</Label>
-                      <Select
-                        value={linea.genetica_id}
-                        onValueChange={(value) => actualizarLinea(index, "genetica_id", value)}
-                      >
-                        <SelectTrigger className="bg-background border-border">
-                          <SelectValue placeholder="Seleccionar genética" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {geneticas.map((g) => (
-                            <SelectItem key={g.id} value={g.id}>
-                              {g.nombre} - {g.gramos_disponibles}g (${g.precio_por_gramo}/g
-                              {g.precio_por_enrolado ? ` | $${g.precio_por_enrolado}/enr` : ""})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-xs flex items-center gap-1">
-                          <Scale className="h-3 w-3 text-emerald-600" />
-                          Gramos
-                        </Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max={gramosDisponibles}
-                          value={linea.gramos || ""}
-                          onChange={(e) => actualizarLinea(index, "gramos", e.target.value)}
-                          placeholder="0"
-                          className="bg-background border-border"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs flex items-center gap-1">
-                          <Cigarette className="h-3 w-3 text-amber-600" />
-                          Enrolados
-                        </Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={linea.cantidad_enrolados || ""}
-                          onChange={(e) => actualizarLinea(index, "cantidad_enrolados", e.target.value)}
-                          placeholder="0"
-                          className="bg-background border-border"
-                        />
-                      </div>
-                    </div>
-
-                    {linea.cantidad_enrolados > 0 && (
-                      <div className="space-y-2">
-                        <Label className="text-xs">Peso por enrolado (g)</Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          value={linea.peso_por_enrolado || ""}
-                          onChange={(e) => actualizarLinea(index, "peso_por_enrolado", e.target.value)}
-                          placeholder="Ej: 0.5"
-                          className="bg-background border-border"
-                        />
-                        {linea.peso_por_enrolado > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            {linea.cantidad_enrolados} x {linea.peso_por_enrolado}g = {pesoEnrolados}g
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {(linea.gramos > 0 || linea.cantidad_enrolados > 0) && genetica && (
-                      <div className="pt-2 border-t border-border space-y-1">
-                        {linea.gramos > 0 && (
-                          <div className="flex justify-between text-sm text-muted-foreground">
-                            <span>
-                              {linea.gramos}g x ${precioGramo}/g
-                            </span>
-                            <span>${subtotalGramos.toFixed(2)}</span>
-                          </div>
-                        )}
-                        {linea.cantidad_enrolados > 0 && precioEnrolado > 0 && (
-                          <div className="flex justify-between text-sm text-amber-700">
-                            <span>
-                              {linea.cantidad_enrolados} enr. x ${precioEnrolado}/enr
-                            </span>
-                            <span>${subtotalEnrolados.toFixed(2)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between text-sm font-medium pt-1">
-                          <span>Subtotal</span>
-                          <span className="text-foreground">${subtotal.toFixed(2)}</span>
+                    {linea.tipo === "genetica" ? (
+                      <>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Genética</Label>
+                          <Select
+                            value={linea.genetica_id}
+                            onValueChange={(value) => actualizarLinea(index, "genetica_id", value)}
+                          >
+                            <SelectTrigger className="bg-background border-border">
+                              <SelectValue placeholder="Seleccionar genética" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {geneticas.map((g) => (
+                                <SelectItem key={g.id} value={g.id}>
+                                  {g.nombre} - {g.gramos_disponibles}g (${g.precio_por_gramo}/g
+                                  {g.precio_por_enrolado ? ` | $${g.precio_por_enrolado}/enr` : ""})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label className="text-xs flex items-center gap-1">
+                              <Scale className="h-3 w-3 text-emerald-600" />
+                              Gramos
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max={calc.genetica?.gramos_disponibles || 0}
+                              value={linea.gramos || ""}
+                              onChange={(e) => actualizarLinea(index, "gramos", e.target.value)}
+                              placeholder="0"
+                              className="bg-background border-border"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs flex items-center gap-1">
+                              <Cigarette className="h-3 w-3 text-amber-600" />
+                              Enrolados
+                            </Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={linea.cantidad_enrolados || ""}
+                              onChange={(e) => actualizarLinea(index, "cantidad_enrolados", e.target.value)}
+                              placeholder="0"
+                              className="bg-background border-border"
+                            />
+                          </div>
+                        </div>
+
+                        {linea.cantidad_enrolados > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs">Peso por enrolado (g)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={linea.peso_por_enrolado || ""}
+                              onChange={(e) => actualizarLinea(index, "peso_por_enrolado", e.target.value)}
+                              placeholder="Ej: 0.5"
+                              className="bg-background border-border"
+                            />
+                            {linea.peso_por_enrolado > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                {linea.cantidad_enrolados} x {linea.peso_por_enrolado}g = {calc.pesoEnrolados}g
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {(linea.gramos > 0 || linea.cantidad_enrolados > 0) && calc.genetica && (
+                          <div className="pt-2 border-t border-border space-y-1">
+                            {linea.gramos > 0 && (
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>
+                                  {linea.gramos}g x ${calc.precioGramo}/g
+                                </span>
+                                <span>${calc.subtotalGramos.toFixed(2)}</span>
+                              </div>
+                            )}
+                            {linea.cantidad_enrolados > 0 && calc.precioEnrolado > 0 && (
+                              <div className="flex justify-between text-sm text-amber-700">
+                                <span>
+                                  {linea.cantidad_enrolados} enr. x ${calc.precioEnrolado}/enr
+                                </span>
+                                <span>${calc.subtotalEnrolados.toFixed(2)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between text-sm font-medium pt-1">
+                              <span>Subtotal</span>
+                              <span className="text-foreground">${calc.subtotal.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Producto</Label>
+                          <Select
+                            value={linea.producto_id}
+                            onValueChange={(value) => actualizarLinea(index, "producto_id", value)}
+                          >
+                            <SelectTrigger className="bg-background border-border">
+                              <SelectValue placeholder="Seleccionar producto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {productos
+                                .filter((p) => p.activo)
+                                .map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.nombre} - Stock: {p.cantidad} (${p.precio})
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs">Cantidad</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            max={calc.producto?.cantidad || 0}
+                            value={linea.cantidad_producto || ""}
+                            onChange={(e) => actualizarLinea(index, "cantidad_producto", e.target.value)}
+                            placeholder="1"
+                            className="bg-background border-border"
+                          />
+                        </div>
+
+                        {linea.cantidad_producto > 0 && calc.producto && (
+                          <div className="pt-2 border-t border-border">
+                            <div className="flex justify-between text-sm text-muted-foreground">
+                              <span>
+                                {linea.cantidad_producto} x ${calc.precioProducto}
+                              </span>
+                              <span className="font-medium text-foreground">${calc.subtotal.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )
@@ -646,6 +813,7 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                 <TableRow className="border-border">
                   <TableHead className="text-muted-foreground">Socio</TableHead>
                   <TableHead className="text-muted-foreground">Genética</TableHead>
+                  <TableHead className="text-muted-foreground">Producto</TableHead>
                   <TableHead className="text-muted-foreground text-right">Cantidad</TableHead>
                   <TableHead className="text-muted-foreground text-center">Pago</TableHead>
                   <TableHead className="text-muted-foreground text-right">Total</TableHead>
@@ -658,6 +826,7 @@ export function VentasManager({ socios, geneticas, initialVentas }: VentasManage
                       {venta.socio?.apellido}, {venta.socio?.nombre}
                     </TableCell>
                     <TableCell className="text-foreground">{venta.genetica?.nombre || "-"}</TableCell>
+                    <TableCell className="text-foreground">{venta.producto?.nombre || "-"}</TableCell>
                     <TableCell className="text-right">
                       <span className="text-foreground">{venta.gramos}g</span>
                       {venta.cantidad_enrolados && venta.cantidad_enrolados > 0 && (

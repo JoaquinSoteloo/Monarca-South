@@ -49,7 +49,8 @@ export interface Genetica {
 export interface DetalleVenta {
   id: string
   venta_id: string
-  genetica_id: string
+  genetica_id: string | null // Ahora es opcional para permitir productos
+  producto_id: string | null // Nuevo campo para productos
   gramos: number
   cantidad_enrolados: number | null
   peso_enrolados: number | null
@@ -59,13 +60,17 @@ export interface DetalleVenta {
   subtotal: number
   created_at: string
   genetica?: Genetica
+  producto?: Producto // Nueva relación con producto
 }
 
 export interface LineaVenta {
+  tipo: "genetica" | "producto" // Tipo de línea
   genetica_id: string
+  producto_id: string // ID del producto
   gramos: number
   cantidad_enrolados: number
   peso_por_enrolado: number
+  cantidad_producto: number // Cantidad del producto
 }
 
 export interface Venta {
@@ -92,6 +97,18 @@ export interface Gasto {
   monto: number
   metodo_pago: "efectivo" | "transferencia"
   fecha: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Producto {
+  id: string
+  codigo_barras: string | null
+  nombre: string
+  descripcion: string | null
+  precio: number
+  cantidad: number
+  activo: boolean
   created_at: string
   updated_at: string
 }

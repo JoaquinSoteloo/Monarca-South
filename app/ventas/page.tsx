@@ -5,9 +5,10 @@ import { Header } from "@/components/header"
 export default async function VentasPage() {
   const supabase = await createClient()
 
-  const [{ data: socios }, { data: geneticas }, { data: ventas }] = await Promise.all([
+  const [{ data: socios }, { data: geneticas }, { data: productos }, { data: ventas }] = await Promise.all([
     supabase.from("socios").select("*, membresia:membresias(*)").eq("activo", true).order("apellido"),
     supabase.from("geneticas").select("*").eq("activo", true).gt("gramos_disponibles", 0).order("nombre"),
+    supabase.from("productos").select("*").eq("activo", true).order("nombre"),
     supabase
       .from("ventas")
       .select("*, socio:socios(nombre, apellido), genetica:geneticas(nombre)")
@@ -20,7 +21,12 @@ export default async function VentasPage() {
       <Header title="Ventas" showBack />
 
       <main className="container mx-auto px-4 py-8">
-        <VentasManager socios={socios || []} geneticas={geneticas || []} initialVentas={ventas || []} />
+        <VentasManager
+          socios={socios || []}
+          geneticas={geneticas || []}
+          productos={productos || []}
+          initialVentas={ventas || []}
+        />
       </main>
     </div>
   )

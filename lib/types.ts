@@ -85,3 +85,13 @@ export interface Venta {
   genetica?: Genetica
   detalles?: DetalleVenta[]
 }
+
+export interface Gasto {
+  id: string
+  descripcion: string
+  monto: number
+  metodo_pago: "efectivo" | "transferencia"
+  fecha: string
+  created_at: string
+  updated_at: string
+}

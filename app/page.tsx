@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
-import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin } from "lucide-react"
+import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Header } from "@/components/header"
 
@@ -13,16 +13,19 @@ export default async function Dashboard() {
     { data: ventasHoy },
     { data: stockBajo },
     { data: geneticasGramos },
+    { data: gastosHoy },
   ] = await Promise.all([
     supabase.from("socios").select("*", { count: "exact", head: true }).eq("activo", true),
     supabase.from("geneticas").select("*", { count: "exact", head: true }).eq("activo", true),
     supabase.from("ventas").select("total").gte("created_at", new Date().toISOString().split("T")[0]),
     supabase.from("geneticas").select("nombre, gramos_disponibles").eq("activo", true).lt("gramos_disponibles", 100),
     supabase.from("geneticas").select("gramos_disponibles").eq("activo", true),
+    supabase.from("gastos").select("monto").gte("fecha", new Date().toISOString().split("T")[0]),
   ])
 
   const ventasHoyTotal = ventasHoy?.reduce((sum, v) => sum + Number(v.total), 0) || 0
   const totalGramosDisponibles = geneticasGramos?.reduce((sum, g) => sum + Number(g.gramos_disponibles), 0) || 0
+  const gastosHoyTotal = gastosHoy?.reduce((sum, g) => sum + Number(g.monto), 0) || 0
 
   return (
     <div className="min-h-screen bg-background">
@@ -70,6 +73,16 @@ export default async function Dashboard() {
             </CardContent>
           </Card>
 
+          <Card className="bg-card border-red-200/50 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Gastos Hoy</CardTitle>
+              <TrendingUp className="h-4 w-4 text-red-700" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-900">${gastosHoyTotal.toFixed(2)}</div>
+            </CardContent>
+          </Card>
+
           <Card className="bg-card border-amber-300/50 shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Stock Bajo</CardTitle>
@@ -82,7 +95,7 @@ export default async function Dashboard() {
           </Card>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Link href="/stock" className="group">
             <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-200/50 hover:border-emerald-400 hover:shadow-lg transition-all h-full">
               <CardHeader>
@@ -155,6 +168,34 @@ export default async function Dashboard() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">Consulta el historial de ventas por período de fechas.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/gastos" className="group">
+            <Card className="bg-gradient-to-br from-red-50 to-white border-red-200/50 hover:border-red-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-800">
+                  <Receipt className="h-5 w-5 text-red-600" />
+                  Gestión de Gastos
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">Registrá y administrá los gastos del club.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/caja" className="group">
+            <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200/50 hover:border-blue-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-800">
+                  <DollarSign className="h-5 w-5 text-blue-600" />
+                  Reporte de Caja
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">Visualizá ganancias, gastos y balance por período.</p>
               </CardContent>
             </Card>
           </Link>

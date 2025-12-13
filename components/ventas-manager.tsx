@@ -41,6 +41,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
+import { BarcodeScanner } from "./barcode-scanner"
 
 interface VentasManagerProps {
   socios: Socio[]
@@ -75,6 +76,9 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
     notas: "",
     metodo_pago: "efectivo" as "efectivo" | "transferencia" | "pendiente",
   })
+
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const [scanningLineIndex, setScanningLineIndex] = useState<number | null>(null)
 
   const selectedSocio = socios.find((s) => s.id === formData.socio_id)
   const esMiembro = selectedSocio?.es_miembro || false
@@ -381,6 +385,30 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
     }
 
     await procesarVenta()
+  }
+
+  const handleBarcodeScan = (barcode: string) => {
+    if (scanningLineIndex === null) return
+
+    console.log("[v0] Código escaneado:", barcode)
+
+    // Buscar producto por código de barras
+    const producto = productos.find((p) => p.codigo_barras === barcode && p.activo)
+
+    if (producto) {
+      console.log("[v0] Producto encontrado:", producto.nombre)
+      actualizarLinea(scanningLineIndex, "producto_id", producto.id)
+      setScannerOpen(false)
+      setScanningLineIndex(null)
+    } else {
+      console.log("[v0] Producto no encontrado con código:", barcode)
+      alert(`No se encontró ningún producto con el código: ${barcode}`)
+    }
+  }
+
+  const openScanner = (index: number) => {
+    setScanningLineIndex(index)
+    setScannerOpen(true)
   }
 
   return (
@@ -710,50 +738,77 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
                       </>
                     ) : (
                       <>
-                        <div className="space-y-2">
-                          <Label className="text-xs">Producto</Label>
-                          <Select
-                            value={linea.producto_id}
-                            onValueChange={(value) => actualizarLinea(index, "producto_id", value)}
-                          >
-                            <SelectTrigger className="bg-background border-border">
-                              <SelectValue placeholder="Seleccionar producto" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {productos
-                                .filter((p) => p.activo)
-                                .map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>
-                                    {p.nombre} - Stock: {p.cantidad} (${p.precio})
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-xs">Cantidad</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            max={calc.producto?.cantidad || 0}
-                            value={linea.cantidad_producto || ""}
-                            onChange={(e) => actualizarLinea(index, "cantidad_producto", e.target.value)}
-                            placeholder="1"
-                            className="bg-background border-border"
-                          />
-                        </div>
-
-                        {linea.cantidad_producto > 0 && calc.producto && (
-                          <div className="pt-2 border-t border-border">
-                            <div className="flex justify-between text-sm text-muted-foreground">
-                              <span>
-                                {linea.cantidad_producto} x ${calc.precioProducto}
-                              </span>
-                              <span className="font-medium text-foreground">${calc.subtotal.toFixed(2)}</span>
-                            </div>
+                        <div className="space-y-3">
+                          <div className="flex gap-2">
+                            <Select
+                              value={linea.producto_id}
+                              onValueChange={(value) => actualizarLinea(index, "producto_id", value)}
+                            >
+                              <SelectTrigger className="bg-background border-border flex-1">
+                                <SelectValue placeholder="Seleccionar producto" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {productos
+                                  .filter((p) => p.activo)
+                                  .map((p) => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      {p.nombre} - Stock: {p.cantidad} (${p.precio})
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => openScanner(index)}
+                              className="bg-transparent border-border hover:bg-muted shrink-0"
+                              title="Escanear código de barras"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M3 5v14" />
+                                <path d="M8 5v14" />
+                                <path d="M12 5v14" />
+                                <path d="M17 5v14" />
+                                <path d="M21 5v14" />
+                              </svg>
+                            </Button>
                           </div>
-                        )}
+
+                          <div className="space-y-2">
+                            <Label className="text-xs">Cantidad</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max={calc.producto?.cantidad || 0}
+                              value={linea.cantidad_producto || ""}
+                              onChange={(e) => actualizarLinea(index, "cantidad_producto", e.target.value)}
+                              placeholder="1"
+                              className="bg-background border-border"
+                            />
+                          </div>
+
+                          {linea.cantidad_producto > 0 && calc.producto && (
+                            <div className="pt-2 border-t border-border">
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>
+                                  {linea.cantidad_producto} x ${calc.precioProducto}
+                                </span>
+                                <span className="font-medium text-foreground">${calc.subtotal.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </>
                     )}
                   </div>
@@ -796,6 +851,15 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
           </form>
         </CardContent>
       </Card>
+
+      <BarcodeScanner
+        isOpen={scannerOpen}
+        onClose={() => {
+          setScannerOpen(false)
+          setScanningLineIndex(null)
+        }}
+        onScan={handleBarcodeScan}
+      />
 
       <Card className="bg-card border-border">
         <CardHeader>

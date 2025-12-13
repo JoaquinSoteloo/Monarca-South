@@ -1,11 +1,10 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Camera, X } from "lucide-react"
+import { X } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface BarcodeScannerProps {
@@ -15,40 +14,72 @@ interface BarcodeScannerProps {
 }
 
 export function BarcodeScanner({ onScan, isOpen, onClose }: BarcodeScannerProps) {
-  const [stream, setStream] = useState<MediaStream | null>(null)
   const [error, setError] = useState<string>("")
   const [manualCode, setManualCode] = useState("")
+  const [scanning, setScanning] = useState(false)
+  const scannerRef = useRef<any>(null)
+  const readerDivId = "barcode-reader"
 
   useEffect(() => {
     if (isOpen) {
-      startCamera()
+      startScanner()
     } else {
-      stopCamera()
+      stopScanner()
     }
 
-    return () => stopCamera()
+    return () => stopScanner()
   }, [isOpen])
 
-  const startCamera = async () => {
+  const startScanner = async () => {
     try {
       setError("")
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      })
-      setStream(mediaStream)
+      setScanning(true)
 
-      // Aquí se integraría una librería de escaneo como quagga2
-      // Por simplicidad, mostramos input manual
-    } catch (err) {
+      // Importar html5-qrcode dinámicamente
+      const { Html5Qrcode } = await import("html5-qrcode")
+
+      // Crear instancia del escáner
+      scannerRef.current = new Html5Qrcode(readerDivId)
+
+      // Configuración para móviles
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 150 },
+        aspectRatio: 1.777778,
+      }
+
+      // Iniciar escáner con cámara trasera
+      await scannerRef.current.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText: string) => {
+          console.log("[v0] Código detectado:", decodedText)
+          onScan(decodedText)
+          stopScanner()
+          onClose()
+        },
+        (errorMessage: string) => {
+          // Ignorar errores de escaneo continuo
+        },
+      )
+    } catch (err: any) {
+      console.error("[v0] Error al iniciar escáner:", err)
       setError("No se pudo acceder a la cámara. Por favor ingresá el código manualmente.")
+      setScanning(false)
     }
   }
 
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop())
-      setStream(null)
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop()
+        scannerRef.current.clear()
+        scannerRef.current = null
+      } catch (err) {
+        console.log("[v0] Error al detener escáner:", err)
+      }
     }
+    setScanning(false)
   }
 
   const handleManualSubmit = (e: React.FormEvent) => {
@@ -74,19 +105,7 @@ export function BarcodeScanner({ onScan, isOpen, onClose }: BarcodeScannerProps)
             </Alert>
           )}
 
-          <div className="bg-muted/20 rounded-lg p-8 flex items-center justify-center min-h-[200px]">
-            {stream ? (
-              <div className="text-center">
-                <Camera className="h-16 w-16 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Apuntá la cámara al código de barras</p>
-              </div>
-            ) : (
-              <div className="text-center">
-                <Camera className="h-16 w-16 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Cámara no disponible</p>
-              </div>
-            )}
-          </div>
+          <div id={readerDivId} className="w-full" />
 
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground text-center">O ingresá el código manualmente:</p>
@@ -97,7 +116,6 @@ export function BarcodeScanner({ onScan, isOpen, onClose }: BarcodeScannerProps)
                 onChange={(e) => setManualCode(e.target.value)}
                 placeholder="Código de barras..."
                 className="flex-1 px-3 py-2 rounded-md bg-background border border-border text-foreground"
-                autoFocus
               />
               <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
                 Confirmar

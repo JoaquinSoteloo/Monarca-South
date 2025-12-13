@@ -1254,30 +1254,20 @@ export function HistorialVentas() {
               las genéticas/productos correspondientes.
               {ventaABorrar && (
                 <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
-                  <p>
+                  <div>
                     <strong>Socio:</strong> {ventaABorrar.socio?.apellido}, {ventaABorrar.socio?.nombre}
-                  </p>
-                  <p>
+                  </div>
+                  <div>
                     <strong>Total:</strong> ${ventaABorrar.total?.toLocaleString()}
-                  </p>
-                  {/* Display total grams/products to be returned */}
+                  </div>
                   {ventaABorrar.detalles && ventaABorrar.detalles.length > 0 ? (
-                    <p>
-                      <strong>Items a devolver:</strong>{" "}
-                      {ventaABorrar.detalles.reduce(
-                        (acc, det) =>
-                          acc +
-                          (det.gramos || 0) +
-                          (det.cantidad_enrolados || 0) +
-                          (det.peso_enrolados || 0) +
-                          (det.precio_unitario ? det.cantidad_enrolados : 0),
-                        0,
-                      )}
-                    </p>
+                    <div>
+                      <strong>Items a devolver:</strong> {ventaABorrar.detalles.length}
+                    </div>
                   ) : (
-                    <p>
+                    <div>
                       <strong>Gramos a devolver:</strong> {ventaABorrar.gramos}g
-                    </p>
+                    </div>
                   )}
                 </div>
               )}

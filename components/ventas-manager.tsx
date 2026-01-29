@@ -388,7 +388,6 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
     setFormData({
       socio_id: "",
       notas: "",
-      metodo_pago: "efectivo",
     })
     setPagoCombinado({ efectivo: 0, transferencia: 0 })
     setFechaVenta(new Date())

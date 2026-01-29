@@ -1563,48 +1563,73 @@ export function HistorialVentas() {
                             <span className="text-foreground">{info.detalleString}</span>
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
-                            {venta.metodo_pago === "pendiente" ? (
-                              <Badge
-                                variant="outline"
-                                className="border-red-300 text-red-600 cursor-pointer hover:bg-red-50"
-                                onClick={() => {
-                                  setEditingVenta(venta)
-                                  setNuevoMetodoPago("efectivo")
-                                }}
-                              >
-                                <Clock className="h-3 w-3 mr-1" />
-                                Pendiente
-                              </Badge>
-                            ) : venta.metodo_pago === "efectivo" ? (
-                              <Badge variant="outline" className="border-emerald-300 text-emerald-600">
-                                <Banknote className="h-3 w-3 mr-1" />
-                                Efectivo
-                              </Badge>
-                            ) : (
-                              <div className="flex items-center gap-1">
-                                <Badge variant="outline" className="border-blue-300 text-blue-600">
-                                  <CreditCard className="h-3 w-3 mr-1" />
-                                  Transferencia
-                                </Badge>
-                                {venta.pagos && venta.pagos.some(p => p.comprobante_url) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 hover:bg-blue-100"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      const pagoConComprobante = venta.pagos?.find(p => p.comprobante_url)
-                                      if (pagoConComprobante?.comprobante_url) {
-                                        setComprobanteUrl(pagoConComprobante.comprobante_url)
-                                      }
+                            {(() => {
+                              const saldoPendiente = Number(venta.saldo_pendiente) || 0
+                              const montoPagado = Number(venta.monto_pagado) || 0
+                              const tieneDeuda = saldoPendiente > 0
+                              const tieneEfectivo = venta.pagos?.some(p => p.metodo_pago === 'efectivo') || (montoPagado > 0 && venta.metodo_pago === 'efectivo')
+                              const tieneTransferencia = venta.pagos?.some(p => p.metodo_pago === 'transferencia') || (montoPagado > 0 && venta.metodo_pago === 'transferencia')
+
+                              if (venta.metodo_pago === "pendiente" && saldoPendiente >= Number(venta.total)) {
+                                return (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-red-300 text-red-600 cursor-pointer hover:bg-red-50"
+                                    onClick={() => {
+                                      setEditingVenta(venta)
+                                      setNuevoMetodoPago("efectivo")
                                     }}
-                                    title="Ver comprobante"
                                   >
-                                    <ImageIcon className="h-4 w-4 text-blue-600" />
-                                  </Button>
-                                )}
-                              </div>
-                            )}
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    Pendiente
+                                  </Badge>
+                                )
+                              }
+
+                              return (
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {tieneEfectivo && (
+                                      <Badge variant="outline" className="border-emerald-300 text-emerald-600 text-xs">
+                                        <Banknote className="h-3 w-3 mr-1" />
+                                        Efectivo
+                                      </Badge>
+                                    )}
+                                    {tieneTransferencia && (
+                                      <div className="flex items-center gap-1">
+                                        <Badge variant="outline" className="border-blue-300 text-blue-600 text-xs">
+                                          <CreditCard className="h-3 w-3 mr-1" />
+                                          Transf.
+                                        </Badge>
+                                        {venta.pagos && venta.pagos.some(p => p.comprobante_url) && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-5 w-5 p-0 hover:bg-blue-100"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              const pagoConComprobante = venta.pagos?.find(p => p.comprobante_url)
+                                              if (pagoConComprobante?.comprobante_url) {
+                                                setComprobanteUrl(pagoConComprobante.comprobante_url)
+                                              }
+                                            }}
+                                            title="Ver comprobante"
+                                          >
+                                            <ImageIcon className="h-3 w-3 text-blue-600" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    )}
+                                    {tieneDeuda && (
+                                      <Badge variant="outline" className="border-amber-300 text-amber-600 text-xs">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        Debe ${saldoPendiente.toLocaleString()}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </TableCell>
                           <TableCell className="text-right font-bold text-emerald-600">
                             ${Number(venta.total).toFixed(2)}

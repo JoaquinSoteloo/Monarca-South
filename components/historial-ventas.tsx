@@ -200,51 +200,70 @@ export function HistorialVentas() {
     const file = e.target.files[0]
     setSubiendoComprobante(true)
     
-    // Convertir a base64
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      const base64 = event.target?.result as string
-      const supabase = createClient()
-      
-      // Buscar el pago de transferencia de esta venta
-      const pagoTransferencia = ventaParaComprobante.pagos?.find(p => p.metodo_pago === 'transferencia')
-      
-      if (pagoTransferencia) {
-        // Actualizar el pago existente con el comprobante
-        await supabase
-          .from("pagos")
-          .update({ comprobante_url: base64 })
-          .eq("id", pagoTransferencia.id)
-      } else {
-        // Si no hay pago de transferencia registrado, crear uno (para ventas antiguas)
-        await supabase.from("pagos").insert({
-          venta_id: ventaParaComprobante.id,
-          monto: Number(ventaParaComprobante.total),
-          metodo_pago: "transferencia",
-          comprobante_url: base64,
-          fecha: ventaParaComprobante.created_at,
-        })
-      }
-      
-      // Actualizar la lista de ventas localmente
-      setVentas(ventas.map(v => {
-        if (v.id === ventaParaComprobante.id) {
-          const pagosActualizados = v.pagos ? [...v.pagos] : []
-          const idx = pagosActualizados.findIndex(p => p.metodo_pago === 'transferencia')
-          if (idx >= 0) {
-            pagosActualizados[idx] = { ...pagosActualizados[idx], comprobante_url: base64 }
-          } else {
-            pagosActualizados.push({ id: Date.now(), monto: Number(v.total), metodo_pago: 'transferencia', comprobante_url: base64, fecha: v.created_at })
-          }
-          return { ...v, pagos: pagosActualizados }
-        }
-        return v
-      }))
-      
-      setVentaParaComprobante(null)
+    const supabase = createClient()
+    
+    // Generar nombre único para el archivo
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${ventaParaComprobante.id}_${Date.now()}.${fileExt}`
+    
+    // Subir a Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('comprobantes')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
+    
+    if (uploadError) {
+      console.error('Error al subir comprobante:', uploadError)
       setSubiendoComprobante(false)
+      return
     }
-    reader.readAsDataURL(file)
+    
+    // Obtener URL pública
+    const { data: urlData } = supabase.storage
+      .from('comprobantes')
+      .getPublicUrl(fileName)
+    
+    const publicUrl = urlData.publicUrl
+    
+    // Buscar el pago de transferencia de esta venta
+    const pagoTransferencia = ventaParaComprobante.pagos?.find(p => p.metodo_pago === 'transferencia')
+    
+    if (pagoTransferencia) {
+      // Actualizar el pago existente con el comprobante
+      await supabase
+        .from("pagos")
+        .update({ comprobante_url: publicUrl })
+        .eq("id", pagoTransferencia.id)
+    } else {
+      // Si no hay pago de transferencia registrado, crear uno (para ventas antiguas)
+      await supabase.from("pagos").insert({
+        venta_id: ventaParaComprobante.id,
+        monto: Number(ventaParaComprobante.total),
+        metodo_pago: "transferencia",
+        comprobante_url: publicUrl,
+        fecha: ventaParaComprobante.created_at,
+      })
+    }
+    
+    // Actualizar la lista de ventas localmente
+    setVentas(ventas.map(v => {
+      if (v.id === ventaParaComprobante.id) {
+        const pagosActualizados = v.pagos ? [...v.pagos] : []
+        const idx = pagosActualizados.findIndex(p => p.metodo_pago === 'transferencia')
+        if (idx >= 0) {
+          pagosActualizados[idx] = { ...pagosActualizados[idx], comprobante_url: publicUrl }
+        } else {
+          pagosActualizados.push({ id: Date.now(), monto: Number(v.total), metodo_pago: 'transferencia', comprobante_url: publicUrl, fecha: v.created_at })
+        }
+        return { ...v, pagos: pagosActualizados }
+      }
+      return v
+    }))
+    
+    setVentaParaComprobante(null)
+    setSubiendoComprobante(false)
   }
 
   const getVentaInfo = (venta: VentaConDetalles) => {

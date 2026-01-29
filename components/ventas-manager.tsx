@@ -74,13 +74,11 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
   const [formData, setFormData] = useState({
     socio_id: "",
     notas: "",
-    metodo_pago: "efectivo" as "efectivo" | "transferencia" | "pendiente" | "combinado",
   })
 
   const [pagoCombinado, setPagoCombinado] = useState({
     efectivo: 0,
     transferencia: 0,
-    pendiente: 0,
   })
 
   const [scannerOpen, setScannerOpen] = useState(false)
@@ -236,28 +234,20 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       }
     }
 
-    // Calcular montos según tipo de pago
-    let montoPagado = totalVenta
-    let saldoPendiente = 0
+    // Calcular montos - deuda se calcula automáticamente
+    const montoPagado = pagoCombinado.efectivo + pagoCombinado.transferencia
+    const saldoPendiente = Math.max(0, totalVenta - montoPagado)
+    
+    // Determinar método de pago principal
     let metodoPagoFinal: "efectivo" | "transferencia" | "pendiente" = "efectivo"
-
-    if (formData.metodo_pago === "pendiente") {
-      montoPagado = 0
-      saldoPendiente = totalVenta
+    if (saldoPendiente >= totalVenta) {
+      metodoPagoFinal = "pendiente" // Todo es deuda
+    } else if (pagoCombinado.transferencia > pagoCombinado.efectivo) {
+      metodoPagoFinal = "transferencia"
+    } else if (pagoCombinado.efectivo > 0) {
+      metodoPagoFinal = "efectivo"
+    } else if (saldoPendiente > 0) {
       metodoPagoFinal = "pendiente"
-    } else if (formData.metodo_pago === "combinado") {
-      montoPagado = pagoCombinado.efectivo + pagoCombinado.transferencia
-      saldoPendiente = pagoCombinado.pendiente
-      // El método de pago principal es según el mayor aporte
-      if (pagoCombinado.pendiente >= pagoCombinado.efectivo && pagoCombinado.pendiente >= pagoCombinado.transferencia) {
-        metodoPagoFinal = "pendiente"
-      } else if (pagoCombinado.transferencia >= pagoCombinado.efectivo) {
-        metodoPagoFinal = "transferencia"
-      } else {
-        metodoPagoFinal = "efectivo"
-      }
-    } else {
-      metodoPagoFinal = formData.metodo_pago as "efectivo" | "transferencia"
     }
 
     const ventaData = {
@@ -286,24 +276,22 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       return
     }
 
-    // Si es pago combinado, registrar los pagos en la tabla pagos
-    if (formData.metodo_pago === "combinado") {
-      if (pagoCombinado.efectivo > 0) {
-        await supabase.from("pagos").insert({
-          venta_id: newVenta.id,
-          monto: pagoCombinado.efectivo,
-          metodo_pago: "efectivo",
-          fecha: fechaVenta.toISOString(),
-        })
-      }
-      if (pagoCombinado.transferencia > 0) {
-        await supabase.from("pagos").insert({
-          venta_id: newVenta.id,
-          monto: pagoCombinado.transferencia,
-          metodo_pago: "transferencia",
-          fecha: fechaVenta.toISOString(),
-        })
-      }
+    // Registrar pagos si hay montos
+    if (pagoCombinado.efectivo > 0) {
+      await supabase.from("pagos").insert({
+        venta_id: newVenta.id,
+        monto: pagoCombinado.efectivo,
+        metodo_pago: "efectivo",
+        fecha: fechaVenta.toISOString(),
+      })
+    }
+    if (pagoCombinado.transferencia > 0) {
+      await supabase.from("pagos").insert({
+        venta_id: newVenta.id,
+        monto: pagoCombinado.transferencia,
+        metodo_pago: "transferencia",
+        fecha: fechaVenta.toISOString(),
+      })
     }
 
     for (const linea of lineas) {
@@ -402,7 +390,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       notas: "",
       metodo_pago: "efectivo",
     })
-    setPagoCombinado({ efectivo: 0, transferencia: 0, pendiente: 0 })
+    setPagoCombinado({ efectivo: 0, transferencia: 0 })
     setFechaVenta(new Date())
     setLoading(false)
     router.refresh()
@@ -437,13 +425,11 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       return
     }
 
-    // Validar pago combinado
-    if (formData.metodo_pago === "combinado") {
-      const sumaPagos = pagoCombinado.efectivo + pagoCombinado.transferencia + pagoCombinado.pendiente
-      if (Math.abs(sumaPagos - totalVenta) > 0.01) {
-        setError(`El desglose del pago ($${sumaPagos.toLocaleString()}) no coincide con el total ($${totalVenta.toLocaleString()})`)
-        return
-      }
+    // Validar que el pago no exceda el total
+    const totalPagado = pagoCombinado.efectivo + pagoCombinado.transferencia
+    if (totalPagado > totalVenta) {
+      setError(`El pago ($${totalPagado.toLocaleString()}) excede el total de la venta ($${totalVenta.toLocaleString()})`)
+      return
     }
 
     await procesarVenta()
@@ -606,119 +592,70 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="metodo_pago">Método de Pago</Label>
-                <Select
-                  value={formData.metodo_pago}
-                  onValueChange={(value: "efectivo" | "transferencia" | "pendiente" | "combinado") => {
-                    setFormData({ ...formData, metodo_pago: value })
-                    if (value === "combinado") {
-                      setPagoCombinado({ efectivo: 0, transferencia: 0, pendiente: 0 })
-                    }
-                  }}
-                >
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Seleccionar método de pago" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="efectivo">
-                      <div className="flex items-center gap-2">
-                        <Banknote className="h-4 w-4" />
+                <Label>Pagos recibidos (Total: ${totalVenta.toLocaleString()})</Label>
+                <div className="p-4 rounded-lg bg-muted/30 border space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center gap-1">
+                        <Banknote className="h-3 w-3 text-emerald-600" />
                         Efectivo
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="transferencia">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4" />
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max={totalVenta}
+                        value={pagoCombinado.efectivo || ""}
+                        onChange={(e) => setPagoCombinado({ ...pagoCombinado, efectivo: Number(e.target.value) || 0 })}
+                        placeholder="0"
+                        className="bg-background border-border"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center gap-1">
+                        <CreditCard className="h-3 w-3 text-blue-600" />
                         Transferencia
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="pendiente">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        Pendiente (Deuda total)
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="combinado">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4" />
-                        Pago Combinado
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {formData.metodo_pago === "combinado" && (
-              <div className="p-4 rounded-lg bg-blue-50/50 border border-blue-200 space-y-4">
-                <div className="flex items-center gap-2 text-blue-700">
-                  <AlertCircle className="h-4 w-4" />
-                  <span className="text-sm font-medium">Desglose del pago (Total: ${totalVenta.toLocaleString()})</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs flex items-center gap-1">
-                      <Banknote className="h-3 w-3 text-emerald-600" />
-                      Efectivo
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max={totalVenta}
-                      value={pagoCombinado.efectivo || ""}
-                      onChange={(e) => setPagoCombinado({ ...pagoCombinado, efectivo: Number(e.target.value) || 0 })}
-                      placeholder="0"
-                      className="bg-background border-border"
-                    />
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max={totalVenta}
+                        value={pagoCombinado.transferencia || ""}
+                        onChange={(e) => setPagoCombinado({ ...pagoCombinado, transferencia: Number(e.target.value) || 0 })}
+                        placeholder="0"
+                        className="bg-background border-border"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs flex items-center gap-1">
-                      <CreditCard className="h-3 w-3 text-blue-600" />
-                      Transferencia
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max={totalVenta}
-                      value={pagoCombinado.transferencia || ""}
-                      onChange={(e) => setPagoCombinado({ ...pagoCombinado, transferencia: Number(e.target.value) || 0 })}
-                      placeholder="0"
-                      className="bg-background border-border"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs flex items-center gap-1">
-                      <Clock className="h-3 w-3 text-amber-600" />
-                      Deuda (Pendiente)
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max={totalVenta}
-                      value={pagoCombinado.pendiente || ""}
-                      onChange={(e) => setPagoCombinado({ ...pagoCombinado, pendiente: Number(e.target.value) || 0 })}
-                      placeholder="0"
-                      className="bg-background border-border"
-                    />
-                  </div>
-                </div>
-                {(() => {
-                  const sumaPagos = pagoCombinado.efectivo + pagoCombinado.transferencia + pagoCombinado.pendiente
-                  const diferencia = totalVenta - sumaPagos
-                  if (diferencia !== 0) {
+                  {(() => {
+                    const totalPagado = pagoCombinado.efectivo + pagoCombinado.transferencia
+                    const deuda = Math.max(0, totalVenta - totalPagado)
+                    const excedente = Math.max(0, totalPagado - totalVenta)
                     return (
-                      <div className={`text-xs ${diferencia > 0 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {diferencia > 0 
-                          ? `Faltan $${diferencia.toLocaleString()} por asignar`
-                          : `Excede en $${Math.abs(diferencia).toLocaleString()} el total`
-                        }
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Pagado: </span>
+                          <span className="font-medium text-emerald-600">${totalPagado.toLocaleString()}</span>
+                        </div>
+                        {deuda > 0 ? (
+                          <div className="text-sm">
+                            <span className="text-muted-foreground">Deuda: </span>
+                            <span className="font-medium text-amber-600">${deuda.toLocaleString()}</span>
+                          </div>
+                        ) : excedente > 0 ? (
+                          <div className="text-sm text-red-600">
+                            Excede en ${excedente.toLocaleString()}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-emerald-600 font-medium">
+                            Pagado completo
+                          </div>
+                        )}
                       </div>
                     )
-                  }
-                  return <div className="text-xs text-emerald-600">El desglose coincide con el total</div>
-                })()}
+                  })()}
+                </div>
               </div>
-            )}
+            </div>
 
             {esMiembro && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">

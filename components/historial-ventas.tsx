@@ -99,6 +99,8 @@ export function HistorialVentas() {
   const [ventaABorrar, setVentaABorrar] = useState<VentaConDetalles | null>(null)
   const [comprobanteUrl, setComprobanteUrl] = useState<string | null>(null)
   const [borrando, setBorrando] = useState(false)
+  const [ventaParaComprobante, setVentaParaComprobante] = useState<VentaConDetalles | null>(null)
+  const [subiendoComprobante, setSubiendoComprobante] = useState(false)
 
   const fetchVentas = async () => {
     if (!fechaDesde || !fechaHasta) return
@@ -190,6 +192,59 @@ export function HistorialVentas() {
       newExpanded.add(ventaId)
     }
     setExpandedVentas(newExpanded)
+  }
+
+  const handleSubirComprobante = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !ventaParaComprobante) return
+    
+    const file = e.target.files[0]
+    setSubiendoComprobante(true)
+    
+    // Convertir a base64
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string
+      const supabase = createClient()
+      
+      // Buscar el pago de transferencia de esta venta
+      const pagoTransferencia = ventaParaComprobante.pagos?.find(p => p.metodo_pago === 'transferencia')
+      
+      if (pagoTransferencia) {
+        // Actualizar el pago existente con el comprobante
+        await supabase
+          .from("pagos")
+          .update({ comprobante_url: base64 })
+          .eq("id", pagoTransferencia.id)
+      } else {
+        // Si no hay pago de transferencia registrado, crear uno (para ventas antiguas)
+        await supabase.from("pagos").insert({
+          venta_id: ventaParaComprobante.id,
+          monto: Number(ventaParaComprobante.total),
+          metodo_pago: "transferencia",
+          comprobante_url: base64,
+          fecha: ventaParaComprobante.created_at,
+        })
+      }
+      
+      // Actualizar la lista de ventas localmente
+      setVentas(ventas.map(v => {
+        if (v.id === ventaParaComprobante.id) {
+          const pagosActualizados = v.pagos ? [...v.pagos] : []
+          const idx = pagosActualizados.findIndex(p => p.metodo_pago === 'transferencia')
+          if (idx >= 0) {
+            pagosActualizados[idx] = { ...pagosActualizados[idx], comprobante_url: base64 }
+          } else {
+            pagosActualizados.push({ id: Date.now(), monto: Number(v.total), metodo_pago: 'transferencia', comprobante_url: base64, fecha: v.created_at })
+          }
+          return { ...v, pagos: pagosActualizados }
+        }
+        return v
+      }))
+      
+      setVentaParaComprobante(null)
+      setSubiendoComprobante(false)
+    }
+    reader.readAsDataURL(file)
   }
 
   const getVentaInfo = (venta: VentaConDetalles) => {
@@ -1606,7 +1661,7 @@ export function HistorialVentas() {
                                           <CreditCard className="h-3 w-3 mr-1" />
                                           Transf.
                                         </Badge>
-                                        {venta.pagos && venta.pagos.some(p => p.comprobante_url) && (
+                                        {venta.pagos && venta.pagos.some(p => p.comprobante_url) ? (
                                           <Button
                                             variant="ghost"
                                             size="sm"
@@ -1621,6 +1676,20 @@ export function HistorialVentas() {
                                             title="Ver comprobante"
                                           >
                                             <ImageIcon className="h-3 w-3 text-blue-600" />
+                                          </Button>
+                                        ) : (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-5 w-5 p-0 hover:bg-blue-100"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setVentaParaComprobante(venta)
+                                              document.getElementById('input-comprobante-historial')?.click()
+                                            }}
+                                            title="Cargar comprobante"
+                                          >
+                                            <Plus className="h-3 w-3 text-blue-600" />
                                           </Button>
                                         )}
                                       </div>
@@ -1689,6 +1758,16 @@ export function HistorialVentas() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Input oculto para cargar comprobante */}
+      <input
+        type="file"
+        id="input-comprobante-historial"
+        accept="image/*"
+        className="hidden"
+        onChange={handleSubirComprobante}
+        disabled={subiendoComprobante}
+      />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
-import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign } from "lucide-react"
+import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Header } from "@/components/header"
 
@@ -196,6 +196,20 @@ export default async function Dashboard() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">Visualizá ganancias, gastos y balance por período.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/deudas" className="group">
+            <Card className="bg-gradient-to-br from-orange-50 to-white border-orange-200/50 hover:border-orange-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-800">
+                  <AlertCircle className="h-5 w-5 text-orange-600" />
+                  Control de Deudas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">Gestioná deudas pendientes y registrá pagos parciales.</p>
               </CardContent>
             </Card>
           </Link>

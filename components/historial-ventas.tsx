@@ -29,6 +29,7 @@ import {
   FileText,
   AlertTriangle,
   ShoppingCart,
+  ImageIcon,
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -110,7 +111,7 @@ export function HistorialVentas() {
     const { data, error } = await supabase
       .from("ventas")
       .select(
-        "*, socio:socios(nombre, apellido, dni, es_miembro), genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), detalles:detalle_venta(id, genetica_id, producto_id, gramos, cantidad_enrolados, peso_por_enrolado, peso_enrolados, precio_unitario, precio_enrolado, subtotal, genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), producto:productos(nombre))",
+        "*, socio:socios(nombre, apellido, dni, es_miembro), genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), detalles:detalle_venta(id, genetica_id, producto_id, gramos, cantidad_enrolados, peso_por_enrolado, peso_enrolados, precio_unitario, precio_enrolado, subtotal, genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), producto:productos(nombre)), pagos(id, monto, metodo_pago, comprobante_url, fecha)",
       )
       .gte("created_at", `${desdeStr}T00:00:00`)
       .lte("created_at", `${hastaStr}T23:59:59`)
@@ -1579,10 +1580,29 @@ export function HistorialVentas() {
                                 Efectivo
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="border-blue-300 text-blue-600">
-                                <CreditCard className="h-3 w-3 mr-1" />
-                                Transferencia
-                              </Badge>
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className="border-blue-300 text-blue-600">
+                                  <CreditCard className="h-3 w-3 mr-1" />
+                                  Transferencia
+                                </Badge>
+                                {venta.pagos && venta.pagos.some(p => p.comprobante_url) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 hover:bg-blue-100"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const pagoConComprobante = venta.pagos?.find(p => p.comprobante_url)
+                                      if (pagoConComprobante?.comprobante_url) {
+                                        window.open(pagoConComprobante.comprobante_url, '_blank')
+                                      }
+                                    }}
+                                    title="Ver comprobante"
+                                  >
+                                    <ImageIcon className="h-4 w-4 text-blue-600" />
+                                  </Button>
+                                )}
+                              </div>
                             )}
                           </TableCell>
                           <TableCell className="text-right font-bold text-emerald-600">

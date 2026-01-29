@@ -97,6 +97,7 @@ export function HistorialVentas() {
   const router = useRouter()
 
   const [ventaABorrar, setVentaABorrar] = useState<VentaConDetalles | null>(null)
+  const [comprobanteUrl, setComprobanteUrl] = useState<string | null>(null)
   const [borrando, setBorrando] = useState(false)
 
   const fetchVentas = async () => {
@@ -1594,7 +1595,7 @@ export function HistorialVentas() {
                                       e.stopPropagation()
                                       const pagoConComprobante = venta.pagos?.find(p => p.comprobante_url)
                                       if (pagoConComprobante?.comprobante_url) {
-                                        window.open(pagoConComprobante.comprobante_url, '_blank')
+                                        setComprobanteUrl(pagoConComprobante.comprobante_url)
                                       }
                                     }}
                                     title="Ver comprobante"
@@ -1640,6 +1641,24 @@ export function HistorialVentas() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog para ver comprobante */}
+      <Dialog open={!!comprobanteUrl} onOpenChange={(open) => !open && setComprobanteUrl(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Comprobante de Transferencia</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center">
+            {comprobanteUrl && (
+              <img
+                src={comprobanteUrl || "/placeholder.svg"}
+                alt="Comprobante de transferencia"
+                className="max-h-[70vh] object-contain rounded-lg"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

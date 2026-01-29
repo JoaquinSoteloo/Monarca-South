@@ -85,10 +85,13 @@ export interface Venta {
   cantidad_enrolados: number | null
   peso_enrolados: number | null
   notas: string | null
+  saldo_pendiente: number
+  monto_pagado: number
   created_at: string
   socio?: Socio
   genetica?: Genetica
   detalles?: DetalleVenta[]
+  pagos?: Pago[]
 }
 
 export interface Gasto {
@@ -111,4 +114,16 @@ export interface Producto {
   activo: boolean
   created_at: string
   updated_at: string
+}
+
+export interface Pago {
+  id: string
+  venta_id: string
+  monto: number
+  metodo_pago: "efectivo" | "transferencia"
+  comprobante_url: string | null
+  notas: string | null
+  fecha: string
+  created_at: string
+  venta?: Venta
 }

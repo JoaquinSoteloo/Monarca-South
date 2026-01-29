@@ -230,6 +230,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       }
     }
 
+    const esPendiente = formData.metodo_pago === "pendiente"
     const ventaData = {
       socio_id: formData.socio_id,
       genetica_id: lineas.find((l) => l.tipo === "genetica")?.genetica_id || null,
@@ -238,6 +239,8 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       precio_unitario: lineas.length === 1 && lineas[0].tipo === "genetica" ? calcularLinea(lineas[0]).precioGramo : 0,
       total: totalVenta,
       metodo_pago: formData.metodo_pago,
+      saldo_pendiente: esPendiente ? totalVenta : 0,
+      monto_pagado: esPendiente ? 0 : totalVenta,
       notas: formData.notas || null,
       created_at: fechaVenta.toISOString(),
     }

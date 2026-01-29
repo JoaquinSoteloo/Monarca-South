@@ -396,15 +396,17 @@ export function HistorialVentas() {
         gramos: totalGramos, // Sum of grams from genetics
         total: totalVenta,
         genetica_id: lineasValidas.find((l) => l.genetica_id)?.genetica_id || null, // Primary genetic for legacy display
-        tipo_venta:
-          lineasValidas.some((l) => l.genetica_id && (l.gramos > 0 || l.cantidad_enrolados > 0)) &&
-          lineasValidas.some((l) => l.producto_id && l.cantidad_enrolados > 0)
-            ? "mixto"
-            : lineasValidas.some((l) => l.producto_id && l.cantidad_enrolados > 0)
-              ? "productos"
-              : lineasValidas.some((l) => l.genetica_id && (l.gramos > 0 || l.cantidad_enrolados > 0))
-                ? "genetica"
-                : "", // Handle cases with only products or only genetics
+        tipo_venta: (() => {
+          const tieneGeneticaGramos = lineasValidas.some((l) => l.genetica_id && l.gramos > 0)
+          const tieneGeneticaEnrolados = lineasValidas.some((l) => l.genetica_id && l.cantidad_enrolados > 0)
+          const tieneProductos = lineasValidas.some((l) => l.producto_id && l.cantidad_enrolados > 0)
+          
+          if (tieneProductos && (tieneGeneticaGramos || tieneGeneticaEnrolados)) return "mixto"
+          if (tieneProductos) return "mixto" // productos solos se guardan como mixto
+          if (tieneGeneticaGramos && tieneGeneticaEnrolados) return "mixto"
+          if (tieneGeneticaEnrolados) return "enrolados"
+          return "gramos"
+        })()
       })
       .eq("id", editingFullVenta.id)
 

@@ -1565,10 +1565,15 @@ export function HistorialVentas() {
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             {(() => {
                               const saldoPendiente = Number(venta.saldo_pendiente) || 0
-                              const montoPagado = Number(venta.monto_pagado) || 0
                               const tieneDeuda = saldoPendiente > 0
-                              const tieneEfectivo = venta.pagos?.some(p => p.metodo_pago === 'efectivo') || (montoPagado > 0 && venta.metodo_pago === 'efectivo')
-                              const tieneTransferencia = venta.pagos?.some(p => p.metodo_pago === 'transferencia') || (montoPagado > 0 && venta.metodo_pago === 'transferencia')
+                              
+                              // Verificar pagos registrados en la tabla pagos
+                              const pagosEfectivo = venta.pagos?.filter(p => p.metodo_pago === 'efectivo') || []
+                              const pagosTransferencia = venta.pagos?.filter(p => p.metodo_pago === 'transferencia') || []
+                              
+                              // Si no hay pagos registrados en la tabla, usar el metodo_pago de la venta (ventas antiguas)
+                              const tieneEfectivo = pagosEfectivo.length > 0 || ((!venta.pagos || venta.pagos.length === 0) && venta.metodo_pago === 'efectivo' && !tieneDeuda)
+                              const tieneTransferencia = pagosTransferencia.length > 0 || ((!venta.pagos || venta.pagos.length === 0) && venta.metodo_pago === 'transferencia' && !tieneDeuda)
 
                               if (venta.metodo_pago === "pendiente" && saldoPendiente >= Number(venta.total)) {
                                 return (

@@ -1,9 +1,9 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
+import type React from "react"
+import { useState } from "react"
 import type { Socio, Genetica, Venta, LineaVenta, Producto } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -83,8 +83,29 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
 
   const [scannerOpen, setScannerOpen] = useState(false)
   const [scanningLineIndex, setScanningLineIndex] = useState<number | null>(null)
+  const [deudaSocio, setDeudaSocio] = useState<number>(0)
+  const supabase = createClient()
 
   const selectedSocio = socios.find((s) => s.id === formData.socio_id)
+
+  // Consultar deuda del socio cuando cambia
+  useEffect(() => {
+    const consultarDeuda = async () => {
+      if (!formData.socio_id) {
+        setDeudaSocio(0)
+        return
+      }
+      const { data } = await supabase
+        .from("ventas")
+        .select("saldo_pendiente")
+        .eq("socio_id", formData.socio_id)
+        .gt("saldo_pendiente", 0)
+      
+      const totalDeuda = data?.reduce((acc, v) => acc + (Number(v.saldo_pendiente) || 0), 0) || 0
+      setDeudaSocio(totalDeuda)
+    }
+    consultarDeuda()
+  }, [formData.socio_id])
   const esMiembro = selectedSocio?.es_miembro || false
 
   const calcularLinea = (linea: LineaVenta) => {
@@ -214,7 +235,6 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
   const procesarVenta = async () => {
     setLoading(true)
     setShowLimitDialog(false)
-    const supabase = createClient()
 
     for (const linea of lineas) {
       if (linea.tipo === "genetica" && linea.genetica_id) {
@@ -588,6 +608,16 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
                     ))}
                   </SelectContent>
                 </Select>
+                
+                {deudaSocio > 0 && (
+                  <div className="mt-2 p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div className="text-sm">
+                      <span className="font-medium text-amber-700">Este socio tiene una deuda pendiente de </span>
+                      <span className="font-bold text-amber-700">${deudaSocio.toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

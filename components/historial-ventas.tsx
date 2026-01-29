@@ -97,7 +97,10 @@ export function HistorialVentas() {
   const router = useRouter()
 
   const [ventaABorrar, setVentaABorrar] = useState<VentaConDetalles | null>(null)
+  const [comprobanteUrl, setComprobanteUrl] = useState<string | null>(null)
   const [borrando, setBorrando] = useState(false)
+  const [ventaParaComprobante, setVentaParaComprobante] = useState<VentaConDetalles | null>(null)
+  const [subiendoComprobante, setSubiendoComprobante] = useState(false)
 
   const fetchVentas = async () => {
     if (!fechaDesde || !fechaHasta) return
@@ -189,6 +192,78 @@ export function HistorialVentas() {
       newExpanded.add(ventaId)
     }
     setExpandedVentas(newExpanded)
+  }
+
+  const handleSubirComprobante = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !ventaParaComprobante) return
+    
+    const file = e.target.files[0]
+    setSubiendoComprobante(true)
+    
+    const supabase = createClient()
+    
+    // Generar nombre único para el archivo
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${ventaParaComprobante.id}_${Date.now()}.${fileExt}`
+    
+    // Subir a Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('comprobantes')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
+    
+    if (uploadError) {
+      console.error('Error al subir comprobante:', uploadError)
+      setSubiendoComprobante(false)
+      return
+    }
+    
+    // Obtener URL pública
+    const { data: urlData } = supabase.storage
+      .from('comprobantes')
+      .getPublicUrl(fileName)
+    
+    const publicUrl = urlData.publicUrl
+    
+    // Buscar el pago de transferencia de esta venta
+    const pagoTransferencia = ventaParaComprobante.pagos?.find(p => p.metodo_pago === 'transferencia')
+    
+    if (pagoTransferencia) {
+      // Actualizar el pago existente con el comprobante
+      await supabase
+        .from("pagos")
+        .update({ comprobante_url: publicUrl })
+        .eq("id", pagoTransferencia.id)
+    } else {
+      // Si no hay pago de transferencia registrado, crear uno (para ventas antiguas)
+      await supabase.from("pagos").insert({
+        venta_id: ventaParaComprobante.id,
+        monto: Number(ventaParaComprobante.total),
+        metodo_pago: "transferencia",
+        comprobante_url: publicUrl,
+        fecha: ventaParaComprobante.created_at,
+      })
+    }
+    
+    // Actualizar la lista de ventas localmente
+    setVentas(ventas.map(v => {
+      if (v.id === ventaParaComprobante.id) {
+        const pagosActualizados = v.pagos ? [...v.pagos] : []
+        const idx = pagosActualizados.findIndex(p => p.metodo_pago === 'transferencia')
+        if (idx >= 0) {
+          pagosActualizados[idx] = { ...pagosActualizados[idx], comprobante_url: publicUrl }
+        } else {
+          pagosActualizados.push({ id: Date.now(), monto: Number(v.total), metodo_pago: 'transferencia', comprobante_url: publicUrl, fecha: v.created_at })
+        }
+        return { ...v, pagos: pagosActualizados }
+      }
+      return v
+    }))
+    
+    setVentaParaComprobante(null)
+    setSubiendoComprobante(false)
   }
 
   const getVentaInfo = (venta: VentaConDetalles) => {
@@ -1562,48 +1637,92 @@ export function HistorialVentas() {
                             <span className="text-foreground">{info.detalleString}</span>
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
-                            {venta.metodo_pago === "pendiente" ? (
-                              <Badge
-                                variant="outline"
-                                className="border-red-300 text-red-600 cursor-pointer hover:bg-red-50"
-                                onClick={() => {
-                                  setEditingVenta(venta)
-                                  setNuevoMetodoPago("efectivo")
-                                }}
-                              >
-                                <Clock className="h-3 w-3 mr-1" />
-                                Pendiente
-                              </Badge>
-                            ) : venta.metodo_pago === "efectivo" ? (
-                              <Badge variant="outline" className="border-emerald-300 text-emerald-600">
-                                <Banknote className="h-3 w-3 mr-1" />
-                                Efectivo
-                              </Badge>
-                            ) : (
-                              <div className="flex items-center gap-1">
-                                <Badge variant="outline" className="border-blue-300 text-blue-600">
-                                  <CreditCard className="h-3 w-3 mr-1" />
-                                  Transferencia
-                                </Badge>
-                                {venta.pagos && venta.pagos.some(p => p.comprobante_url) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 hover:bg-blue-100"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      const pagoConComprobante = venta.pagos?.find(p => p.comprobante_url)
-                                      if (pagoConComprobante?.comprobante_url) {
-                                        window.open(pagoConComprobante.comprobante_url, '_blank')
-                                      }
+                            {(() => {
+                              const saldoPendiente = Number(venta.saldo_pendiente) || 0
+                              const tieneDeuda = saldoPendiente > 0
+                              
+                              // Verificar pagos registrados en la tabla pagos
+                              const pagosEfectivo = venta.pagos?.filter(p => p.metodo_pago === 'efectivo') || []
+                              const pagosTransferencia = venta.pagos?.filter(p => p.metodo_pago === 'transferencia') || []
+                              
+                              // Si no hay pagos registrados en la tabla, usar el metodo_pago de la venta (ventas antiguas)
+                              const tieneEfectivo = pagosEfectivo.length > 0 || ((!venta.pagos || venta.pagos.length === 0) && venta.metodo_pago === 'efectivo' && !tieneDeuda)
+                              const tieneTransferencia = pagosTransferencia.length > 0 || ((!venta.pagos || venta.pagos.length === 0) && venta.metodo_pago === 'transferencia' && !tieneDeuda)
+
+                              if (venta.metodo_pago === "pendiente" && saldoPendiente >= Number(venta.total)) {
+                                return (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-red-300 text-red-600 cursor-pointer hover:bg-red-50"
+                                    onClick={() => {
+                                      setEditingVenta(venta)
+                                      setNuevoMetodoPago("efectivo")
                                     }}
-                                    title="Ver comprobante"
                                   >
-                                    <ImageIcon className="h-4 w-4 text-blue-600" />
-                                  </Button>
-                                )}
-                              </div>
-                            )}
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    Pendiente
+                                  </Badge>
+                                )
+                              }
+
+                              return (
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {tieneEfectivo && (
+                                      <Badge variant="outline" className="border-emerald-300 text-emerald-600 text-xs">
+                                        <Banknote className="h-3 w-3 mr-1" />
+                                        Efectivo
+                                      </Badge>
+                                    )}
+                                    {tieneTransferencia && (
+                                      <div className="flex items-center gap-1">
+                                        <Badge variant="outline" className="border-blue-300 text-blue-600 text-xs">
+                                          <CreditCard className="h-3 w-3 mr-1" />
+                                          Transf.
+                                        </Badge>
+                                        {venta.pagos && venta.pagos.some(p => p.comprobante_url) ? (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-5 w-5 p-0 hover:bg-blue-100"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              const pagoConComprobante = venta.pagos?.find(p => p.comprobante_url)
+                                              if (pagoConComprobante?.comprobante_url) {
+                                                setComprobanteUrl(pagoConComprobante.comprobante_url)
+                                              }
+                                            }}
+                                            title="Ver comprobante"
+                                          >
+                                            <ImageIcon className="h-3 w-3 text-blue-600" />
+                                          </Button>
+                                        ) : (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-5 w-5 p-0 hover:bg-blue-100"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setVentaParaComprobante(venta)
+                                              document.getElementById('input-comprobante-historial')?.click()
+                                            }}
+                                            title="Cargar comprobante"
+                                          >
+                                            <Plus className="h-3 w-3 text-blue-600" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    )}
+                                    {tieneDeuda && (
+                                      <Badge variant="outline" className="border-amber-300 text-amber-600 text-xs">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        Debe ${saldoPendiente.toLocaleString()}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </TableCell>
                           <TableCell className="text-right font-bold text-emerald-600">
                             ${Number(venta.total).toFixed(2)}
@@ -1640,6 +1759,34 @@ export function HistorialVentas() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog para ver comprobante */}
+      <Dialog open={!!comprobanteUrl} onOpenChange={(open) => !open && setComprobanteUrl(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Comprobante de Transferencia</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center">
+            {comprobanteUrl && (
+              <img
+                src={comprobanteUrl || "/placeholder.svg"}
+                alt="Comprobante de transferencia"
+                className="max-h-[70vh] object-contain rounded-lg"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Input oculto para cargar comprobante */}
+      <input
+        type="file"
+        id="input-comprobante-historial"
+        accept="image/*"
+        className="hidden"
+        onChange={handleSubirComprobante}
+        disabled={subiendoComprobante}
+      />
     </div>
   )
 }

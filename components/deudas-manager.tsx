@@ -117,17 +117,34 @@ export function DeudasManager() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file || !ventaSeleccionada) return
 
     setUploadingComprobante(true)
     
-    // Convertir a base64 para almacenar (en producción usarías Supabase Storage)
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setComprobanteUrl(reader.result as string)
+    // Subir a Supabase Storage
+    const fileExt = file.name.split('.').pop()
+    const fileName = `deuda_${ventaSeleccionada.id}_${Date.now()}.${fileExt}`
+    
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('comprobantes')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
+    
+    if (uploadError) {
+      console.error('Error al subir comprobante:', uploadError)
       setUploadingComprobante(false)
+      return
     }
-    reader.readAsDataURL(file)
+    
+    // Obtener URL pública
+    const { data: urlData } = supabase.storage
+      .from('comprobantes')
+      .getPublicUrl(fileName)
+    
+    setComprobanteUrl(urlData.publicUrl)
+    setUploadingComprobante(false)
   }
 
   const handleRegistrarPago = async () => {

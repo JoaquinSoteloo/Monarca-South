@@ -264,6 +264,10 @@ export function HistorialVentas() {
     
     setVentaParaComprobante(null)
     setSubiendoComprobante(false)
+    
+    // Resetear el input file para permitir subir otro comprobante
+    const inputEl = document.getElementById('input-comprobante-historial') as HTMLInputElement
+    if (inputEl) inputEl.value = ''
   }
 
   const getVentaInfo = (venta: VentaConDetalles) => {

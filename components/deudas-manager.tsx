@@ -344,6 +344,9 @@ export function DeudasManager() {
                           <Calendar className="h-4 w-4 text-muted-foreground" />
                           {format(new Date(deuda.created_at), "dd/MM/yyyy", { locale: es })}
                         </div>
+                        {deuda.notas && (
+                          <p className="text-xs text-muted-foreground mt-1 ml-6 italic">{deuda.notas}</p>
+                        )}
                       </TableCell>
                       <TableCell className="font-medium">
                         ${Number(deuda.total).toLocaleString()}

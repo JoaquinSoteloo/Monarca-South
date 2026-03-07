@@ -48,11 +48,12 @@ export default function ReservarPage() {
   }, [])
 
   const cargarCitasHoy = async () => {
+    // Traer confirmadas y atendidas (no canceladas ni no_asistio)
     const { data } = await supabase
       .from("citas")
       .select("*")
       .eq("fecha", hoy)
-      .eq("estado", "confirmada")
+      .in("estado", ["confirmada", "atendida"])
     
     setCitasHoy(data || [])
   }

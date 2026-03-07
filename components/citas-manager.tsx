@@ -39,7 +39,7 @@ interface Cita {
   hora: string
   nombre: string
   apellido: string
-  dni: string
+  documento: string
   socio_id: string | null
   estado: "confirmada" | "atendida" | "cancelada" | "no_asistio"
   created_at: string
@@ -267,7 +267,7 @@ export function CitasManager() {
                                     {cita.apellido}, {cita.nombre}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    DNI: {cita.dni}
+                                    DNI: {cita.documento}
                                     {cita.socio_id && (
                                       <span className="ml-2 text-emerald-600 font-medium">Socio</span>
                                     )}
@@ -351,7 +351,7 @@ export function CitasManager() {
                   <TableRow key={cita.id}>
                     <TableCell className="font-medium">{cita.hora}</TableCell>
                     <TableCell>{cita.apellido}, {cita.nombre}</TableCell>
-                    <TableCell>{cita.dni}</TableCell>
+                    <TableCell>{cita.documento}</TableCell>
                     <TableCell>
                       {cita.socio_id ? (
                         <Badge variant="outline" className="border-emerald-300 text-emerald-600">

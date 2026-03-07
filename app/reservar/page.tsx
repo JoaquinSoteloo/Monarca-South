@@ -16,7 +16,7 @@ interface Cita {
   id: number
   fecha: string
   hora: string
-  dni: string
+  documento: string
 }
 
 // Horarios disponibles de 14:00 a 19:30, cada 30 min
@@ -76,7 +76,7 @@ export default function ReservarPage() {
     }
 
     // Validar que no tenga ya una cita hoy
-    const yaExiste = citasHoy.some(c => c.dni === formData.dni.replace(/\./g, ""))
+    const yaExiste = citasHoy.some(c => c.documento === formData.dni.replace(/\./g, ""))
     if (yaExiste) {
       setYaReservo(true)
       setError("Ya tenés una cita reservada para hoy")
@@ -99,21 +99,17 @@ export default function ReservarPage() {
       .eq("dni", dniLimpio)
       .single()
 
-    const insertData = {
+    const { error: insertError } = await supabase.from("citas").insert({
       fecha: hoy,
       hora: horarioSeleccionado,
       nombre: formData.nombre,
       apellido: formData.apellido,
-      dni: dniLimpio,
+      documento: dniLimpio,
       socio_id: socio?.id || null,
       estado: "confirmada",
-    }
-    console.log("[v0] Inserting cita:", insertData)
-    
-    const { error: insertError } = await supabase.from("citas").insert(insertData)
+    })
 
     if (insertError) {
-      console.log("[v0] Insert error:", insertError)
       setError("Error al reservar la cita. Intentá de nuevo.")
       setLoading(false)
       return

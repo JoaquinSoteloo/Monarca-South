@@ -110,7 +110,8 @@ export function CitasManager() {
   }
 
   const getCitasPorHorario = (hora: string) => {
-    return citas.filter(c => c.hora === hora && c.estado !== "cancelada")
+    // Comparar solo HH:MM (la BD puede guardar HH:MM:SS)
+    return citas.filter(c => c.hora.substring(0, 5) === hora && c.estado !== "cancelada")
   }
 
   const getEstadoBadge = (estado: Cita["estado"]) => {

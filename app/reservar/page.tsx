@@ -58,7 +58,8 @@ export default function ReservarPage() {
   }
 
   const getCantidadPorHorario = (hora: string) => {
-    return citasHoy.filter(c => c.hora === hora).length
+    // Comparar solo HH:MM (la BD guarda HH:MM:SS)
+    return citasHoy.filter(c => c.hora.substring(0, 5) === hora).length
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -99,7 +99,7 @@ export default function ReservarPage() {
       .eq("dni", dniLimpio)
       .single()
 
-    const { error: insertError } = await supabase.from("citas").insert({
+    const insertData = {
       fecha: hoy,
       hora: horarioSeleccionado,
       nombre: formData.nombre,
@@ -107,9 +107,13 @@ export default function ReservarPage() {
       dni: dniLimpio,
       socio_id: socio?.id || null,
       estado: "confirmada",
-    })
+    }
+    console.log("[v0] Inserting cita:", insertData)
+    
+    const { error: insertError } = await supabase.from("citas").insert(insertData)
 
     if (insertError) {
+      console.log("[v0] Insert error:", insertError)
       setError("Error al reservar la cita. Intentá de nuevo.")
       setLoading(false)
       return

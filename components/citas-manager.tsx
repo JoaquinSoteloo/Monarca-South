@@ -82,18 +82,11 @@ export function CitasManager() {
   }
 
   const cambiarEstado = async (cita: Cita, nuevoEstado: Cita["estado"]) => {
-    console.log("[v0] Cambiando estado de cita", cita.id, "a", nuevoEstado)
-    const { error } = await supabase
+    await supabase
       .from("citas")
       .update({ estado: nuevoEstado })
       .eq("id", cita.id)
     
-    if (error) {
-      console.log("[v0] Error al cambiar estado:", error)
-      return
-    }
-    
-    console.log("[v0] Estado actualizado correctamente")
     setCitas(citas.map(c => c.id === cita.id ? { ...c, estado: nuevoEstado } : c))
   }
 

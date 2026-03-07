@@ -13,9 +13,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = () => {
       const authUser = sessionStorage.getItem("auth-user")
+      
+      // Rutas públicas que no requieren autenticación
+      const rutasPublicas = ["/login", "/reservar"]
+      const esRutaPublica = rutasPublicas.includes(pathname)
 
-      // Si no está autenticado y no está en login, redirigir
-      if (!authUser && pathname !== "/login") {
+      // Si no está autenticado y no está en ruta pública, redirigir
+      if (!authUser && !esRutaPublica) {
         router.push("/login")
         return
       }

@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
-import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign, AlertCircle } from "lucide-react"
+import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign, AlertCircle, CalendarClock } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Header } from "@/components/header"
 
@@ -210,6 +210,20 @@ export default async function Dashboard() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">Gestioná deudas pendientes y registrá pagos parciales.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/citas" className="group">
+            <Card className="bg-gradient-to-br from-purple-50 to-white border-purple-200/50 hover:border-purple-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-purple-800">
+                  <CalendarClock className="h-5 w-5 text-purple-600" />
+                  Gestión de Citas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">Administrá los turnos y reservas del día.</p>
               </CardContent>
             </Card>
           </Link>

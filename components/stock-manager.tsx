@@ -59,19 +59,25 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
     }
 
     if (editingGenetica) {
+      console.log("[v0] Updating genetica:", editingGenetica.id, data)
       const { error } = await supabase
         .from("geneticas")
         .update({ ...data, updated_at: new Date().toISOString() })
         .eq("id", editingGenetica.id)
 
+      console.log("[v0] Update result - error:", error)
       if (!error) {
         setGeneticas(geneticas.map((g) => (g.id === editingGenetica.id ? { ...g, ...data } : g)))
       }
     } else {
+      console.log("[v0] Inserting new genetica:", data)
       const { data: newGenetica, error } = await supabase.from("geneticas").insert(data).select().single()
 
+      console.log("[v0] Insert result - newGenetica:", newGenetica, "error:", error)
       if (!error && newGenetica) {
         setGeneticas([...geneticas, newGenetica])
+      } else if (error) {
+        console.log("[v0] Error inserting genetica:", error.message, error.details, error.hint)
       }
     }
 

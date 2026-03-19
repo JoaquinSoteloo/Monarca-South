@@ -1599,16 +1599,7 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
             <div className="rounded-md border border-border overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="text-foreground">Fecha</TableHead>
-                    <TableHead className="text-foreground">Socio</TableHead>
-                    <TableHead className="text-foreground">DNI</TableHead>
-                    <TableHead className="text-foreground">Item</TableHead> {/* Changed from Genética */}
-                    <TableHead className="text-foreground">Detalle</TableHead> {/* Changed from Gramos */}
-                    <TableHead className="text-foreground">Pago</TableHead>
-                    <TableHead className="text-right text-foreground">Total</TableHead>
-                    <TableHead className="text-center text-foreground w-20">Acciones</TableHead>
-                  </TableRow>
+                  <TableRow className="bg-muted/50"><TableHead className="text-foreground">Fecha</TableHead><TableHead className="text-foreground">Socio</TableHead><TableHead className="text-foreground">DNI</TableHead><TableHead className="text-foreground">Item</TableHead><TableHead className="text-foreground">Detalle</TableHead><TableHead className="text-foreground">Pago</TableHead><TableHead className="text-right text-foreground">Total</TableHead><TableHead className="text-center text-foreground w-20">Acciones</TableHead></TableRow>
                 </TableHeader>
                 <TableBody>
                   {ventasFiltradas.map((venta) => {

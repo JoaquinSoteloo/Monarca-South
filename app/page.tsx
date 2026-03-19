@@ -7,25 +7,39 @@ import { Header } from "@/components/header"
 export default async function Dashboard() {
   const supabase = await createClient()
 
-  const [
-    { count: totalSocios },
-    { count: totalGeneticas },
-    { data: ventasHoy },
-    { data: stockBajo },
-    { data: geneticasGramos },
-    { data: gastosHoy },
-  ] = await Promise.all([
-    supabase.from("socios").select("*", { count: "exact", head: true }).eq("activo", true),
-    supabase.from("geneticas").select("*", { count: "exact", head: true }).eq("activo", true),
-    supabase.from("ventas").select("total").gte("created_at", new Date().toISOString().split("T")[0]),
-    supabase.from("geneticas").select("nombre, gramos_disponibles").eq("activo", true).lt("gramos_disponibles", 100),
-    supabase.from("geneticas").select("gramos_disponibles").eq("activo", true),
-    supabase.from("gastos").select("monto").gte("fecha", new Date().toISOString().split("T")[0]),
-  ])
+  let totalSocios = 0
+  let totalGeneticas = 0
+  let ventasHoyTotal = 0
+  let stockBajo: { nombre: string; gramos_disponibles: number }[] = []
+  let totalGramosDisponibles = 0
+  let gastosHoyTotal = 0
 
-  const ventasHoyTotal = ventasHoy?.reduce((sum, v) => sum + Number(v.total), 0) || 0
-  const totalGramosDisponibles = geneticasGramos?.reduce((sum, g) => sum + Number(g.gramos_disponibles), 0) || 0
-  const gastosHoyTotal = gastosHoy?.reduce((sum, g) => sum + Number(g.monto), 0) || 0
+  try {
+    const [
+      sociosResult,
+      geneticasResult,
+      ventasResult,
+      stockBajoResult,
+      geneticasGramosResult,
+      gastosResult,
+    ] = await Promise.all([
+      supabase.from("socios").select("*", { count: "exact", head: true }).eq("activo", true),
+      supabase.from("geneticas").select("*", { count: "exact", head: true }).eq("activo", true),
+      supabase.from("ventas").select("total").gte("created_at", new Date().toISOString().split("T")[0]),
+      supabase.from("geneticas").select("nombre, gramos_disponibles").eq("activo", true).lt("gramos_disponibles", 100),
+      supabase.from("geneticas").select("gramos_disponibles").eq("activo", true),
+      supabase.from("gastos").select("monto").gte("fecha", new Date().toISOString().split("T")[0]),
+    ])
+
+    totalSocios = sociosResult.count || 0
+    totalGeneticas = geneticasResult.count || 0
+    ventasHoyTotal = ventasResult.data?.reduce((sum, v) => sum + Number(v.total), 0) || 0
+    stockBajo = stockBajoResult.data || []
+    totalGramosDisponibles = geneticasGramosResult.data?.reduce((sum, g) => sum + Number(g.gramos_disponibles), 0) || 0
+    gastosHoyTotal = gastosResult.data?.reduce((sum, g) => sum + Number(g.monto), 0) || 0
+  } catch (error) {
+    console.error("Error loading dashboard data:", error)
+  }
 
   return (
     <div className="min-h-screen bg-background">

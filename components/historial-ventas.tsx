@@ -111,19 +111,25 @@ export function HistorialVentas() {
     const desdeStr = format(fechaDesde, "yyyy-MM-dd")
     const hastaStr = format(fechaHasta, "yyyy-MM-dd")
 
-    const { data, error } = await supabase
-      .from("ventas")
-      .select(
-        "*, socio:socios(nombre, apellido, dni, es_miembro), genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), detalles:detalle_venta(id, genetica_id, producto_id, gramos, cantidad_enrolados, peso_por_enrolado, peso_enrolados, precio_unitario, precio_enrolado, subtotal, genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), producto:productos(nombre)), pagos(id, monto, metodo_pago, comprobante_url, fecha)",
-      )
-      .gte("created_at", `${desdeStr}T00:00:00`)
-      .lte("created_at", `${hastaStr}T23:59:59`)
-      .order("created_at", { ascending: false })
-
-    if (!error && data) {
-      setVentas(data)
-    }
-    setLoading(false)
+console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
+  const { data, error } = await supabase
+  .from("ventas")
+  .select(
+  "*, socio:socios(nombre, apellido, dni, es_miembro), genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), detalles:detalle_venta(id, genetica_id, producto_id, gramos, cantidad_enrolados, peso_por_enrolado, peso_enrolados, precio_unitario, precio_enrolado, subtotal, genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), producto:productos(nombre)), pagos(id, monto, metodo_pago, comprobante_url, fecha)",
+  )
+  .gte("created_at", `${desdeStr}T00:00:00`)
+  .lte("created_at", `${hastaStr}T23:59:59`)
+  .order("created_at", { ascending: false })
+  
+  console.log("[v0] Ventas query result - data:", data?.length, "error:", error)
+  if (error) {
+    console.log("[v0] Ventas query error details:", error.message, error.details, error.hint)
+  }
+  
+  if (!error && data) {
+  setVentas(data)
+  }
+  setLoading(false)
   }
 
   const fetchGeneticasAndProductos = async () => {

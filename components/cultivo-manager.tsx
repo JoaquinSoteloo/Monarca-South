@@ -346,14 +346,14 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
             <div className="space-y-2">
               <Label htmlFor="genetica">Genética</Label>
               <Select
-                value={camaForm.genetica_id}
-                onValueChange={(value) => setCamaForm({ ...camaForm, genetica_id: value })}
+                value={camaForm.genetica_id || "none"}
+                onValueChange={(value) => setCamaForm({ ...camaForm, genetica_id: value === "none" ? "" : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar genética" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sin asignar</SelectItem>
+                  <SelectItem value="none">Sin asignar</SelectItem>
                   {geneticas.filter(g => g.activo).map((g) => (
                     <SelectItem key={g.id} value={g.id.toString()}>
                       {g.nombre}

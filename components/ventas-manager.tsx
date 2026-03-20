@@ -284,6 +284,9 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       created_at: fechaVenta.toISOString(),
     }
 
+    console.log("[v0] ventaData a insertar:", JSON.stringify(ventaData, null, 2))
+    console.log("[v0] metodoPagoFinal:", metodoPagoFinal, "tipo_venta:", getTipoVenta())
+
     const { data: newVenta, error: ventaError } = await supabase
       .from("ventas")
       .insert(ventaData)

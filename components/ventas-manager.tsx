@@ -226,9 +226,9 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       }
     }
     if (tieneGramos && tieneEnrolados && tieneProducto) return "mixto"
-    if (tieneGramos && tieneEnrolados) return "genetica_y_enrolados"
+    if (tieneGramos && tieneEnrolados) return "mixto"
     if (tieneEnrolados) return "enrolados"
-    if (tieneProducto) return "productos"
+    if (tieneProducto) return "producto"
     return "gramos"
   }
 

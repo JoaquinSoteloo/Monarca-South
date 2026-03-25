@@ -78,12 +78,14 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
     const dniSinPuntos = formData.dni.replace(/\./g, "")
 
     if (!editingSocio) {
-      const { data: existingDni } = await supabase
+      const { data: existingDni, error: checkError } = await supabase
         .from("socios")
         .select("id, nombre, apellido")
         .eq("dni", dniSinPuntos)
         .eq("activo", true)
-        .single()
+        .maybeSingle()
+
+      console.log("[v0] Verificando DNI:", dniSinPuntos, "Resultado:", existingDni, "Error:", checkError)
 
       if (existingDni) {
         setDniDuplicado(formData.dni)
@@ -121,13 +123,17 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
         )
       }
     } else {
+      console.log("[v0] Insertando socio con data:", data)
       const { data: newSocio, error } = await supabase
         .from("socios")
         .insert(data)
         .select("*, sucursal:sucursales(*)")
         .single()
 
+      console.log("[v0] Resultado insert:", newSocio, "Error:", error)
+
       if (error) {
+        console.log("[v0] Error al insertar socio:", error.code, error.message, error.details)
         setDniDuplicado(formData.dni)
         setDniDuplicadoDialogOpen(true)
         setLoading(false)

@@ -78,12 +78,12 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
     const dniSinPuntos = formData.dni.replace(/\./g, "")
 
     if (!editingSocio) {
-      const { data: existingDni } = await supabase
+      const { data: existingDni, error: checkError } = await supabase
         .from("socios")
         .select("id, nombre, apellido")
         .eq("dni", dniSinPuntos)
         .eq("activo", true)
-        .single()
+        .maybeSingle()
 
       if (existingDni) {
         setDniDuplicado(formData.dni)

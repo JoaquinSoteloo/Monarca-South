@@ -127,3 +127,27 @@ export interface Pago {
   created_at: string
   venta?: Venta
 }
+
+export interface SalaCultivo {
+  id: number
+  nombre: string
+  descripcion: string | null
+  activo: boolean
+  created_at: string
+  updated_at: string
+  camas?: CamaCultivo[]
+}
+
+export interface CamaCultivo {
+  id: number
+  sala_id: number
+  nombre: string
+  genetica_id: number | null
+  cantidad_plantas: number
+  fecha_siembra: string | null
+  estado: "vacio" | "vegetativo" | "floracion" | "cosecha"
+  notas: string | null
+  created_at: string
+  updated_at: string
+  genetica?: Genetica
+}

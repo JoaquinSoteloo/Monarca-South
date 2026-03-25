@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
-import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign, AlertCircle, CalendarClock } from "lucide-react"
+import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign, AlertCircle, CalendarClock, Sprout } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Header } from "@/components/header"
 
@@ -238,6 +238,20 @@ export default async function Dashboard() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">Administrá los turnos y reservas del día.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/cultivo" className="group">
+            <Card className="bg-gradient-to-br from-green-50 to-white border-green-200/50 hover:border-green-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-800">
+                  <Sprout className="h-5 w-5 text-green-600" />
+                  Salas de Cultivo
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">Gestioná las salas y camas de cultivo.</p>
               </CardContent>
             </Card>
           </Link>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, User, CheckCircle2, AlertCircle } from "lucide-react"
+import { Calendar, Clock, User, CheckCircle2, AlertCircle, XCircle } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import Image from "next/image"
@@ -26,6 +26,7 @@ const HORARIOS = [
 ]
 
 const MAX_POR_TURNO = 2
+const HORA_LIMITE_RESERVA = 16 // Después de las 16:00 no se puede reservar
 
 export default function ReservarPage() {
   const [formData, setFormData] = useState({
@@ -38,13 +39,20 @@ export default function ReservarPage() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [yaReservo, setYaReservo] = useState(false)
+  const [citaExistente, setCitaExistente] = useState<Cita | null>(null)
+  const [horaActual, setHoraActual] = useState<number>(new Date().getHours())
 
   const supabase = createClient()
   const hoy = format(new Date(), "yyyy-MM-dd")
+  const reservasCerradas = horaActual >= HORA_LIMITE_RESERVA
 
   useEffect(() => {
     cargarCitasHoy()
+    // Actualizar hora cada minuto por si el usuario deja abierta la página
+    const interval = setInterval(() => {
+      setHoraActual(new Date().getHours())
+    }, 60000)
+    return () => clearInterval(interval)
   }, [])
 
   const cargarCitasHoy = async () => {
@@ -63,43 +71,32 @@ export default function ReservarPage() {
     return citasHoy.filter(c => c.hora.substring(0, 5) === hora).length
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const crearReserva = async (citaPrevia?: Cita) => {
+    setLoading(true)
     setError(null)
 
-    if (!horarioSeleccionado) {
-      setError("Por favor seleccioná un horario")
-      return
-    }
+    const dniLimpio = formData.dni.replace(/\./g, "")
 
-    if (!formData.nombre || !formData.apellido || !formData.dni) {
-      setError("Por favor completá todos los campos")
-      return
-    }
+    // Si hay cita previa, cancelarla primero (liberando el turno)
+    if (citaPrevia) {
+      const { error: cancelError } = await supabase
+        .from("citas")
+        .update({ estado: "cancelada" })
+        .eq("id", citaPrevia.id)
 
-    // Validar que no tenga ya una cita hoy
-    const yaExiste = citasHoy.some(c => c.documento === formData.dni.replace(/\./g, ""))
-    if (yaExiste) {
-      setYaReservo(true)
-      setError("Ya tenés una cita reservada para hoy")
-      return
+      if (cancelError) {
+        setError("Error al cancelar la cita anterior. Intentá de nuevo.")
+        setLoading(false)
+        return
+      }
     }
-
-    // Validar que haya lugar en el turno
-    if (getCantidadPorHorario(horarioSeleccionado) >= MAX_POR_TURNO) {
-      setError("Este horario ya está completo, elegí otro")
-      return
-    }
-
-    setLoading(true)
 
     // Buscar si es socio por DNI
-    const dniLimpio = formData.dni.replace(/\./g, "")
     const { data: socio } = await supabase
       .from("socios")
       .select("id")
       .eq("dni", dniLimpio)
-      .single()
+      .maybeSingle()
 
     const { error: insertError } = await supabase.from("citas").insert({
       fecha: hoy,
@@ -119,6 +116,79 @@ export default function ReservarPage() {
 
     setSuccess(true)
     setLoading(false)
+    setCitaExistente(null)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    // Validar que no sean pasadas las 16
+    if (reservasCerradas) {
+      setError("Las reservas están cerradas después de las 16:00hs")
+      return
+    }
+
+    if (!horarioSeleccionado) {
+      setError("Por favor seleccioná un horario")
+      return
+    }
+
+    if (!formData.nombre || !formData.apellido || !formData.dni) {
+      setError("Por favor completá todos los campos")
+      return
+    }
+
+    // Validar que haya lugar en el turno
+    if (getCantidadPorHorario(horarioSeleccionado) >= MAX_POR_TURNO) {
+      setError("Este horario ya está completo, elegí otro")
+      return
+    }
+
+    // Validar que no tenga ya una cita hoy
+    const dniLimpio = formData.dni.replace(/\./g, "")
+    const citaPrevia = citasHoy.find(c => c.documento === dniLimpio)
+    
+    if (citaPrevia) {
+      // Si la cita existente es al mismo horario, no hacer nada
+      if (citaPrevia.hora.substring(0, 5) === horarioSeleccionado) {
+        setError("Ya tenés una cita reservada para este mismo horario")
+        return
+      }
+      // Mostrar diálogo de confirmación para cambiar
+      setCitaExistente(citaPrevia)
+      return
+    }
+
+    // Sin cita previa - crear directamente
+    await crearReserva()
+  }
+
+  // Pantalla de reservas cerradas (después de las 16hs)
+  if (reservasCerradas && !success) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-emerald-900 to-emerald-950 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md bg-white/95 backdrop-blur">
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <div className="mx-auto w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+              <XCircle className="h-8 w-8 text-red-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-red-800">Reservas cerradas</h2>
+            <p className="text-muted-foreground">
+              Las reservas online están disponibles hasta las <span className="font-semibold">16:00hs</span>.
+            </p>
+            <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+              <p className="text-sm text-amber-800">
+                Podés volver a reservar mañana a partir de las 00:00hs.
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Si necesitás una atención urgente, contactanos por WhatsApp.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (success) {
@@ -149,7 +219,8 @@ export default function ReservarPage() {
     )
   }
 
-  if (yaReservo) {
+  // Pantalla de confirmación de cambio de horario
+  if (citaExistente) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-emerald-900 to-emerald-950 flex items-center justify-center p-4">
         <Card className="w-full max-w-md bg-white/95 backdrop-blur">
@@ -159,11 +230,46 @@ export default function ReservarPage() {
             </div>
             <h2 className="text-2xl font-bold text-amber-800">Ya tenés una cita</h2>
             <p className="text-muted-foreground">
-              Ya reservaste un turno para hoy con este documento.
+              Con este documento ya reservaste un turno para hoy a las{" "}
+              <span className="font-semibold text-amber-800">
+                {citaExistente.hora.substring(0, 5)}hs
+              </span>
+              .
             </p>
-            <p className="text-xs text-muted-foreground">
-              Si necesitás cambiar tu horario, contactanos por WhatsApp.
-            </p>
+            <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+              <p className="text-sm text-emerald-800">
+                ¿Querés cambiarlo a las{" "}
+                <span className="font-semibold">{horarioSeleccionado}hs</span>?
+              </p>
+              <p className="text-xs text-emerald-700 mt-1">
+                Se liberará tu turno anterior.
+              </p>
+            </div>
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setCitaExistente(null)
+                  setError(null)
+                }}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => crearReserva(citaExistente)}
+                disabled={loading}
+              >
+                {loading ? "Cambiando..." : "Sí, cambiar"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

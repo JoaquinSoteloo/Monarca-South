@@ -77,20 +77,6 @@ export default function ReservarPage() {
 
     const dniLimpio = formData.dni.replace(/\./g, "")
 
-    // Si hay cita previa, cancelarla primero (liberando el turno)
-    if (citaPrevia) {
-      const { error: cancelError } = await supabase
-        .from("citas")
-        .update({ estado: "cancelada" })
-        .eq("id", citaPrevia.id)
-
-      if (cancelError) {
-        setError("Error al cancelar la cita anterior. Intentá de nuevo.")
-        setLoading(false)
-        return
-      }
-    }
-
     // Buscar si es socio por DNI
     const { data: socio } = await supabase
       .from("socios")
@@ -98,6 +84,44 @@ export default function ReservarPage() {
       .eq("dni", dniLimpio)
       .maybeSingle()
 
+    // Limpiar citas canceladas previas con el mismo documento en el horario elegido
+    // (evita conflicto con el constraint UNIQUE (fecha, hora, documento))
+    await supabase
+      .from("citas")
+      .delete()
+      .eq("fecha", hoy)
+      .eq("hora", horarioSeleccionado)
+      .eq("documento", dniLimpio)
+      .eq("estado", "cancelada")
+
+    // Si hay cita previa activa, actualizarla (cambiar el horario)
+    // en vez de cancelar + insertar, lo que evita problemas con el constraint UNIQUE
+    if (citaPrevia) {
+      const { error: updateError } = await supabase
+        .from("citas")
+        .update({
+          hora: horarioSeleccionado,
+          nombre: formData.nombre,
+          apellido: formData.apellido,
+          socio_id: socio?.id || null,
+          estado: "confirmada",
+        })
+        .eq("id", citaPrevia.id)
+
+      if (updateError) {
+        console.log("[v0] Error update cita:", updateError)
+        setError(`Error al cambiar la cita: ${updateError.message}`)
+        setLoading(false)
+        return
+      }
+
+      setSuccess(true)
+      setLoading(false)
+      setCitaExistente(null)
+      return
+    }
+
+    // Sin cita previa: insertar nueva
     const { error: insertError } = await supabase.from("citas").insert({
       fecha: hoy,
       hora: horarioSeleccionado,
@@ -109,7 +133,8 @@ export default function ReservarPage() {
     })
 
     if (insertError) {
-      setError("Error al reservar la cita. Intentá de nuevo.")
+      console.log("[v0] Error insert cita:", insertError)
+      setError(`Error al reservar la cita: ${insertError.message}`)
       setLoading(false)
       return
     }

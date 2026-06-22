@@ -11,6 +11,7 @@ import { Calendar, Clock, User, CheckCircle2, AlertCircle, XCircle } from "lucid
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import Image from "next/image"
+import { generarHorarios, CONFIG_CITAS_DEFAULT, type ConfigCitas } from "@/lib/horarios"
 
 interface Cita {
   id: number
@@ -18,15 +19,6 @@ interface Cita {
   hora: string
   documento: string
 }
-
-// Horarios disponibles de 14:00 a 19:30, cada 30 min
-const HORARIOS = [
-  "14:00", "14:30", "15:00", "15:30", "16:00", "16:30",
-  "17:00", "17:30", "18:00", "18:30", "19:00", "19:30"
-]
-
-const MAX_POR_TURNO = 2
-const HORA_LIMITE_RESERVA = 16 // Después de las 16:00 no se puede reservar
 
 export default function ReservarPage() {
   const [formData, setFormData] = useState({
@@ -41,12 +33,16 @@ export default function ReservarPage() {
   const [error, setError] = useState<string | null>(null)
   const [citaExistente, setCitaExistente] = useState<Cita | null>(null)
   const [horaActual, setHoraActual] = useState<number>(new Date().getHours())
+  const [config, setConfig] = useState<ConfigCitas>(CONFIG_CITAS_DEFAULT)
 
   const supabase = createClient()
   const hoy = format(new Date(), "yyyy-MM-dd")
-  const reservasCerradas = horaActual >= HORA_LIMITE_RESERVA
+  const HORARIOS = generarHorarios(config.hora_inicio, config.hora_fin)
+  const MAX_POR_TURNO = config.max_por_turno
+  const reservasCerradas = horaActual >= config.hora_limite_reserva
 
   useEffect(() => {
+    cargarConfig()
     cargarCitasHoy()
     // Actualizar hora cada minuto por si el usuario deja abierta la página
     const interval = setInterval(() => {
@@ -54,6 +50,11 @@ export default function ReservarPage() {
     }, 60000)
     return () => clearInterval(interval)
   }, [])
+
+  const cargarConfig = async () => {
+    const { data } = await supabase.from("config_citas").select("*").eq("id", 1).maybeSingle()
+    if (data) setConfig(data)
+  }
 
   const cargarCitasHoy = async () => {
     // Traer confirmadas, atendidas y no_asistio (solo canceladas liberan el turno)
@@ -150,7 +151,7 @@ export default function ReservarPage() {
 
     // Validar que no sean pasadas las 16
     if (reservasCerradas) {
-      setError("Las reservas están cerradas después de las 16:00hs")
+      setError(`Las reservas están cerradas después de las ${config.hora_limite_reserva}:00hs`)
       return
     }
 
@@ -200,7 +201,8 @@ export default function ReservarPage() {
             </div>
             <h2 className="text-2xl font-bold text-red-800">Reservas cerradas</h2>
             <p className="text-muted-foreground">
-              Las reservas online están disponibles hasta las <span className="font-semibold">16:00hs</span>.
+              Las reservas online están disponibles hasta las{" "}
+              <span className="font-semibold">{config.hora_limite_reserva}:00hs</span>.
             </p>
             <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
               <p className="text-sm text-amber-800">

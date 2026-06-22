@@ -35,3 +35,14 @@ export function generarHorarios(horaInicio: string, horaFin: string): string[] {
   }
   return horarios
 }
+
+// Genera todas las opciones de horario del día en formato 24hs, cada 30 minutos
+export function todasLasHoras(): string[] {
+  const horarios: string[] = []
+  for (let m = 0; m < 24 * 60; m += 30) {
+    const hh = Math.floor(m / 60)
+    const mm = m % 60
+    horarios.push(`${hh.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`)
+  }
+  return horarios
+}

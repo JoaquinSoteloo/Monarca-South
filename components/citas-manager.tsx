@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { 
   Calendar as CalendarIcon, 
@@ -26,7 +27,7 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { generarHorarios, CONFIG_CITAS_DEFAULT, type ConfigCitas } from "@/lib/horarios"
+import { generarHorarios, todasLasHoras, CONFIG_CITAS_DEFAULT, type ConfigCitas } from "@/lib/horarios"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -220,23 +221,39 @@ export function CitasManager() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
             <div className="space-y-2">
               <Label htmlFor="hora_inicio">Desde</Label>
-              <Input
-                id="hora_inicio"
-                type="time"
-                step={1800}
+              <Select
                 value={configForm.hora_inicio}
-                onChange={(e) => setConfigForm({ ...configForm, hora_inicio: e.target.value })}
-              />
+                onValueChange={(value) => setConfigForm({ ...configForm, hora_inicio: value })}
+              >
+                <SelectTrigger id="hora_inicio">
+                  <SelectValue placeholder="Seleccionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {todasLasHoras().map((h) => (
+                    <SelectItem key={h} value={h}>
+                      {h}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="hora_fin">Hasta</Label>
-              <Input
-                id="hora_fin"
-                type="time"
-                step={1800}
+              <Select
                 value={configForm.hora_fin}
-                onChange={(e) => setConfigForm({ ...configForm, hora_fin: e.target.value })}
-              />
+                onValueChange={(value) => setConfigForm({ ...configForm, hora_fin: value })}
+              >
+                <SelectTrigger id="hora_fin">
+                  <SelectValue placeholder="Seleccionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {todasLasHoras().map((h) => (
+                    <SelectItem key={h} value={h}>
+                      {h}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="hora_limite">Cierre de reservas (hora)</Label>

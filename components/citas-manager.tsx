@@ -256,17 +256,24 @@ export function CitasManager() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="hora_limite">Cierre de reservas (hora)</Label>
-              <Input
-                id="hora_limite"
-                type="number"
-                min={0}
-                max={23}
-                value={configForm.hora_limite_reserva}
-                onChange={(e) =>
-                  setConfigForm({ ...configForm, hora_limite_reserva: Number(e.target.value) })
+              <Label htmlFor="hora_limite">Cierre de reservas</Label>
+              <Select
+                value={String(configForm.hora_limite_reserva)}
+                onValueChange={(value) =>
+                  setConfigForm({ ...configForm, hora_limite_reserva: Number(value) })
                 }
-              />
+              >
+                <SelectTrigger id="hora_limite">
+                  <SelectValue placeholder="Seleccionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                    <SelectItem key={h} value={String(h)}>
+                      {h.toString().padStart(2, "0")}:00
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="max_turno">Cupos por turno</Label>

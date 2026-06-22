@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Calendar } from "@/components/ui/calendar"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { 
   Calendar as CalendarIcon, 
@@ -18,10 +21,13 @@ import {
   Copy,
   CheckCircle2,
   XCircle,
-  Trash2
+  Trash2,
+  Settings,
+  Save
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { generarHorarios, todasLasHoras, CONFIG_CITAS_DEFAULT, type ConfigCitas } from "@/lib/horarios"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,23 +55,63 @@ interface Cita {
   }
 }
 
-const HORARIOS = [
-  "14:00", "14:30", "15:00", "15:30", "16:00", "16:30",
-  "17:00", "17:30", "18:00", "18:30", "19:00", "19:30"
-]
-
 export function CitasManager() {
   const [citas, setCitas] = useState<Cita[]>([])
   const [loading, setLoading] = useState(true)
   const [fechaSeleccionada, setFechaSeleccionada] = useState<Date>(new Date())
   const [linkCopiado, setLinkCopiado] = useState(false)
   const [citaABorrar, setCitaABorrar] = useState<Cita | null>(null)
-  
+  const [config, setConfig] = useState<ConfigCitas>(CONFIG_CITAS_DEFAULT)
+  const [configForm, setConfigForm] = useState<ConfigCitas>(CONFIG_CITAS_DEFAULT)
+  const [guardandoConfig, setGuardandoConfig] = useState(false)
+  const [configGuardada, setConfigGuardada] = useState(false)
+
   const supabase = createClient()
+  const HORARIOS = generarHorarios(config.hora_inicio, config.hora_fin)
+  const MAX_POR_TURNO = config.max_por_turno
+
+  useEffect(() => {
+    cargarConfig()
+  }, [])
 
   useEffect(() => {
     cargarCitas()
   }, [fechaSeleccionada])
+
+  const cargarConfig = async () => {
+    const { data } = await supabase.from("config_citas").select("*").eq("id", 1).maybeSingle()
+    if (data) {
+      const cfg = {
+        hora_inicio: data.hora_inicio.substring(0, 5),
+        hora_fin: data.hora_fin.substring(0, 5),
+        hora_limite_reserva: data.hora_limite_reserva,
+        max_por_turno: data.max_por_turno,
+      }
+      setConfig(cfg)
+      setConfigForm(cfg)
+    }
+  }
+
+  const guardarConfig = async () => {
+    setGuardandoConfig(true)
+    const { error } = await supabase
+      .from("config_citas")
+      .update({
+        hora_inicio: configForm.hora_inicio,
+        hora_fin: configForm.hora_fin,
+        hora_limite_reserva: configForm.hora_limite_reserva,
+        max_por_turno: configForm.max_por_turno,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1)
+
+    if (!error) {
+      setConfig(configForm)
+      setConfigGuardada(true)
+      setTimeout(() => setConfigGuardada(false), 2000)
+    }
+    setGuardandoConfig(false)
+  }
 
   const cargarCitas = async () => {
     setLoading(true)
@@ -159,6 +205,107 @@ export function CitasManager() {
           </Button>
         </div>
       </div>
+
+      {/* Configuración de horarios */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5 text-emerald-600" />
+            Configuración de horarios
+          </CardTitle>
+          <CardDescription>
+            Definí el rango de horarios disponibles para reservar y hasta qué hora se puede anotar la gente
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+            <div className="space-y-2">
+              <Label htmlFor="hora_inicio">Desde</Label>
+              <Select
+                value={configForm.hora_inicio}
+                onValueChange={(value) => setConfigForm({ ...configForm, hora_inicio: value })}
+              >
+                <SelectTrigger id="hora_inicio">
+                  <SelectValue placeholder="Seleccionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {todasLasHoras().map((h) => (
+                    <SelectItem key={h} value={h}>
+                      {h}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hora_fin">Hasta</Label>
+              <Select
+                value={configForm.hora_fin}
+                onValueChange={(value) => setConfigForm({ ...configForm, hora_fin: value })}
+              >
+                <SelectTrigger id="hora_fin">
+                  <SelectValue placeholder="Seleccionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {todasLasHoras().map((h) => (
+                    <SelectItem key={h} value={h}>
+                      {h}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hora_limite">Cierre de reservas (hora)</Label>
+              <Input
+                id="hora_limite"
+                type="number"
+                min={0}
+                max={23}
+                value={configForm.hora_limite_reserva}
+                onChange={(e) =>
+                  setConfigForm({ ...configForm, hora_limite_reserva: Number(e.target.value) })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="max_turno">Cupos por turno</Label>
+              <Input
+                id="max_turno"
+                type="number"
+                min={1}
+                max={20}
+                value={configForm.max_por_turno}
+                onChange={(e) =>
+                  setConfigForm({ ...configForm, max_por_turno: Number(e.target.value) })
+                }
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-4">
+            <Button
+              onClick={guardarConfig}
+              disabled={guardandoConfig}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {configGuardada ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Guardado
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  {guardandoConfig ? "Guardando..." : "Guardar cambios"}
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Las reservas se cierran a las {configForm.hora_limite_reserva}:00hs.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats y Selector de fecha */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -313,11 +460,11 @@ export function CitasManager() {
                     </div>
                     <div className="w-16 text-center">
                       <Badge variant="outline" className={`${
-                        citasHora.length >= 2 ? "border-red-300 text-red-600" : 
-                        citasHora.length === 1 ? "border-amber-300 text-amber-600" : 
+                        citasHora.length >= MAX_POR_TURNO ? "border-red-300 text-red-600" : 
+                        citasHora.length > 0 ? "border-amber-300 text-amber-600" : 
                         "border-emerald-300 text-emerald-600"
                       }`}>
-                        {citasHora.length}/2
+                        {citasHora.length}/{MAX_POR_TURNO}
                       </Badge>
                     </div>
                   </div>

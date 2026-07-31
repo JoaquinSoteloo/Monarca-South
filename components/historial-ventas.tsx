@@ -643,16 +643,24 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
     setEditLineas(nuevasLineas)
   }
 
+  // Mapas de id -> nombre para poder filtrar por nombre (hay genéticas/productos con el mismo nombre)
+  const geneticaNombrePorId = new Map(geneticas.map((g) => [g.id, g.nombre]))
+  const productoNombrePorId = new Map(productos.map((p) => [p.id, p.nombre]))
+
   const coincideConProducto = (v: VentaConDetalles) => {
     if (!filtroProducto) return true
-    const [tipo, id] = filtroProducto.split(":")
+    const sep = filtroProducto.indexOf(":")
+    const tipo = filtroProducto.slice(0, sep)
+    const nombre = filtroProducto.slice(sep + 1)
     if (v.detalles && v.detalles.length > 0) {
       return v.detalles.some((d) =>
-        tipo === "genetica" ? d.genetica_id === id : d.producto_id === id,
+        tipo === "genetica"
+          ? d.genetica_id && geneticaNombrePorId.get(d.genetica_id) === nombre
+          : d.producto_id && productoNombrePorId.get(d.producto_id) === nombre,
       )
     }
     // Ventas legacy sin detalle_venta
-    if (tipo === "genetica") return v.genetica_id === id
+    if (tipo === "genetica") return v.genetica_id && geneticaNombrePorId.get(v.genetica_id) === nombre
     return false
   }
 
@@ -1528,16 +1536,20 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos los productos</SelectItem>
-                    {geneticas.map((g) => (
-                      <SelectItem key={`genetica:${g.id}`} value={`genetica:${g.id}`}>
-                        {g.nombre} (genética)
-                      </SelectItem>
-                    ))}
-                    {productos.map((p) => (
-                      <SelectItem key={`producto:${p.id}`} value={`producto:${p.id}`}>
-                        {p.nombre} (producto)
-                      </SelectItem>
-                    ))}
+                    {Array.from(new Set(geneticas.map((g) => g.nombre)))
+                      .sort((a, b) => a.localeCompare(b))
+                      .map((nombre) => (
+                        <SelectItem key={`genetica:${nombre}`} value={`genetica:${nombre}`}>
+                          {nombre} (genética)
+                        </SelectItem>
+                      ))}
+                    {Array.from(new Set(productos.map((p) => p.nombre)))
+                      .sort((a, b) => a.localeCompare(b))
+                      .map((nombre) => (
+                        <SelectItem key={`producto:${nombre}`} value={`producto:${nombre}`}>
+                          {nombre} (producto)
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
                 {filtroProducto && (
@@ -1642,12 +1654,7 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
             )}
             {filtroProducto && (
               <Badge variant="outline" className="ml-2 text-emerald-600 border-emerald-300">
-                Producto:{" "}
-                {(() => {
-                  const [tipo, id] = filtroProducto.split(":")
-                  if (tipo === "genetica") return geneticas.find((g) => g.id === id)?.nombre || "-"
-                  return productos.find((p) => p.id === id)?.nombre || "-"
-                })()}
+                Producto: {filtroProducto.slice(filtroProducto.indexOf(":") + 1)}
               </Badge>
             )}
           </CardTitle>

@@ -643,15 +643,24 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
     setEditLineas(nuevasLineas)
   }
 
-  // Mapas de id -> nombre para poder filtrar por nombre (hay genéticas/productos con el mismo nombre)
-  const geneticaNombrePorId = new Map(geneticas.map((g) => [g.id, g.nombre]))
-  const productoNombrePorId = new Map(productos.map((p) => [p.id, p.nombre]))
+  // Normaliza nombres: sin tildes, sin mayúsculas y sin espacios sobrantes,
+  // para agrupar variantes como "Apricot Mimosa" y "apricot mímosa".
+  const normalizar = (texto?: string | null) =>
+    (texto || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+
+  // Mapas de id -> nombre normalizado (hay genéticas/productos con el mismo nombre)
+  const geneticaNombrePorId = new Map(geneticas.map((g) => [g.id, normalizar(g.nombre)]))
+  const productoNombrePorId = new Map(productos.map((p) => [p.id, normalizar(p.nombre)]))
 
   const coincideConProducto = (v: VentaConDetalles) => {
     if (!filtroProducto) return true
     const sep = filtroProducto.indexOf(":")
     const tipo = filtroProducto.slice(0, sep)
-    const nombre = filtroProducto.slice(sep + 1)
+    const nombre = normalizar(filtroProducto.slice(sep + 1))
     if (v.detalles && v.detalles.length > 0) {
       return v.detalles.some((d) =>
         tipo === "genetica"
@@ -1536,14 +1545,14 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos los productos</SelectItem>
-                    {Array.from(new Set(geneticas.map((g) => g.nombre)))
+                    {Array.from(new Map(geneticas.map((g) => [normalizar(g.nombre), g.nombre])).values())
                       .sort((a, b) => a.localeCompare(b))
                       .map((nombre) => (
                         <SelectItem key={`genetica:${nombre}`} value={`genetica:${nombre}`}>
                           {nombre} (genética)
                         </SelectItem>
                       ))}
-                    {Array.from(new Set(productos.map((p) => p.nombre)))
+                    {Array.from(new Map(productos.map((p) => [normalizar(p.nombre), p.nombre])).values())
                       .sort((a, b) => a.localeCompare(b))
                       .map((nombre) => (
                         <SelectItem key={`producto:${nombre}`} value={`producto:${nombre}`}>

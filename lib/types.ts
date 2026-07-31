@@ -27,6 +27,7 @@ export interface Socio {
   gramos_mensuales: number | null
   gramos_consumidos_mes: number
   es_miembro: boolean
+  es_vip: boolean
   activo: boolean
   created_at: string
   updated_at: string

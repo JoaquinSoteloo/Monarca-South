@@ -50,6 +50,8 @@ export default async function VentasPage() {
           initialVentas={ventas || []}
           precioGramoMiembro={Number(configClub?.precio_gramo_miembro) || 0}
           precioEnroladoMiembro={Number(configClub?.precio_enrolado_miembro) || 0}
+          precioGramoVip={Number(configClub?.precio_gramo_vip) || 0}
+          precioEnroladoVip={Number(configClub?.precio_enrolado_vip) || 0}
         />
       </main>
     </div>

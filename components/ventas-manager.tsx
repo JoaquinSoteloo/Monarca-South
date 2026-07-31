@@ -25,6 +25,7 @@ import {
   Trash2,
   CalendarIcon,
   Crown,
+  Star,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
@@ -50,6 +51,8 @@ interface VentasManagerProps {
   initialVentas: Venta[]
   precioGramoMiembro?: number
   precioEnroladoMiembro?: number
+  precioGramoVip?: number
+  precioEnroladoVip?: number
 }
 
 export function VentasManager({
@@ -59,6 +62,8 @@ export function VentasManager({
   initialVentas,
   precioGramoMiembro = 0,
   precioEnroladoMiembro = 0,
+  precioGramoVip = 0,
+  precioEnroladoVip = 0,
 }: VentasManagerProps) {
   const [ventas, setVentas] = useState(initialVentas)
   const [loading, setLoading] = useState(false)
@@ -116,6 +121,7 @@ export function VentasManager({
     consultarDeuda()
   }, [formData.socio_id])
   const esMiembro = selectedSocio?.es_miembro || false
+  const esVip = selectedSocio?.es_vip || false
 
   const calcularLinea = (linea: LineaVenta) => {
     if (linea.tipo === "producto") {
@@ -138,8 +144,16 @@ export function VentasManager({
     }
 
     const genetica = geneticas.find((g) => g.id === linea.genetica_id)
-    const precioGramo = esMiembro ? precioGramoMiembro : genetica?.precio_por_gramo || 0
-    const precioEnrolado = esMiembro ? precioEnroladoMiembro : genetica?.precio_por_enrolado || 0
+    const precioGramo = esMiembro
+      ? precioGramoMiembro
+      : esVip
+        ? precioGramoVip
+        : genetica?.precio_por_gramo || 0
+    const precioEnrolado = esMiembro
+      ? precioEnroladoMiembro
+      : esVip
+        ? precioEnroladoVip
+        : genetica?.precio_por_enrolado || 0
     const pesoEnrolados = Math.round(linea.cantidad_enrolados * linea.peso_por_enrolado * 10) / 10
     const gramosTotales = Math.round((linea.gramos + pesoEnrolados) * 10) / 10
 
@@ -615,6 +629,15 @@ export function VentasManager({
                               Miembro
                             </Badge>
                           )}
+                          {s.es_vip && (
+                            <Badge
+                              variant="outline"
+                              className="border-blue-400 text-blue-500 bg-blue-500/10 text-xs ml-1"
+                            >
+                              <Star className="h-3 w-3 mr-1" />
+                              VIP
+                            </Badge>
+                          )}
                         </div>
                       </SelectItem>
                     ))}
@@ -703,6 +726,15 @@ export function VentasManager({
                 <Crown className="h-5 w-5 text-amber-500" />
                 <span className="text-sm text-amber-600 font-medium">
                   Socio miembro del club - Precio especial: ${precioGramoMiembro}/g y ${precioEnroladoMiembro}/enrolado
+                </span>
+              </div>
+            )}
+
+            {esVip && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <Star className="h-5 w-5 text-blue-500" />
+                <span className="text-sm text-blue-600 font-medium">
+                  Socio VIP - Precio especial: ${precioGramoVip}/g y ${precioEnroladoVip}/enrolado
                 </span>
               </div>
             )}

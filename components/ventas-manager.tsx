@@ -25,8 +25,6 @@ import {
   Trash2,
   CalendarIcon,
   Crown,
-  Save,
-  Check,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
@@ -95,36 +93,7 @@ export function VentasManager({
   const [scannerOpen, setScannerOpen] = useState(false)
   const [scanningLineIndex, setScanningLineIndex] = useState<number | null>(null)
   const [deudaSocio, setDeudaSocio] = useState<number>(0)
-  const [precioMiembroForm, setPrecioMiembroForm] = useState({
-    gramo: precioGramoMiembro,
-    enrolado: precioEnroladoMiembro,
-  })
-  const [preciosMiembro, setPreciosMiembro] = useState({
-    gramo: precioGramoMiembro,
-    enrolado: precioEnroladoMiembro,
-  })
-  const [guardandoPrecios, setGuardandoPrecios] = useState(false)
-  const [preciosGuardados, setPreciosGuardados] = useState(false)
   const supabase = createClient()
-
-  const guardarPreciosMiembro = async () => {
-    setGuardandoPrecios(true)
-    const { error } = await supabase
-      .from("config_club")
-      .update({
-        precio_gramo_miembro: precioMiembroForm.gramo,
-        precio_enrolado_miembro: precioMiembroForm.enrolado,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", 1)
-
-    if (!error) {
-      setPreciosMiembro({ ...precioMiembroForm })
-      setPreciosGuardados(true)
-      setTimeout(() => setPreciosGuardados(false), 2000)
-    }
-    setGuardandoPrecios(false)
-  }
 
   const selectedSocio = socios.find((s) => s.id === formData.socio_id)
 
@@ -169,8 +138,8 @@ export function VentasManager({
     }
 
     const genetica = geneticas.find((g) => g.id === linea.genetica_id)
-    const precioGramo = esMiembro ? preciosMiembro.gramo : genetica?.precio_por_gramo || 0
-    const precioEnrolado = esMiembro ? preciosMiembro.enrolado : genetica?.precio_por_enrolado || 0
+    const precioGramo = esMiembro ? precioGramoMiembro : genetica?.precio_por_gramo || 0
+    const precioEnrolado = esMiembro ? precioEnroladoMiembro : genetica?.precio_por_enrolado || 0
     const pesoEnrolados = Math.round(linea.cantidad_enrolados * linea.peso_por_enrolado * 10) / 10
     const gramosTotales = Math.round((linea.gramos + pesoEnrolados) * 10) / 10
 
@@ -523,59 +492,6 @@ export function VentasManager({
 
   return (
     <div className="space-y-6">
-      {/* Configuración de precios para miembros del club */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Crown className="h-5 w-5 text-amber-500" />
-            Precios para miembros del club
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="precio_gramo_miembro">Precio por gramo ($)</Label>
-              <Input
-                id="precio_gramo_miembro"
-                type="number"
-                min={0}
-                step="any"
-                value={precioMiembroForm.gramo}
-                onChange={(e) =>
-                  setPrecioMiembroForm({ ...precioMiembroForm, gramo: Number(e.target.value) })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="precio_enrolado_miembro">Precio por enrolado ($)</Label>
-              <Input
-                id="precio_enrolado_miembro"
-                type="number"
-                min={0}
-                step="any"
-                value={precioMiembroForm.enrolado}
-                onChange={(e) =>
-                  setPrecioMiembroForm({ ...precioMiembroForm, enrolado: Number(e.target.value) })
-                }
-              />
-            </div>
-            <Button onClick={guardarPreciosMiembro} disabled={guardandoPrecios}>
-              {preciosGuardados ? (
-                <>
-                  <Check className="h-4 w-4 mr-2" />
-                  Guardado
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  {guardandoPrecios ? "Guardando..." : "Guardar precios"}
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

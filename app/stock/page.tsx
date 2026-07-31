@@ -8,6 +8,7 @@ export default async function StockPage() {
   const supabase = await createClient()
   const { data: geneticas } = await supabase.from("geneticas").select("*").order("nombre")
   const { data: productos } = await supabase.from("productos").select("*").order("nombre")
+  const { data: configClub } = await supabase.from("config_club").select("*").eq("id", 1).maybeSingle()
 
   return (
     <div className="min-h-screen bg-background">
@@ -21,7 +22,11 @@ export default async function StockPage() {
           </TabsList>
 
           <TabsContent value="geneticas">
-            <StockManager initialGeneticas={geneticas || []} />
+            <StockManager
+              initialGeneticas={geneticas || []}
+              precioGramoMiembro={Number(configClub?.precio_gramo_miembro) || 0}
+              precioEnroladoMiembro={Number(configClub?.precio_enrolado_miembro) || 0}
+            />
           </TabsContent>
 
           <TabsContent value="productos">

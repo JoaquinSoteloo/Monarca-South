@@ -48,9 +48,18 @@ interface VentasManagerProps {
   geneticas: Genetica[]
   productos: Producto[]
   initialVentas: Venta[]
+  precioGramoMiembro?: number
+  precioEnroladoMiembro?: number
 }
 
-export function VentasManager({ socios, geneticas, productos, initialVentas }: VentasManagerProps) {
+export function VentasManager({
+  socios,
+  geneticas,
+  productos,
+  initialVentas,
+  precioGramoMiembro = 0,
+  precioEnroladoMiembro = 0,
+}: VentasManagerProps) {
   const [ventas, setVentas] = useState(initialVentas)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -84,7 +93,36 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
   const [scannerOpen, setScannerOpen] = useState(false)
   const [scanningLineIndex, setScanningLineIndex] = useState<number | null>(null)
   const [deudaSocio, setDeudaSocio] = useState<number>(0)
+  const [precioMiembroForm, setPrecioMiembroForm] = useState({
+    gramo: precioGramoMiembro,
+    enrolado: precioEnroladoMiembro,
+  })
+  const [preciosMiembro, setPreciosMiembro] = useState({
+    gramo: precioGramoMiembro,
+    enrolado: precioEnroladoMiembro,
+  })
+  const [guardandoPrecios, setGuardandoPrecios] = useState(false)
+  const [preciosGuardados, setPreciosGuardados] = useState(false)
   const supabase = createClient()
+
+  const guardarPreciosMiembro = async () => {
+    setGuardandoPrecios(true)
+    const { error } = await supabase
+      .from("config_club")
+      .update({
+        precio_gramo_miembro: precioMiembroForm.gramo,
+        precio_enrolado_miembro: precioMiembroForm.enrolado,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1)
+
+    if (!error) {
+      setPreciosMiembro({ ...precioMiembroForm })
+      setPreciosGuardados(true)
+      setTimeout(() => setPreciosGuardados(false), 2000)
+    }
+    setGuardandoPrecios(false)
+  }
 
   const selectedSocio = socios.find((s) => s.id === formData.socio_id)
 
@@ -111,7 +149,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
   const calcularLinea = (linea: LineaVenta) => {
     if (linea.tipo === "producto") {
       const producto = productos.find((p) => p.id === linea.producto_id)
-      const precioProducto = esMiembro ? 0 : producto?.precio || 0
+      const precioProducto = producto?.precio || 0
       const subtotal = Math.round(linea.cantidad_producto * precioProducto * 100) / 100
 
       return {
@@ -129,8 +167,8 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
     }
 
     const genetica = geneticas.find((g) => g.id === linea.genetica_id)
-    const precioGramo = esMiembro ? 0 : genetica?.precio_por_gramo || 0
-    const precioEnrolado = esMiembro ? 0 : genetica?.precio_por_enrolado || 0
+    const precioGramo = esMiembro ? preciosMiembro.gramo : genetica?.precio_por_gramo || 0
+    const precioEnrolado = esMiembro ? preciosMiembro.enrolado : genetica?.precio_por_enrolado || 0
     const pesoEnrolados = Math.round(linea.cantidad_enrolados * linea.peso_por_enrolado * 10) / 10
     const gramosTotales = Math.round((linea.gramos + pesoEnrolados) * 10) / 10
 
@@ -693,7 +731,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
               <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
                 <Crown className="h-5 w-5 text-amber-500" />
                 <span className="text-sm text-amber-600 font-medium">
-                  Este socio es miembro del club - La venta será sin costo ($0)
+                  Socio miembro del club - Precio especial: ${precioGramoMiembro}/g y ${precioEnroladoMiembro}/enrolado
                 </span>
               </div>
             )}

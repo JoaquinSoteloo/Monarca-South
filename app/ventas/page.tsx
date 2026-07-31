@@ -10,7 +10,7 @@ export default async function VentasPage() {
   inicioMes.setDate(1)
   inicioMes.setHours(0, 0, 0, 0)
 
-  const [{ data: socios }, { data: geneticas }, { data: productos }, { data: ventas }, { data: ventasMes }] = await Promise.all([
+  const [{ data: socios }, { data: geneticas }, { data: productos }, { data: ventas }, { data: ventasMes }, { data: configClub }] = await Promise.all([
     supabase.from("socios").select("*, membresia:membresias(*)").eq("activo", true).order("apellido"),
     supabase.from("geneticas").select("*").eq("activo", true).gt("gramos_disponibles", 0).order("nombre"),
     supabase.from("productos").select("*").eq("activo", true).order("nombre"),
@@ -20,6 +20,7 @@ export default async function VentasPage() {
       .order("created_at", { ascending: false })
       .limit(50),
     supabase.from("ventas").select("socio_id, gramos").gte("created_at", inicioMes.toISOString()),
+    supabase.from("config_club").select("*").eq("id", 1).maybeSingle(),
   ])
 
   // Calcular gramos consumidos por socio en el mes actual
@@ -47,6 +48,8 @@ export default async function VentasPage() {
           geneticas={geneticas || []}
           productos={productos || []}
           initialVentas={ventas || []}
+          precioGramoMiembro={Number(configClub?.precio_gramo_miembro) || 0}
+          precioEnroladoMiembro={Number(configClub?.precio_enrolado_miembro) || 0}
         />
       </main>
     </div>

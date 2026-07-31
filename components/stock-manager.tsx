@@ -12,19 +12,52 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Pencil, Trash2 } from "lucide-react"
+import { Plus, Pencil, Trash2, Crown, Save, Check } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface StockManagerProps {
   initialGeneticas: Genetica[]
+  precioGramoMiembro?: number
+  precioEnroladoMiembro?: number
 }
 
-export function StockManager({ initialGeneticas }: StockManagerProps) {
+export function StockManager({
+  initialGeneticas,
+  precioGramoMiembro = 0,
+  precioEnroladoMiembro = 0,
+}: StockManagerProps) {
   const [geneticas, setGeneticas] = useState(initialGeneticas)
   const [isOpen, setIsOpen] = useState(false)
   const [editingGenetica, setEditingGenetica] = useState<Genetica | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  const [precioMiembroForm, setPrecioMiembroForm] = useState({
+    gramo: precioGramoMiembro ? String(precioGramoMiembro) : "",
+    enrolado: precioEnroladoMiembro ? String(precioEnroladoMiembro) : "",
+  })
+  const [guardandoPrecios, setGuardandoPrecios] = useState(false)
+  const [preciosGuardados, setPreciosGuardados] = useState(false)
+
+  const guardarPreciosMiembro = async () => {
+    setGuardandoPrecios(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("config_club")
+      .update({
+        precio_gramo_miembro: Number.parseFloat(precioMiembroForm.gramo) || 0,
+        precio_enrolado_miembro: Number.parseFloat(precioMiembroForm.enrolado) || 0,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1)
+
+    if (!error) {
+      setPreciosGuardados(true)
+      setTimeout(() => setPreciosGuardados(false), 2000)
+      router.refresh()
+    }
+    setGuardandoPrecios(false)
+  }
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -113,6 +146,66 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
 
   return (
     <div className="space-y-6">
+      {/* Configuración de precios para miembros del club */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base text-foreground">
+            <Crown className="h-5 w-5 text-amber-500" />
+            Precios para miembros del club
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+            <div className="space-y-2">
+              <Label htmlFor="precio_gramo_miembro">Precio por gramo ($)</Label>
+              <Input
+                id="precio_gramo_miembro"
+                type="number"
+                min="0"
+                step="0.01"
+                value={precioMiembroForm.gramo}
+                onChange={(e) => setPrecioMiembroForm({ ...precioMiembroForm, gramo: e.target.value })}
+                placeholder="0"
+                className="bg-background border-border"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="precio_enrolado_miembro">Precio por enrolado ($)</Label>
+              <Input
+                id="precio_enrolado_miembro"
+                type="number"
+                min="0"
+                step="0.01"
+                value={precioMiembroForm.enrolado}
+                onChange={(e) => setPrecioMiembroForm({ ...precioMiembroForm, enrolado: e.target.value })}
+                placeholder="0"
+                className="bg-background border-border"
+              />
+            </div>
+            <Button
+              onClick={guardarPreciosMiembro}
+              disabled={guardandoPrecios}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {preciosGuardados ? (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Guardado
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  {guardandoPrecios ? "Guardando..." : "Guardar precios"}
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Estos precios se aplican automáticamente a los socios miembros del club al registrar una venta.
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-between items-center">
         <p className="text-muted-foreground">Administra el inventario de genéticas del club</p>
         <Dialog

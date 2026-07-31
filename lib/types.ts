@@ -98,10 +98,17 @@ export interface Gasto {
   id: string
   descripcion: string
   monto: number
+  categoria: string
   metodo_pago: "efectivo" | "transferencia"
   fecha: string
   created_at: string
   updated_at: string
+}
+
+export interface CategoriaGasto {
+  id: string
+  nombre: string
+  created_at: string
 }
 
 export interface Producto {

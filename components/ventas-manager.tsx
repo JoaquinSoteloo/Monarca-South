@@ -25,6 +25,8 @@ import {
   Trash2,
   CalendarIcon,
   Crown,
+  Save,
+  Check,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
@@ -521,6 +523,59 @@ export function VentasManager({
 
   return (
     <div className="space-y-6">
+      {/* Configuración de precios para miembros del club */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Crown className="h-5 w-5 text-amber-500" />
+            Precios para miembros del club
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+            <div className="space-y-2">
+              <Label htmlFor="precio_gramo_miembro">Precio por gramo ($)</Label>
+              <Input
+                id="precio_gramo_miembro"
+                type="number"
+                min={0}
+                step="any"
+                value={precioMiembroForm.gramo}
+                onChange={(e) =>
+                  setPrecioMiembroForm({ ...precioMiembroForm, gramo: Number(e.target.value) })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="precio_enrolado_miembro">Precio por enrolado ($)</Label>
+              <Input
+                id="precio_enrolado_miembro"
+                type="number"
+                min={0}
+                step="any"
+                value={precioMiembroForm.enrolado}
+                onChange={(e) =>
+                  setPrecioMiembroForm({ ...precioMiembroForm, enrolado: Number(e.target.value) })
+                }
+              />
+            </div>
+            <Button onClick={guardarPreciosMiembro} disabled={guardandoPrecios}>
+              {preciosGuardados ? (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Guardado
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  {guardandoPrecios ? "Guardando..." : "Guardar precios"}
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

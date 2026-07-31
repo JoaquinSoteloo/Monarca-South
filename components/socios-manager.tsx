@@ -22,7 +22,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Trash2, Search, AlertTriangle, Crown } from "lucide-react"
+import { Plus, Pencil, Trash2, Search, AlertTriangle, Crown, Star } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface SociosManagerProps {
@@ -53,6 +53,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
     estado_reprocan: "" as "Activo" | "Pendiente" | "",
     sucursal_id: "",
     es_miembro: false,
+    es_vip: false,
   })
 
   const resetForm = () => {
@@ -66,6 +67,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       estado_reprocan: "",
       sucursal_id: "",
       es_miembro: false,
+      es_vip: false,
     })
     setEditingSocio(null)
   }
@@ -103,6 +105,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       estado_reprocan: formData.estado_reprocan || null,
       sucursal_id: formData.sucursal_id ? formData.sucursal_id : null,
       es_miembro: formData.es_miembro,
+      es_vip: formData.es_vip,
     }
 
     if (editingSocio) {
@@ -155,6 +158,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       estado_reprocan: socio.estado_reprocan || "",
       sucursal_id: socio.sucursal_id || "",
       es_miembro: socio.es_miembro || false,
+      es_vip: socio.es_vip || false,
     })
     setIsOpen(true)
   }
@@ -413,7 +417,9 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                 <Checkbox
                   id="es_miembro"
                   checked={formData.es_miembro}
-                  onCheckedChange={(checked) => setFormData({ ...formData, es_miembro: checked === true })}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, es_miembro: checked === true, es_vip: checked === true ? false : formData.es_vip })
+                  }
                   className="border-amber-500 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                 />
                 <div className="flex-1">
@@ -422,7 +428,26 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                     <span className="font-medium text-foreground">Es miembro del club</span>
                   </Label>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Los miembros trabajan en el club y no pagan por los productos
+                    Los miembros trabajan en el club y tienen precio de miembro
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <Checkbox
+                  id="es_vip"
+                  checked={formData.es_vip}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, es_vip: checked === true, es_miembro: checked === true ? false : formData.es_miembro })
+                  }
+                  className="border-blue-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                />
+                <div className="flex-1">
+                  <Label htmlFor="es_vip" className="flex items-center gap-2 cursor-pointer">
+                    <Star className="h-4 w-4 text-blue-500" />
+                    <span className="font-medium text-foreground">Es socio VIP</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Los socios VIP no trabajan pero tienen precio especial VIP
                   </p>
                 </div>
               </div>
@@ -505,6 +530,12 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                               <Badge variant="outline" className="border-amber-400 text-amber-500 bg-amber-500/10">
                                 <Crown className="h-3 w-3 mr-1" />
                                 Miembro
+                              </Badge>
+                            )}
+                            {socio.es_vip && (
+                              <Badge variant="outline" className="border-blue-400 text-blue-500 bg-blue-500/10">
+                                <Star className="h-3 w-3 mr-1" />
+                                VIP
                               </Badge>
                             )}
                           </div>

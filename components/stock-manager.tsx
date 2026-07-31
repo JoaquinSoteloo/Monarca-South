@@ -12,19 +12,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Pencil, Trash2, Crown, Save, Check } from "lucide-react"
+import { Plus, Pencil, Trash2, Crown, Save, Check, Star } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface StockManagerProps {
   initialGeneticas: Genetica[]
   precioGramoMiembro?: number
   precioEnroladoMiembro?: number
+  precioGramoVip?: number
+  precioEnroladoVip?: number
 }
 
 export function StockManager({
   initialGeneticas,
   precioGramoMiembro = 0,
   precioEnroladoMiembro = 0,
+  precioGramoVip = 0,
+  precioEnroladoVip = 0,
 }: StockManagerProps) {
   const [geneticas, setGeneticas] = useState(initialGeneticas)
   const [isOpen, setIsOpen] = useState(false)
@@ -57,6 +61,33 @@ export function StockManager({
       router.refresh()
     }
     setGuardandoPrecios(false)
+  }
+
+  const [precioVipForm, setPrecioVipForm] = useState({
+    gramo: precioGramoVip ? String(precioGramoVip) : "",
+    enrolado: precioEnroladoVip ? String(precioEnroladoVip) : "",
+  })
+  const [guardandoPreciosVip, setGuardandoPreciosVip] = useState(false)
+  const [preciosVipGuardados, setPreciosVipGuardados] = useState(false)
+
+  const guardarPreciosVip = async () => {
+    setGuardandoPreciosVip(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("config_club")
+      .update({
+        precio_gramo_vip: Number.parseFloat(precioVipForm.gramo) || 0,
+        precio_enrolado_vip: Number.parseFloat(precioVipForm.enrolado) || 0,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1)
+
+    if (!error) {
+      setPreciosVipGuardados(true)
+      setTimeout(() => setPreciosVipGuardados(false), 2000)
+      router.refresh()
+    }
+    setGuardandoPreciosVip(false)
   }
 
   const [formData, setFormData] = useState({
@@ -202,6 +233,66 @@ export function StockManager({
           </div>
           <p className="text-xs text-muted-foreground mt-3">
             Estos precios se aplican automáticamente a los socios miembros del club al registrar una venta.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Configuración de precios para socios VIP */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base text-foreground">
+            <Star className="h-5 w-5 text-blue-500" />
+            Precios para socios VIP
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+            <div className="space-y-2">
+              <Label htmlFor="precio_gramo_vip">Precio por gramo ($)</Label>
+              <Input
+                id="precio_gramo_vip"
+                type="number"
+                min="0"
+                step="0.01"
+                value={precioVipForm.gramo}
+                onChange={(e) => setPrecioVipForm({ ...precioVipForm, gramo: e.target.value })}
+                placeholder="0"
+                className="bg-background border-border"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="precio_enrolado_vip">Precio por enrolado ($)</Label>
+              <Input
+                id="precio_enrolado_vip"
+                type="number"
+                min="0"
+                step="0.01"
+                value={precioVipForm.enrolado}
+                onChange={(e) => setPrecioVipForm({ ...precioVipForm, enrolado: e.target.value })}
+                placeholder="0"
+                className="bg-background border-border"
+              />
+            </div>
+            <Button
+              onClick={guardarPreciosVip}
+              disabled={guardandoPreciosVip}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {preciosVipGuardados ? (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Guardado
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  {guardandoPreciosVip ? "Guardando..." : "Guardar precios"}
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Estos precios se aplican automáticamente a los socios VIP al registrar una venta.
           </p>
         </CardContent>
       </Card>

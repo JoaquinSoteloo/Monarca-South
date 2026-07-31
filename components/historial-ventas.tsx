@@ -81,6 +81,7 @@ export function HistorialVentas() {
   const [soloNoPagados, setSoloNoPagados] = useState(false)
   const [expandedVentas, setExpandedVentas] = useState<Set<number>>(new Set())
   const [filtroSocio, setFiltroSocio] = useState("")
+  const [filtroProducto, setFiltroProducto] = useState("")
   const [socios, setSocios] = useState<Socio[]>([])
   const [geneticas, setGeneticas] = useState<Genetica[]>([])
   const [productos, setProductos] = useState<Producto[]>([]) // Added state for products
@@ -642,12 +643,26 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
     setEditLineas(nuevasLineas)
   }
 
+  const coincideConProducto = (v: VentaConDetalles) => {
+    if (!filtroProducto) return true
+    const [tipo, id] = filtroProducto.split(":")
+    if (v.detalles && v.detalles.length > 0) {
+      return v.detalles.some((d) =>
+        tipo === "genetica" ? d.genetica_id === id : d.producto_id === id,
+      )
+    }
+    // Ventas legacy sin detalle_venta
+    if (tipo === "genetica") return v.genetica_id === id
+    return false
+  }
+
   const initialVentasFiltradas = ventas.filter((v) => {
     if (soloNoPagados && v.metodo_pago !== "pendiente") return false
     if (filtroSocio) {
       const nombreCompleto = `${v.socio?.nombre} ${v.socio?.apellido} ${v.socio?.dni}`.toLowerCase()
       if (!nombreCompleto.includes(filtroSocio.toLowerCase())) return false
     }
+    if (!coincideConProducto(v)) return false
     return true
   })
 
@@ -991,6 +1006,7 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
       const nombreCompleto = `${v.socio?.nombre} ${v.socio?.apellido} ${v.socio?.dni}`.toLowerCase()
       if (!nombreCompleto.includes(filtroSocio.toLowerCase())) return false
     }
+    if (!coincideConProducto(v)) return false
     return true
   })
 
@@ -1500,6 +1516,44 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
               </div>
             </div>
 
+            <div className="flex-1 space-y-2">
+              <Label className="text-sm font-medium text-foreground">Filtrar por Producto</Label>
+              <div className="flex gap-2">
+                <Select
+                  value={filtroProducto || "todos"}
+                  onValueChange={(value) => setFiltroProducto(value === "todos" ? "" : value)}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Todos los productos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los productos</SelectItem>
+                    {geneticas.map((g) => (
+                      <SelectItem key={`genetica:${g.id}`} value={`genetica:${g.id}`}>
+                        {g.nombre} (genética)
+                      </SelectItem>
+                    ))}
+                    {productos.map((p) => (
+                      <SelectItem key={`producto:${p.id}`} value={`producto:${p.id}`}>
+                        {p.nombre} (producto)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {filtroProducto && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFiltroProducto("")}
+                    className="h-9 w-9 p-0 shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <Button
               variant={soloNoPagados ? "default" : "outline"}
               onClick={() => setSoloNoPagados(!soloNoPagados)}
@@ -1584,6 +1638,16 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
             {filtroSocio && (
               <Badge variant="outline" className="ml-2 text-emerald-600 border-emerald-300">
                 Filtrado por: {filtroSocio}
+              </Badge>
+            )}
+            {filtroProducto && (
+              <Badge variant="outline" className="ml-2 text-emerald-600 border-emerald-300">
+                Producto:{" "}
+                {(() => {
+                  const [tipo, id] = filtroProducto.split(":")
+                  if (tipo === "genetica") return geneticas.find((g) => g.id === id)?.nombre || "-"
+                  return productos.find((p) => p.id === id)?.nombre || "-"
+                })()}
               </Badge>
             )}
           </CardTitle>

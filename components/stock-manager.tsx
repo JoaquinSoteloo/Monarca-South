@@ -328,6 +328,10 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
                   <TableHead className="text-muted-foreground text-right">Stock (g)</TableHead>
                   <TableHead className="text-muted-foreground text-right">Precio/g</TableHead>
                   <TableHead className="text-muted-foreground text-right">Precio/enr</TableHead>
+                  <TableHead className="text-amber-600 text-right">Miembro/g</TableHead>
+                  <TableHead className="text-amber-600 text-right">Miembro/enr</TableHead>
+                  <TableHead className="text-blue-600 text-right">VIP/g</TableHead>
+                  <TableHead className="text-blue-600 text-right">VIP/enr</TableHead>
                   <TableHead className="text-muted-foreground text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -348,8 +352,20 @@ export function StockManager({ initialGeneticas }: StockManagerProps) {
                         {genetica.gramos_disponibles}g
                       </TableCell>
                       <TableCell className="text-right text-foreground">${genetica.precio_por_gramo}</TableCell>
-                      <TableCell className="text-right text-amber-600">
+                      <TableCell className="text-right text-muted-foreground">
                         {genetica.precio_por_enrolado ? `$${genetica.precio_por_enrolado}` : "-"}
+                      </TableCell>
+                      <TableCell className="text-right text-amber-600">
+                        {genetica.precio_gramo_miembro ? `$${genetica.precio_gramo_miembro}` : "-"}
+                      </TableCell>
+                      <TableCell className="text-right text-amber-600">
+                        {genetica.precio_enrolado_miembro ? `$${genetica.precio_enrolado_miembro}` : "-"}
+                      </TableCell>
+                      <TableCell className="text-right text-blue-600">
+                        {genetica.precio_gramo_vip ? `$${genetica.precio_gramo_vip}` : "-"}
+                      </TableCell>
+                      <TableCell className="text-right text-blue-600">
+                        {genetica.precio_enrolado_vip ? `$${genetica.precio_enrolado_vip}` : "-"}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

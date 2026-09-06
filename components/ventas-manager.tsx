@@ -49,22 +49,9 @@ interface VentasManagerProps {
   geneticas: Genetica[]
   productos: Producto[]
   initialVentas: Venta[]
-  precioGramoMiembro?: number
-  precioEnroladoMiembro?: number
-  precioGramoVip?: number
-  precioEnroladoVip?: number
 }
 
-export function VentasManager({
-  socios,
-  geneticas,
-  productos,
-  initialVentas,
-  precioGramoMiembro = 0,
-  precioEnroladoMiembro = 0,
-  precioGramoVip = 0,
-  precioEnroladoVip = 0,
-}: VentasManagerProps) {
+export function VentasManager({ socios, geneticas, productos, initialVentas }: VentasManagerProps) {
   const [ventas, setVentas] = useState(initialVentas)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -145,14 +132,14 @@ export function VentasManager({
 
     const genetica = geneticas.find((g) => g.id === linea.genetica_id)
     const precioGramo = esMiembro
-      ? precioGramoMiembro
+      ? genetica?.precio_gramo_miembro || 0
       : esVip
-        ? precioGramoVip
+        ? genetica?.precio_gramo_vip || 0
         : genetica?.precio_por_gramo || 0
     const precioEnrolado = esMiembro
-      ? precioEnroladoMiembro
+      ? genetica?.precio_enrolado_miembro || 0
       : esVip
-        ? precioEnroladoVip
+        ? genetica?.precio_enrolado_vip || 0
         : genetica?.precio_por_enrolado || 0
     const pesoEnrolados = Math.round(linea.cantidad_enrolados * linea.peso_por_enrolado * 10) / 10
     const gramosTotales = Math.round((linea.gramos + pesoEnrolados) * 10) / 10
@@ -725,7 +712,7 @@ export function VentasManager({
               <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
                 <Crown className="h-5 w-5 text-amber-500" />
                 <span className="text-sm text-amber-600 font-medium">
-                  Socio miembro del club - Precio especial: ${precioGramoMiembro}/g y ${precioEnroladoMiembro}/enrolado
+                  Socio miembro del club - Se aplica el precio de miembro definido en cada genética
                 </span>
               </div>
             )}
@@ -734,7 +721,7 @@ export function VentasManager({
               <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                 <Star className="h-5 w-5 text-blue-500" />
                 <span className="text-sm text-blue-600 font-medium">
-                  Socio VIP - Precio especial: ${precioGramoVip}/g y ${precioEnroladoVip}/enrolado
+                  Socio VIP - Se aplica el precio VIP definido en cada genética
                 </span>
               </div>
             )}
@@ -800,12 +787,24 @@ export function VentasManager({
                               <SelectValue placeholder="Seleccionar genética" />
                             </SelectTrigger>
                             <SelectContent>
-                              {geneticas.map((g) => (
-                                <SelectItem key={g.id} value={g.id}>
-                                  {g.nombre} - {g.gramos_disponibles}g (${g.precio_por_gramo}/g
-                                  {g.precio_por_enrolado ? ` | $${g.precio_por_enrolado}/enr` : ""})
-                                </SelectItem>
-                              ))}
+                              {geneticas.map((g) => {
+                                const gPrecioGramo = esMiembro
+                                  ? g.precio_gramo_miembro || 0
+                                  : esVip
+                                    ? g.precio_gramo_vip || 0
+                                    : g.precio_por_gramo || 0
+                                const gPrecioEnrolado = esMiembro
+                                  ? g.precio_enrolado_miembro || 0
+                                  : esVip
+                                    ? g.precio_enrolado_vip || 0
+                                    : g.precio_por_enrolado || 0
+                                return (
+                                  <SelectItem key={g.id} value={g.id}>
+                                    {g.nombre} - {g.gramos_disponibles}g (${gPrecioGramo}/g
+                                    {gPrecioEnrolado ? ` | $${gPrecioEnrolado}/enr` : ""})
+                                  </SelectItem>
+                                )
+                              })}
                             </SelectContent>
                           </Select>
                         </div>

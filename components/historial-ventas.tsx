@@ -81,6 +81,7 @@ export function HistorialVentas() {
   const [soloNoPagados, setSoloNoPagados] = useState(false)
   const [expandedVentas, setExpandedVentas] = useState<Set<number>>(new Set())
   const [filtroSocio, setFiltroSocio] = useState("")
+  const [filtroProducto, setFiltroProducto] = useState("")
   const [socios, setSocios] = useState<Socio[]>([])
   const [geneticas, setGeneticas] = useState<Genetica[]>([])
   const [productos, setProductos] = useState<Producto[]>([]) // Added state for products
@@ -642,12 +643,43 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
     setEditLineas(nuevasLineas)
   }
 
+  // Normaliza nombres: sin tildes, sin mayúsculas y sin espacios sobrantes,
+  // para agrupar variantes como "Apricot Mimosa" y "apricot mímosa".
+  const normalizar = (texto?: string | null) =>
+    (texto || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+
+  // Mapas de id -> nombre normalizado (hay genéticas/productos con el mismo nombre)
+  const geneticaNombrePorId = new Map(geneticas.map((g) => [g.id, normalizar(g.nombre)]))
+  const productoNombrePorId = new Map(productos.map((p) => [p.id, normalizar(p.nombre)]))
+
+  const coincideConProducto = (v: VentaConDetalles) => {
+    if (!filtroProducto) return true
+    const sep = filtroProducto.indexOf(":")
+    const tipo = filtroProducto.slice(0, sep)
+    const nombre = normalizar(filtroProducto.slice(sep + 1))
+    if (v.detalles && v.detalles.length > 0) {
+      return v.detalles.some((d) =>
+        tipo === "genetica"
+          ? d.genetica_id && geneticaNombrePorId.get(d.genetica_id) === nombre
+          : d.producto_id && productoNombrePorId.get(d.producto_id) === nombre,
+      )
+    }
+    // Ventas legacy sin detalle_venta
+    if (tipo === "genetica") return v.genetica_id && geneticaNombrePorId.get(v.genetica_id) === nombre
+    return false
+  }
+
   const initialVentasFiltradas = ventas.filter((v) => {
     if (soloNoPagados && v.metodo_pago !== "pendiente") return false
     if (filtroSocio) {
       const nombreCompleto = `${v.socio?.nombre} ${v.socio?.apellido} ${v.socio?.dni}`.toLowerCase()
       if (!nombreCompleto.includes(filtroSocio.toLowerCase())) return false
     }
+    if (!coincideConProducto(v)) return false
     return true
   })
 
@@ -991,6 +1023,7 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
       const nombreCompleto = `${v.socio?.nombre} ${v.socio?.apellido} ${v.socio?.dni}`.toLowerCase()
       if (!nombreCompleto.includes(filtroSocio.toLowerCase())) return false
     }
+    if (!coincideConProducto(v)) return false
     return true
   })
 
@@ -1500,6 +1533,48 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
               </div>
             </div>
 
+            <div className="flex-1 space-y-2">
+              <Label className="text-sm font-medium text-foreground">Filtrar por Producto</Label>
+              <div className="flex gap-2">
+                <Select
+                  value={filtroProducto || "todos"}
+                  onValueChange={(value) => setFiltroProducto(value === "todos" ? "" : value)}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Todos los productos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los productos</SelectItem>
+                    {Array.from(new Map(geneticas.map((g) => [normalizar(g.nombre), g.nombre])).values())
+                      .sort((a, b) => a.localeCompare(b))
+                      .map((nombre) => (
+                        <SelectItem key={`genetica:${nombre}`} value={`genetica:${nombre}`}>
+                          {nombre} (genética)
+                        </SelectItem>
+                      ))}
+                    {Array.from(new Map(productos.map((p) => [normalizar(p.nombre), p.nombre])).values())
+                      .sort((a, b) => a.localeCompare(b))
+                      .map((nombre) => (
+                        <SelectItem key={`producto:${nombre}`} value={`producto:${nombre}`}>
+                          {nombre} (producto)
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {filtroProducto && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFiltroProducto("")}
+                    className="h-9 w-9 p-0 shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <Button
               variant={soloNoPagados ? "default" : "outline"}
               onClick={() => setSoloNoPagados(!soloNoPagados)}
@@ -1584,6 +1659,11 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
             {filtroSocio && (
               <Badge variant="outline" className="ml-2 text-emerald-600 border-emerald-300">
                 Filtrado por: {filtroSocio}
+              </Badge>
+            )}
+            {filtroProducto && (
+              <Badge variant="outline" className="ml-2 text-emerald-600 border-emerald-300">
+                Producto: {filtroProducto.slice(filtroProducto.indexOf(":") + 1)}
               </Badge>
             )}
           </CardTitle>

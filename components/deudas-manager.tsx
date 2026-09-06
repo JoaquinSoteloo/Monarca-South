@@ -71,6 +71,16 @@ export function DeudasManager() {
   const [uploadingComprobante, setUploadingComprobante] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
+  // Dialog para registrar pago por monto total del socio
+  const [pagoSocioDialogOpen, setPagoSocioDialogOpen] = useState(false)
+  const [socioPago, setSocioPago] = useState<{
+    socio: VentaConDeuda["socio"]
+    deudas: VentaConDeuda[]
+    totalDeuda: number
+  } | null>(null)
+  const [montoPagoSocio, setMontoPagoSocio] = useState("")
+  const [procesandoPagoSocio, setProcesandoPagoSocio] = useState(false)
+
   // Dialog para ver historial de pagos
   const [historialDialogOpen, setHistorialDialogOpen] = useState(false)
   const [pagosHistorial, setPagosHistorial] = useState<Pago[]>([])
@@ -117,13 +127,13 @@ export function DeudasManager() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !ventaSeleccionada) return
+    if (!file) return
 
     setUploadingComprobante(true)
     
     // Subir a Supabase Storage
     const fileExt = file.name.split('.').pop()
-    const fileName = `deuda_${ventaSeleccionada.id}_${Date.now()}.${fileExt}`
+    const fileName = `deuda_${Date.now()}.${fileExt}`
     
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('comprobantes')
@@ -193,6 +203,90 @@ export function DeudasManager() {
     }
 
     setPagoDialogOpen(false)
+    fetchDeudas()
+  }
+
+  const handleOpenPagoSocioDialog = (grupo: {
+    socio: VentaConDeuda["socio"]
+    deudas: VentaConDeuda[]
+    totalDeuda: number
+  }) => {
+    setSocioPago(grupo)
+    setMontoPagoSocio(grupo.totalDeuda.toString())
+    setMetodoPago("efectivo")
+    setNotasPago("")
+    setComprobanteUrl("")
+    setPagoSocioDialogOpen(true)
+  }
+
+  const handleRegistrarPagoSocio = async () => {
+    if (!socioPago || !montoPagoSocio || Number(montoPagoSocio) <= 0) return
+
+    const montoNum = Number(montoPagoSocio)
+    if (montoNum > socioPago.totalDeuda) {
+      alert("El monto no puede ser mayor a la deuda total del socio")
+      return
+    }
+
+    setProcesandoPagoSocio(true)
+
+    // Aplicar el monto a los pedidos pendientes del socio, del más antiguo al más nuevo
+    const ventasOrdenadas = [...socioPago.deudas].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    )
+
+    const fecha = new Date().toISOString()
+    let restante = montoNum
+
+    for (const venta of ventasOrdenadas) {
+      if (restante <= 0) break
+
+      const saldo = Number(venta.saldo_pendiente || 0)
+      if (saldo <= 0) continue
+
+      const aplicar = Math.min(restante, saldo)
+
+      const { error: pagoError } = await supabase.from("pagos").insert({
+        venta_id: venta.id,
+        monto: aplicar,
+        metodo_pago: metodoPago,
+        comprobante_url: comprobanteUrl || null,
+        notas: notasPago || "Pago aplicado a cuenta del socio",
+        fecha,
+      })
+
+      if (pagoError) {
+        alert("Error al registrar el pago: " + pagoError.message)
+        setProcesandoPagoSocio(false)
+        fetchDeudas()
+        return
+      }
+
+      const nuevoSaldo = saldo - aplicar
+      const nuevoMontoPagado = Number(venta.monto_pagado || 0) + aplicar
+      const nuevoMetodoPago = nuevoSaldo <= 0 ? metodoPago : "pendiente"
+
+      const { error: ventaError } = await supabase
+        .from("ventas")
+        .update({
+          saldo_pendiente: nuevoSaldo,
+          monto_pagado: nuevoMontoPagado,
+          metodo_pago: nuevoMetodoPago,
+        })
+        .eq("id", venta.id)
+
+      if (ventaError) {
+        alert("Error al actualizar la venta: " + ventaError.message)
+        setProcesandoPagoSocio(false)
+        fetchDeudas()
+        return
+      }
+
+      restante -= aplicar
+    }
+
+    setProcesandoPagoSocio(false)
+    setPagoSocioDialogOpen(false)
     fetchDeudas()
   }
 
@@ -306,10 +400,12 @@ export function DeudasManager() {
           </CardContent>
         </Card>
       ) : (
-        Object.values(deudasPorSocio).map(({ socio, deudas: deudasSocio, totalDeuda: totalSocio }) => (
+        Object.values(deudasPorSocio).map((grupo) => {
+          const { socio, deudas: deudasSocio, totalDeuda: totalSocio } = grupo
+          return (
           <Card key={socio?.id} className="overflow-hidden">
             <CardHeader className="bg-muted/30">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <User className="h-5 w-5 text-muted-foreground" />
                   <div>
@@ -319,9 +415,18 @@ export function DeudasManager() {
                     <p className="text-sm text-muted-foreground">DNI: {socio?.dni}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Deuda total</p>
-                  <p className="text-xl font-bold text-red-600">${totalSocio.toLocaleString()}</p>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Deuda total</p>
+                    <p className="text-xl font-bold text-red-600">${totalSocio.toLocaleString()}</p>
+                  </div>
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => handleOpenPagoSocioDialog(grupo)}
+                  >
+                    <DollarSign className="h-4 w-4 mr-1" />
+                    Pagar deuda
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -387,7 +492,8 @@ export function DeudasManager() {
               </Table>
             </CardContent>
           </Card>
-        ))
+          )
+        })
       )}
 
       {/* Dialog Registrar Pago */}
@@ -498,6 +604,135 @@ export function DeudasManager() {
               disabled={!montoPago || Number(montoPago) <= 0}
             >
               Registrar Pago
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Registrar Pago por monto del socio */}
+      <Dialog open={pagoSocioDialogOpen} onOpenChange={setPagoSocioDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pagar deuda del socio</DialogTitle>
+            <DialogDescription>
+              {socioPago?.socio?.apellido}, {socioPago?.socio?.nombre} — Deuda total: $
+              {Number(socioPago?.totalDeuda || 0).toLocaleString()}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
+              El monto se aplica automáticamente a los pedidos pendientes, empezando por el más antiguo.
+              Los pedidos que queden cubiertos se marcan como pagados.
+            </div>
+
+            <div>
+              <Label>Monto a pagar</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={montoPagoSocio}
+                  onChange={(e) => setMontoPagoSocio(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {socioPago && Number(montoPagoSocio) > socioPago.totalDeuda && (
+                <p className="text-xs text-red-600 mt-1">
+                  El monto supera la deuda total (${socioPago.totalDeuda.toLocaleString()}).
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label>Método de pago</Label>
+              <Select value={metodoPago} onValueChange={(v) => setMetodoPago(v as "efectivo" | "transferencia")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="efectivo">
+                    <div className="flex items-center gap-2">
+                      <Banknote className="h-4 w-4" />
+                      Efectivo
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="transferencia">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Transferencia
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {metodoPago === "transferencia" && (
+              <div>
+                <Label>Comprobante (opcional)</Label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  ref={fileInputRef}
+                  className="hidden"
+                />
+                {comprobanteUrl ? (
+                  <div className="relative mt-2">
+                    <img
+                      src={comprobanteUrl || "/placeholder.svg"}
+                      alt="Comprobante"
+                      className="w-full h-32 object-cover rounded-md border"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 h-6 w-6"
+                      onClick={() => setComprobanteUrl("")}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full mt-2 bg-transparent"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingComprobante}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploadingComprobante ? "Subiendo..." : "Adjuntar comprobante"}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            <div>
+              <Label>Notas (opcional)</Label>
+              <Textarea
+                placeholder="Notas adicionales..."
+                value={notasPago}
+                onChange={(e) => setNotasPago(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPagoSocioDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={handleRegistrarPagoSocio}
+              disabled={
+                procesandoPagoSocio ||
+                !montoPagoSocio ||
+                Number(montoPagoSocio) <= 0 ||
+                (socioPago ? Number(montoPagoSocio) > socioPago.totalDeuda : false)
+              }
+            >
+              {procesandoPagoSocio ? "Procesando..." : "Registrar Pago"}
             </Button>
           </DialogFooter>
         </DialogContent>

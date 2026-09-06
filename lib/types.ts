@@ -42,6 +42,10 @@ export interface Genetica {
   gramos_disponibles: number
   precio_por_gramo: number
   precio_por_enrolado: number
+  precio_gramo_miembro: number
+  precio_enrolado_miembro: number
+  precio_gramo_vip: number
+  precio_enrolado_vip: number
   activo: boolean
   created_at: string
   updated_at: string

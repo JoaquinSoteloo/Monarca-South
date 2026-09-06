@@ -12,83 +12,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Pencil, Trash2, Crown, Save, Check, Star } from "lucide-react"
+import { Plus, Pencil, Trash2, Crown, Star } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface StockManagerProps {
   initialGeneticas: Genetica[]
-  precioGramoMiembro?: number
-  precioEnroladoMiembro?: number
-  precioGramoVip?: number
-  precioEnroladoVip?: number
 }
 
-export function StockManager({
-  initialGeneticas,
-  precioGramoMiembro = 0,
-  precioEnroladoMiembro = 0,
-  precioGramoVip = 0,
-  precioEnroladoVip = 0,
-}: StockManagerProps) {
+export function StockManager({ initialGeneticas }: StockManagerProps) {
   const [geneticas, setGeneticas] = useState(initialGeneticas)
   const [isOpen, setIsOpen] = useState(false)
   const [editingGenetica, setEditingGenetica] = useState<Genetica | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-
-  const [precioMiembroForm, setPrecioMiembroForm] = useState({
-    gramo: precioGramoMiembro ? String(precioGramoMiembro) : "",
-    enrolado: precioEnroladoMiembro ? String(precioEnroladoMiembro) : "",
-  })
-  const [guardandoPrecios, setGuardandoPrecios] = useState(false)
-  const [preciosGuardados, setPreciosGuardados] = useState(false)
-
-  const guardarPreciosMiembro = async () => {
-    setGuardandoPrecios(true)
-    const supabase = createClient()
-    const { error } = await supabase
-      .from("config_club")
-      .update({
-        precio_gramo_miembro: Number.parseFloat(precioMiembroForm.gramo) || 0,
-        precio_enrolado_miembro: Number.parseFloat(precioMiembroForm.enrolado) || 0,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", 1)
-
-    if (!error) {
-      setPreciosGuardados(true)
-      setTimeout(() => setPreciosGuardados(false), 2000)
-      router.refresh()
-    }
-    setGuardandoPrecios(false)
-  }
-
-  const [precioVipForm, setPrecioVipForm] = useState({
-    gramo: precioGramoVip ? String(precioGramoVip) : "",
-    enrolado: precioEnroladoVip ? String(precioEnroladoVip) : "",
-  })
-  const [guardandoPreciosVip, setGuardandoPreciosVip] = useState(false)
-  const [preciosVipGuardados, setPreciosVipGuardados] = useState(false)
-
-  const guardarPreciosVip = async () => {
-    setGuardandoPreciosVip(true)
-    const supabase = createClient()
-    const { error } = await supabase
-      .from("config_club")
-      .update({
-        precio_gramo_vip: Number.parseFloat(precioVipForm.gramo) || 0,
-        precio_enrolado_vip: Number.parseFloat(precioVipForm.enrolado) || 0,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", 1)
-
-    if (!error) {
-      setPreciosVipGuardados(true)
-      setTimeout(() => setPreciosVipGuardados(false), 2000)
-      router.refresh()
-    }
-    setGuardandoPreciosVip(false)
-  }
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -96,6 +32,10 @@ export function StockManager({
     gramos_disponibles: "",
     precio_por_gramo: "",
     precio_por_enrolado: "",
+    precio_gramo_miembro: "",
+    precio_enrolado_miembro: "",
+    precio_gramo_vip: "",
+    precio_enrolado_vip: "",
   })
 
   const resetForm = () => {
@@ -105,6 +45,10 @@ export function StockManager({
       gramos_disponibles: "",
       precio_por_gramo: "",
       precio_por_enrolado: "",
+      precio_gramo_miembro: "",
+      precio_enrolado_miembro: "",
+      precio_gramo_vip: "",
+      precio_enrolado_vip: "",
     })
     setEditingGenetica(null)
   }
@@ -120,6 +64,10 @@ export function StockManager({
       gramos_disponibles: Number.parseFloat(formData.gramos_disponibles),
       precio_por_gramo: Number.parseFloat(formData.precio_por_gramo),
       precio_por_enrolado: Number.parseFloat(formData.precio_por_enrolado) || 0,
+      precio_gramo_miembro: Number.parseFloat(formData.precio_gramo_miembro) || 0,
+      precio_enrolado_miembro: Number.parseFloat(formData.precio_enrolado_miembro) || 0,
+      precio_gramo_vip: Number.parseFloat(formData.precio_gramo_vip) || 0,
+      precio_enrolado_vip: Number.parseFloat(formData.precio_enrolado_vip) || 0,
     }
 
     if (editingGenetica) {
@@ -159,6 +107,10 @@ export function StockManager({
       gramos_disponibles: genetica.gramos_disponibles.toString(),
       precio_por_gramo: genetica.precio_por_gramo.toString(),
       precio_por_enrolado: (genetica.precio_por_enrolado || 0).toString(),
+      precio_gramo_miembro: (genetica.precio_gramo_miembro || 0).toString(),
+      precio_enrolado_miembro: (genetica.precio_enrolado_miembro || 0).toString(),
+      precio_gramo_vip: (genetica.precio_gramo_vip || 0).toString(),
+      precio_enrolado_vip: (genetica.precio_enrolado_vip || 0).toString(),
     })
     setIsOpen(true)
   }
@@ -177,126 +129,6 @@ export function StockManager({
 
   return (
     <div className="space-y-6">
-      {/* Configuración de precios para miembros del club */}
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base text-foreground">
-            <Crown className="h-5 w-5 text-amber-500" />
-            Precios para miembros del club
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="precio_gramo_miembro">Precio por gramo ($)</Label>
-              <Input
-                id="precio_gramo_miembro"
-                type="number"
-                min="0"
-                step="0.01"
-                value={precioMiembroForm.gramo}
-                onChange={(e) => setPrecioMiembroForm({ ...precioMiembroForm, gramo: e.target.value })}
-                placeholder="0"
-                className="bg-background border-border"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="precio_enrolado_miembro">Precio por enrolado ($)</Label>
-              <Input
-                id="precio_enrolado_miembro"
-                type="number"
-                min="0"
-                step="0.01"
-                value={precioMiembroForm.enrolado}
-                onChange={(e) => setPrecioMiembroForm({ ...precioMiembroForm, enrolado: e.target.value })}
-                placeholder="0"
-                className="bg-background border-border"
-              />
-            </div>
-            <Button
-              onClick={guardarPreciosMiembro}
-              disabled={guardandoPrecios}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {preciosGuardados ? (
-                <>
-                  <Check className="h-4 w-4 mr-2" />
-                  Guardado
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  {guardandoPrecios ? "Guardando..." : "Guardar precios"}
-                </>
-              )}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            Estos precios se aplican automáticamente a los socios miembros del club al registrar una venta.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Configuración de precios para socios VIP */}
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base text-foreground">
-            <Star className="h-5 w-5 text-blue-500" />
-            Precios para socios VIP
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="precio_gramo_vip">Precio por gramo ($)</Label>
-              <Input
-                id="precio_gramo_vip"
-                type="number"
-                min="0"
-                step="0.01"
-                value={precioVipForm.gramo}
-                onChange={(e) => setPrecioVipForm({ ...precioVipForm, gramo: e.target.value })}
-                placeholder="0"
-                className="bg-background border-border"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="precio_enrolado_vip">Precio por enrolado ($)</Label>
-              <Input
-                id="precio_enrolado_vip"
-                type="number"
-                min="0"
-                step="0.01"
-                value={precioVipForm.enrolado}
-                onChange={(e) => setPrecioVipForm({ ...precioVipForm, enrolado: e.target.value })}
-                placeholder="0"
-                className="bg-background border-border"
-              />
-            </div>
-            <Button
-              onClick={guardarPreciosVip}
-              disabled={guardandoPreciosVip}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {preciosVipGuardados ? (
-                <>
-                  <Check className="h-4 w-4 mr-2" />
-                  Guardado
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  {guardandoPreciosVip ? "Guardando..." : "Guardar precios"}
-                </>
-              )}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            Estos precios se aplican automáticamente a los socios VIP al registrar una venta.
-          </p>
-        </CardContent>
-      </Card>
-
       <div className="flex justify-between items-center">
         <p className="text-muted-foreground">Administra el inventario de genéticas del club</p>
         <Dialog
@@ -399,6 +231,77 @@ export function StockManager({
                 />
                 <p className="text-xs text-muted-foreground">Precio unitario de cada enrolado armado</p>
               </div>
+
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-amber-600">
+                  <Crown className="h-4 w-4" />
+                  Precios para miembros del club
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="precio_gramo_miembro">Precio por Gramo ($)</Label>
+                    <Input
+                      id="precio_gramo_miembro"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.precio_gramo_miembro}
+                      onChange={(e) => setFormData({ ...formData, precio_gramo_miembro: e.target.value })}
+                      placeholder="0"
+                      className="bg-background border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="precio_enrolado_miembro">Precio por Enrolado ($)</Label>
+                    <Input
+                      id="precio_enrolado_miembro"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.precio_enrolado_miembro}
+                      onChange={(e) => setFormData({ ...formData, precio_enrolado_miembro: e.target.value })}
+                      placeholder="0"
+                      className="bg-background border-border"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
+                  <Star className="h-4 w-4" />
+                  Precios para socios VIP
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="precio_gramo_vip">Precio por Gramo ($)</Label>
+                    <Input
+                      id="precio_gramo_vip"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.precio_gramo_vip}
+                      onChange={(e) => setFormData({ ...formData, precio_gramo_vip: e.target.value })}
+                      placeholder="0"
+                      className="bg-background border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="precio_enrolado_vip">Precio por Enrolado ($)</Label>
+                    <Input
+                      id="precio_enrolado_vip"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.precio_enrolado_vip}
+                      onChange={(e) => setFormData({ ...formData, precio_enrolado_vip: e.target.value })}
+                      placeholder="0"
+                      className="bg-background border-border"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
                 {loading ? "Guardando..." : editingGenetica ? "Actualizar" : "Agregar"}
               </Button>

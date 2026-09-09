@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
-import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign, AlertCircle, CalendarClock, Sprout } from "lucide-react"
+import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign, AlertCircle, CalendarClock, Sprout, Thermometer } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Header } from "@/components/header"
 
@@ -252,6 +252,22 @@ export default async function Dashboard() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm">Gestioná las salas y camas de cultivo.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/monitoreo" className="group">
+            <Card className="bg-gradient-to-br from-cyan-50 to-white border-cyan-200/50 hover:border-cyan-400 hover:shadow-lg transition-all h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-cyan-800">
+                  <Thermometer className="h-5 w-5 text-cyan-600" />
+                  Monitoreo Ambiental
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">
+                  Temperatura, humedad, VPD, luz, dew point y presión en tiempo real (Pulse Grow).
+                </p>
               </CardContent>
             </Card>
           </Link>

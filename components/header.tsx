@@ -16,6 +16,7 @@ import {
   AlertCircle,
   CalendarClock,
   Sprout,
+  Thermometer,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter, usePathname } from "next/navigation"
@@ -37,6 +38,7 @@ const navItems = [
   { href: "/gastos", label: "Gastos", icon: Receipt },
   { href: "/citas", label: "Citas", icon: CalendarClock },
   { href: "/cultivo", label: "Cultivo", icon: Sprout },
+  { href: "/monitoreo", label: "Monitoreo", icon: Thermometer },
   { href: "/sucursales", label: "Sucursales", icon: MapPin },
 ]
 

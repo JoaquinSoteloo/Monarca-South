@@ -163,3 +163,15 @@ export interface CamaCultivo {
   updated_at: string
   genetica?: Genetica
 }
+
+export interface PulseDevice {
+  id: number
+  name: string
+  device_type: number | null
+  sala_id: number | null
+  activo: boolean
+  last_synced_at: string | null
+  created_at: string
+  updated_at: string
+  sala?: SalaCultivo | null
+}

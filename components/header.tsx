@@ -2,17 +2,47 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowLeft, LogOut } from "lucide-react"
+import {
+  ArrowLeft,
+  LogOut,
+  Home,
+  Package,
+  Users,
+  MapPin,
+  ShoppingCart,
+  History,
+  Receipt,
+  DollarSign,
+  AlertCircle,
+  CalendarClock,
+  Sprout,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 interface HeaderProps {
   title?: string
   showBack?: boolean
 }
 
+const navItems = [
+  { href: "/", label: "Inicio", icon: Home },
+  { href: "/stock", label: "Stock", icon: Package },
+  { href: "/socios", label: "Socios", icon: Users },
+  { href: "/ventas", label: "Ventas", icon: ShoppingCart },
+  { href: "/historial", label: "Historial", icon: History },
+  { href: "/deudas", label: "Deudas", icon: AlertCircle },
+  { href: "/caja", label: "Caja", icon: DollarSign },
+  { href: "/gastos", label: "Gastos", icon: Receipt },
+  { href: "/citas", label: "Citas", icon: CalendarClock },
+  { href: "/cultivo", label: "Cultivo", icon: Sprout },
+  { href: "/sucursales", label: "Sucursales", icon: MapPin },
+]
+
 export function Header({ title, showBack = false }: HeaderProps) {
   const router = useRouter()
+  const pathname = usePathname()
 
   const handleLogout = async () => {
     sessionStorage.removeItem("auth-user")
@@ -54,6 +84,32 @@ export function Header({ title, showBack = false }: HeaderProps) {
           </Button>
         </div>
       </div>
+
+      <nav className="border-t border-emerald-800/30 bg-emerald-950/40">
+        <div className="container mx-auto px-4">
+          <ul className="flex items-center gap-1 overflow-x-auto py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {navItems.map(({ href, label, icon: Icon }) => {
+              const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
+              return (
+                <li key={href} className="shrink-0">
+                  <Link
+                    href={href}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+                      isActive
+                        ? "bg-amber-200 text-emerald-950"
+                        : "text-amber-200/70 hover:text-amber-200 hover:bg-emerald-800/50",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      </nav>
     </header>
   )
 }

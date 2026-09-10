@@ -17,6 +17,7 @@ import {
   CalendarClock,
   Sprout,
   Thermometer,
+  Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter, usePathname } from "next/navigation"
@@ -39,6 +40,7 @@ const navItems = [
   { href: "/citas", label: "Citas", icon: CalendarClock },
   { href: "/cultivo", label: "Cultivo", icon: Sprout },
   { href: "/monitoreo", label: "Monitoreo", icon: Thermometer },
+  { href: "/automatizaciones", label: "Automatizaciones", icon: Zap },
   { href: "/sucursales", label: "Sucursales", icon: MapPin },
 ]
 
@@ -48,6 +50,15 @@ export function Header({ title, showBack = false }: HeaderProps) {
 
   const handleLogout = async () => {
     sessionStorage.removeItem("auth-user")
+    // Limpia también la cookie httpOnly de sesión (lib/auth/session.ts) que
+    // gatea los endpoints que pueden mover hardware real — si solo se
+    // borrara sessionStorage, esa cookie seguiría siendo válida.
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } catch {
+      // Si falla la llamada, igual redirigimos: la cookie es httpOnly y
+      // expira sola al cerrar el navegador.
+    }
     window.location.href = "/login"
   }
 

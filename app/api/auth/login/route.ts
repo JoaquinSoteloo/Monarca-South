@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
@@ -31,13 +32,30 @@ export async function POST(request: Request) {
 
     console.log("[v0] Login successful for:", user.usuario)
 
+    const sessionUser = {
+      id: user.id,
+      usuario: user.usuario,
+      nombre: user.nombre,
+    }
+
+    // Cookie httpOnly server-side — GET /api/auth/session, POST
+    // /api/auth/logout y los endpoints que pueden mover hardware real
+    // (lib/auth/session.ts) dependen de que esta cookie exista.
+    // sessionStorage (AuthGuard) sigue gateando la navegación del lado del
+    // cliente, pero eso solo, nunca protegió una llamada directa a la API.
+    // Sin maxAge a propósito: cookie de sesión de navegador, para que dure
+    // lo mismo que sessionStorage (hasta cerrar la pestaña/navegador).
+    const cookieStore = await cookies()
+    cookieStore.set("auth-session", JSON.stringify(sessionUser), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    })
+
     return NextResponse.json({
       success: true,
-      user: {
-        id: user.id,
-        usuario: user.usuario,
-        nombre: user.nombre,
-      },
+      user: sessionUser,
     })
   } catch (error) {
     console.error("[v0] Login error:", error)

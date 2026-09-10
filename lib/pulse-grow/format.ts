@@ -9,8 +9,10 @@ export function pascalsToHpa(pascals: number): number {
 }
 
 // Umbrales propios (no vienen de Pulse) para derivar el estado del dispositivo
-// a partir de la antigüedad de `createdAt`.
-const STALE_AFTER_MINUTES = 15
+// a partir de la antigüedad de `createdAt`. STALE_AFTER_MINUTES se exporta
+// porque lib/automations/engine.ts lo reutiliza como umbral de fail-safe
+// ("Pulse dejó de reportar") — un solo lugar define qué es "dato viejo".
+export const STALE_AFTER_MINUTES = 15
 const DISCONNECTED_AFTER_MINUTES = 60
 
 /**

@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { PulseHistoryChart } from "@/components/pulse-history-chart"
 import {
   Thermometer,
   Droplets,
@@ -25,6 +27,7 @@ import {
   CircleAlert,
   Battery,
   Plug,
+  LineChart,
 } from "lucide-react"
 
 interface Sala {
@@ -70,6 +73,7 @@ export function MonitoreoManager({ initialDevices, salas }: MonitoreoManagerProp
   const [error, setError] = useState<string | null>(null)
   const [syncMessage, setSyncMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null)
+  const [historialDeviceId, setHistorialDeviceId] = useState<number | null>(null)
 
   const fetchReadings = useCallback(async () => {
     setLoading(true)
@@ -289,6 +293,16 @@ export function MonitoreoManager({ initialDevices, salas }: MonitoreoManagerProp
                         </span>
                         <span>{formatMinutesAgo(reading.createdAt)}</span>
                       </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setHistorialDeviceId(device.id)}
+                      >
+                        <LineChart className="h-3.5 w-3.5 mr-2" />
+                        Ver histórico
+                      </Button>
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground py-6 text-center">
@@ -301,6 +315,19 @@ export function MonitoreoManager({ initialDevices, salas }: MonitoreoManagerProp
           })}
         </div>
       )}
+
+      <Dialog open={historialDeviceId !== null} onOpenChange={(open) => !open && setHistorialDeviceId(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {devices.find((d) => d.id === historialDeviceId)?.sala?.nombre ??
+                devices.find((d) => d.id === historialDeviceId)?.name ??
+                "Histórico ambiental"}
+            </DialogTitle>
+          </DialogHeader>
+          {historialDeviceId !== null && <PulseHistoryChart pulseDeviceId={historialDeviceId} />}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

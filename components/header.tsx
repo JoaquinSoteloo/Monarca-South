@@ -21,6 +21,7 @@ import {
   Sliders,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { PushNotificationsBell } from "@/components/push-notifications-bell"
 import { useRouter, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
@@ -88,15 +89,18 @@ export function Header({ title, showBack = false }: HeaderProps) {
               </div>
             </Link>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="text-amber-200/70 hover:text-amber-200 hover:bg-emerald-800/50"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Cerrar Sesión
-          </Button>
+          <div className="flex items-center gap-1">
+            <PushNotificationsBell />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="text-amber-200/70 hover:text-amber-200 hover:bg-emerald-800/50"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Cerrar Sesión
+            </Button>
+          </div>
         </div>
       </div>
 

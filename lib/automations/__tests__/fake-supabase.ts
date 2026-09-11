@@ -51,17 +51,22 @@ class FakeQueryBuilder {
     return this
   }
 
-  // Solo soporta el patrón exacto que genera engine.ts:
-  // "col.is.null,col.lt.<isoTimestamp>"
+  // Solo soporta los patrones exactos que genera el código real:
+  // "col.is.null,col.lt.<isoTimestamp>" (cooldown de reglas) y
+  // "col.eq.false,col.lt.<isoTimestamp>" (lock del motor, ver lock.ts).
   or(expr: string) {
     const clauses = expr.split(",")
     this.filters.push((row) =>
       clauses.some((clause) => {
-        const m = clause.match(/^(\w+)\.(is|lt)\.(.*)$/)
+        const m = clause.match(/^(\w+)\.(is|lt|eq)\.(.*)$/)
         if (!m) return false
         const [, col, op, val] = m
         if (op === "is") return val === "null" ? row[col] === null || row[col] === undefined : false
         if (op === "lt") return row[col] != null && new Date(row[col]).getTime() < new Date(val).getTime()
+        if (op === "eq") {
+          const parsed = val === "true" ? true : val === "false" ? false : val
+          return row[col] === parsed
+        }
         return false
       }),
     )

@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
-import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign, AlertCircle, CalendarClock, Sprout, Thermometer } from "lucide-react"
+import { Package, Users, ShoppingCart, TrendingUp, History, Scale, MapPin, Receipt, DollarSign, AlertCircle, CalendarClock, Sprout, Thermometer, Gauge } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Header } from "@/components/header"
 
@@ -13,8 +13,15 @@ export default async function Dashboard() {
   let stockBajo: { nombre: string; gramos_disponibles: number }[] = []
   let totalGramosDisponibles = 0
   let gastosHoyTotal = 0
+  let promedioGramosMes = 0
 
   try {
+    const inicioMesActual = new Date()
+    inicioMesActual.setDate(1)
+    inicioMesActual.setHours(0, 0, 0, 0)
+    const inicioVentana = new Date(inicioMesActual)
+    inicioVentana.setMonth(inicioVentana.getMonth() - 6)
+
     const [
       sociosResult,
       geneticasResult,
@@ -22,6 +29,7 @@ export default async function Dashboard() {
       stockBajoResult,
       geneticasGramosResult,
       gastosResult,
+      ventasPromedioResult,
     ] = await Promise.all([
       supabase.from("socios").select("*", { count: "exact", head: true }).eq("activo", true),
       supabase.from("geneticas").select("*", { count: "exact", head: true }).eq("activo", true),
@@ -29,6 +37,11 @@ export default async function Dashboard() {
       supabase.from("geneticas").select("nombre, gramos_disponibles").eq("activo", true).lt("gramos_disponibles", 100),
       supabase.from("geneticas").select("gramos_disponibles").eq("activo", true),
       supabase.from("gastos").select("monto").gte("fecha", new Date().toISOString().split("T")[0]),
+      supabase
+        .from("ventas")
+        .select("gramos, detalles:detalle_venta(gramos, peso_enrolados)")
+        .gte("created_at", inicioVentana.toISOString())
+        .lt("created_at", inicioMesActual.toISOString()),
     ])
 
     totalSocios = sociosResult.count || 0
@@ -37,6 +50,18 @@ export default async function Dashboard() {
     stockBajo = stockBajoResult.data || []
     totalGramosDisponibles = geneticasGramosResult.data?.reduce((sum, g) => sum + Number(g.gramos_disponibles), 0) || 0
     gastosHoyTotal = gastosResult.data?.reduce((sum, g) => sum + Number(g.monto), 0) || 0
+
+    const totalGramos6Meses =
+      ventasPromedioResult.data?.reduce((sum, venta) => {
+        if (venta.detalles && venta.detalles.length > 0) {
+          return (
+            sum +
+            venta.detalles.reduce((s, d) => s + (Number(d.gramos) || 0) + (Number(d.peso_enrolados) || 0), 0)
+          )
+        }
+        return sum + (Number(venta.gramos) || 0)
+      }, 0) || 0
+    promedioGramosMes = totalGramos6Meses / 6
   } catch (error) {
     console.error("Error loading dashboard data:", error)
   }
@@ -105,6 +130,17 @@ export default async function Dashboard() {
             <CardContent>
               <div className="text-2xl font-bold text-amber-700">{stockBajo?.length || 0}</div>
               <p className="text-xs text-muted-foreground">{"<"} 100g disponibles</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-purple-200/50 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Promedio Gramos/Mes</CardTitle>
+              <Gauge className="h-4 w-4 text-purple-700" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-900">{promedioGramosMes.toFixed(2)}g</div>
+              <p className="text-xs text-muted-foreground">últimos 6 meses</p>
             </CardContent>
           </Card>
         </div>

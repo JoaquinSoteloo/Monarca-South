@@ -222,14 +222,29 @@ export function AutomatizacionesManager({
       const res = await fetch("/api/automations/evaluate/manual", { method: "POST" })
       if (res.status === 401) throw new Error("unauthorized")
       if (!res.ok) throw new Error("evaluate_failed")
-      const data: { lecturasInsertadas: number; reglasEvaluadas: number; comandosEncolados: number; errores: unknown[] } =
-        await res.json()
-      setMensaje({
-        type: data.errores.length > 0 ? "error" : "success",
-        text: `${data.reglasEvaluadas} regla(s) evaluada(s), ${data.comandosEncolados} comando(s) encolado(s)${
-          data.errores.length > 0 ? `, ${data.errores.length} error(es)` : ""
-        }.`,
-      })
+      const data: {
+        skipped: boolean
+        motivo?: string
+        lecturasInsertadas?: number
+        reglasEvaluadas?: number
+        comandosEncolados?: number
+        errores?: unknown[]
+      } = await res.json()
+
+      if (data.skipped) {
+        // El pinger externo (cada 1 minuto) ya estaba corriendo una
+        // evaluación cuando se apretó el botón — no es un error, se omite
+        // esta corrida y la próxima que consiga el lock evalúa igual.
+        setMensaje({ type: "success", text: "Ya había una evaluación en curso (probablemente el pinger automático). No se omitió nada importante." })
+      } else {
+        const errores = data.errores ?? []
+        setMensaje({
+          type: errores.length > 0 ? "error" : "success",
+          text: `${data.reglasEvaluadas} regla(s) evaluada(s), ${data.comandosEncolados} comando(s) encolado(s)${
+            errores.length > 0 ? `, ${errores.length} error(es)` : ""
+          }.`,
+        })
+      }
       await recargarTodo()
     } catch (err) {
       console.error("[automatizaciones] Error evaluando:", err)

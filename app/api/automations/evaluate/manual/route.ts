@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { evaluateAutomations } from "@/lib/automations/engine"
 import { getServerSession } from "@/lib/auth/session"
+import { withEngineLock } from "@/lib/automations/lock"
 
 // Variante del motor para el botón "Evaluar ahora" de la UI admin (debug /
 // testing manual, sin esperar al próximo tick del pinger externo). No pide
@@ -10,6 +11,13 @@ import { getServerSession } from "@/lib/auth/session"
 // terminar moviendo hardware real, así que un POST directo sin sesión válida
 // no alcanza (antes solo lo gateaba AuthGuard del lado del cliente, que no
 // protege una llamada directa a la API).
+//
+// Comparte el mismo lock que /api/automations/evaluate (lib/automations/lock.ts):
+// alguien puede apretar "Evaluar ahora" justo cuando el pinger externo (cada
+// 1 minuto) está corriendo una evaluación — sin el lock compartido, ambas
+// corridas se solaparían.
+export const maxDuration = 30
+
 export async function POST() {
   const session = await getServerSession()
   if (!session) {
@@ -18,8 +26,11 @@ export async function POST() {
 
   const supabase = await createClient()
   try {
-    const resumen = await evaluateAutomations(supabase)
-    return NextResponse.json(resumen)
+    const resultado = await withEngineLock(supabase, () => evaluateAutomations(supabase))
+    if (!resultado.ejecuto) {
+      return NextResponse.json({ skipped: true, motivo: "Ya había una evaluación en curso" })
+    }
+    return NextResponse.json({ skipped: false, ...resultado.resultado })
   } catch (error) {
     console.error("[automations/evaluate/manual] Error evaluando automatizaciones:", error)
     return NextResponse.json({ error: "Error evaluando automatizaciones" }, { status: 500 })

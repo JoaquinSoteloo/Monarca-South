@@ -162,6 +162,28 @@ export interface CamaCultivo {
   created_at: string
   updated_at: string
   genetica?: Genetica
+  mapa_macetas?: MapaMacetas
+  mapa_version?: number
+  fecha_vegetativo?: string | null
+  fecha_floracion?: string | null
+  fecha_cosecha?: string | null
+}
+
+export interface MacetaCultivo {
+  fila: number
+  columna: number
+  etiqueta: string
+  genetica_id: string | null
+  salud: "sin_evaluar" | "sana" | "observacion" | "enferma"
+  notas: string
+}
+
+export type CicloCama = Pick<CamaCultivo, "estado" | "fecha_vegetativo" | "fecha_floracion" | "fecha_cosecha">
+
+export interface MapaMacetas {
+  filas: number
+  columnas: number
+  macetas: MacetaCultivo[]
 }
 
 export interface PulseDevice {

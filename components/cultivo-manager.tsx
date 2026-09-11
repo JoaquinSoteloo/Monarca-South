@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, Leaf, Flower2, Sprout, Package, Settings, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { CamaMapa } from "@/components/cama-mapa"
+import { fechaLocal, validarCicloCama } from "@/lib/mapa-macetas"
 
 interface CultivoManagerProps {
   initialSalas: SalaCultivo[]
@@ -35,12 +37,16 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
   const [isAddCamaOpen, setIsAddCamaOpen] = useState(false)
   const [selectedSalaId, setSelectedSalaId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
+  const [camaError, setCamaError] = useState("")
   const router = useRouter()
 
   const [camaForm, setCamaForm] = useState({
     genetica_id: "",
     cantidad_plantas: "",
     fecha_siembra: "",
+    fecha_vegetativo: "",
+    fecha_floracion: "",
+    fecha_cosecha: "",
     estado: "vacio" as CamaCultivo["estado"],
     notas: "",
   })
@@ -55,11 +61,15 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
   })
 
   const handleCamaClick = (cama: CamaCultivo) => {
+    setCamaError("")
     setSelectedCama(cama)
     setCamaForm({
       genetica_id: cama.genetica_id?.toString() || "",
       cantidad_plantas: cama.cantidad_plantas?.toString() || "",
       fecha_siembra: cama.fecha_siembra || "",
+      fecha_vegetativo: cama.fecha_vegetativo || "",
+      fecha_floracion: cama.fecha_floracion || "",
+      fecha_cosecha: cama.fecha_cosecha || "",
       estado: cama.estado,
       notas: cama.notas || "",
     })
@@ -69,6 +79,9 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
   const handleSaveCama = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedCama) return
+    const invalid = validarCicloCama(camaForm)
+    if (invalid) { setCamaError(invalid); return }
+    setCamaError("")
     setLoading(true)
 
     const supabase = createClient()
@@ -76,22 +89,32 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
       genetica_id: camaForm.genetica_id ? Number(camaForm.genetica_id) : null,
       cantidad_plantas: camaForm.cantidad_plantas ? Number(camaForm.cantidad_plantas) : 0,
       fecha_siembra: camaForm.fecha_siembra || null,
+      fecha_vegetativo: camaForm.fecha_vegetativo || null,
+      fecha_floracion: camaForm.fecha_floracion || null,
+      fecha_cosecha: camaForm.fecha_cosecha || null,
       estado: camaForm.estado,
       notas: camaForm.notas || null,
       updated_at: new Date().toISOString(),
     }
 
-    const { error } = await supabase
+    const { data: saved, error } = await supabase
       .from("camas_cultivo")
       .update(data)
       .eq("id", selectedCama.id)
+      .eq("mapa_version", selectedCama.mapa_version ?? 0)
+      .select().maybeSingle()
 
-    if (!error) {
-      setSalas(salas.map(sala => ({
+    if (error || !saved) {
+      setCamaError(error ? "No se pudo guardar la cama. Verificá que las migraciones estén aplicadas y volvé a intentar." : "La cama cambió en otra sesión. Recargá la página antes de editarla.")
+      setLoading(false)
+      return
+    }
+    if (saved) {
+      setSalas(current => current.map(sala => ({
         ...sala,
         camas: sala.camas?.map(cama =>
           cama.id === selectedCama.id
-            ? { ...cama, ...data, genetica: geneticas.find(g => g.id === data.genetica_id?.toString()) }
+            ? { ...cama, ...saved, genetica: geneticas.find(g => g.id === data.genetica_id?.toString()) }
             : cama
         )
       })))
@@ -104,6 +127,8 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
 
   const handleVaciarCama = async () => {
     if (!selectedCama) return
+    if (!confirm("¿Limpiar los datos generales y las fechas de la cama? Las fichas de las macetas se conservan.")) return
+    setCamaError("")
     setLoading(true)
 
     const supabase = createClient()
@@ -111,21 +136,31 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
       genetica_id: null,
       cantidad_plantas: 0,
       fecha_siembra: null,
+      fecha_vegetativo: null,
+      fecha_floracion: null,
+      fecha_cosecha: null,
       estado: "vacio" as const,
       notas: null,
       updated_at: new Date().toISOString(),
     }
 
-    const { error } = await supabase
+    const { data: saved, error } = await supabase
       .from("camas_cultivo")
       .update(data)
       .eq("id", selectedCama.id)
+      .eq("mapa_version", selectedCama.mapa_version ?? 0)
+      .select().maybeSingle()
 
-    if (!error) {
-      setSalas(salas.map(sala => ({
+    if (error || !saved) {
+      setCamaError(error ? "No se pudo limpiar la cama. Intentá de nuevo." : "La cama cambió en otra sesión. Recargá la página.")
+      setLoading(false)
+      return
+    }
+    if (saved) {
+      setSalas(current => current.map(sala => ({
         ...sala,
         camas: sala.camas?.map(cama =>
-          cama.id === selectedCama.id ? { ...cama, ...data, genetica: undefined } : cama
+          cama.id === selectedCama.id ? { ...cama, ...saved, genetica: undefined } : cama
         )
       })))
     }
@@ -221,7 +256,7 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-emerald-900">Salas de Cultivo</h2>
-          <p className="text-muted-foreground">Gestiona las salas y camas de cultivo</p>
+          <p className="text-muted-foreground">Mapa de camas y macetas · Identificación, salud y fechas</p>
         </div>
         <Button onClick={() => setIsAddSalaOpen(true)} className="bg-emerald-700 hover:bg-emerald-800">
           <Plus className="h-4 w-4 mr-2" />
@@ -291,37 +326,18 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   {sala.camas?.map((cama) => {
-                    const config = estadoConfig[cama.estado]
-                    const Icon = config.icon
-                    const genetica = geneticas.find(g => g.id === cama.genetica_id?.toString())
-
                     return (
-                      <button
+                      <CamaMapa
                         key={cama.id}
-                        onClick={() => handleCamaClick(cama)}
-                        className={`p-4 rounded-lg border-2 text-left transition-all hover:shadow-md hover:scale-[1.02] ${config.color}`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold">{cama.nombre}</span>
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        {cama.estado !== "vacio" && genetica && (
-                          <div className="space-y-1 text-sm">
-                            <p className="font-medium truncate">{genetica.nombre}</p>
-                            <p>{cama.cantidad_plantas} plantas</p>
-                            {cama.fecha_siembra && (
-                              <p className="text-xs opacity-75">
-                                Siembra: {new Date(cama.fecha_siembra).toLocaleDateString("es-AR")}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        {cama.estado === "vacio" && (
-                          <p className="text-sm opacity-75">Sin asignar</p>
-                        )}
-                      </button>
+                        cama={cama}
+                        geneticas={geneticas}
+                        onEdit={() => handleCamaClick(cama)}
+                        onChange={updated => setSalas(current => current.map(s => ({
+                          ...s, camas: s.camas?.map(c => c.id === updated.id ? updated : c),
+                        })))}
+                      />
                     )
                   })}
                   {(!sala.camas || sala.camas.length === 0) && (
@@ -338,11 +354,12 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
 
       {/* Modal editar cama */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Editar {selectedCama?.nombre}</DialogTitle>
+            <DialogTitle>Etapa y fechas · {selectedCama?.nombre}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSaveCama} className="space-y-4">
+            <p className="text-xs text-muted-foreground">La etapa y sus fechas se aplican a toda la cama. La genética, salud y observaciones de cada planta se editan en su maceta.</p>
             <div className="space-y-2">
               <Label htmlFor="genetica">Genética</Label>
               <Select
@@ -385,7 +402,7 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="estado">Estado</Label>
+              <Label htmlFor="estado">Etapa de la cama</Label>
               <Select
                 value={camaForm.estado}
                 onValueChange={(value) => setCamaForm({ ...camaForm, estado: value as CamaCultivo["estado"] })}
@@ -403,8 +420,17 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
               </Select>
             </div>
 
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {([["fecha_vegetativo", "Inicio vege"], ["fecha_floracion", "Inicio flora"], ["fecha_cosecha", "Cosecha"]] as const).map(([key, label]) => (
+                <div key={key} className="space-y-2">
+                  <Label htmlFor={`cama-${key}`}>{label}</Label>
+                  <Input id={`cama-${key}`} type="date" max={fechaLocal()} value={camaForm[key]} onChange={e => setCamaForm({ ...camaForm, [key]: e.target.value })} />
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">El conteo usa estas fechas para toda la cama. Sin fecha de cierre, cuenta hasta hoy; sin fecha de inicio, muestra —.</p>
             <div className="space-y-2">
-              <Label htmlFor="notas">Notas</Label>
+              <Label htmlFor="notas">Notas de la cama</Label>
               <Textarea
                 id="notas"
                 value={camaForm.notas}
@@ -414,7 +440,8 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
               />
             </div>
 
-            <div className="flex gap-2 pt-4">
+            {camaError && <p role="alert" className="text-sm text-red-700">{camaError}</p>}
+            <div className="flex flex-wrap gap-2 pt-4">
               <Button type="submit" className="flex-1 bg-emerald-700 hover:bg-emerald-800" disabled={loading}>
                 {loading ? "Guardando..." : "Guardar"}
               </Button>
@@ -424,7 +451,7 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
                 onClick={handleVaciarCama}
                 disabled={loading}
               >
-                Vaciar
+                Limpiar datos generales
               </Button>
               <Button
                 type="button"

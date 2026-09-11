@@ -18,6 +18,7 @@ import {
   Sprout,
   Thermometer,
   Zap,
+  Sliders,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter, usePathname } from "next/navigation"
@@ -41,6 +42,7 @@ const navItems = [
   { href: "/cultivo", label: "Cultivo", icon: Sprout },
   { href: "/monitoreo", label: "Monitoreo", icon: Thermometer },
   { href: "/automatizaciones", label: "Automatizaciones", icon: Zap },
+  { href: "/control-manual", label: "Control manual", icon: Sliders },
   { href: "/sucursales", label: "Sucursales", icon: MapPin },
 ]
 

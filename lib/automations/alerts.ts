@@ -6,8 +6,8 @@
 // responsabilidad exclusiva de evaluateAutomations en engine.ts): estas
 // funciones solo LEEN estado ya calculado (última lectura, último log, último
 // comando) y lo traducen a mensajes. Ningún efecto secundario.
-import { compara } from "./engine"
-import { VARIABLE_CONFIG } from "./format"
+import { compara, negacionEstricta } from "./engine"
+import { formatMensajeAccionAutomatizacion } from "./format"
 import { STALE_AFTER_MINUTES } from "@/lib/pulse-grow/format"
 import type { Automatizacion, DispositivoControlable } from "@/lib/types"
 
@@ -78,14 +78,32 @@ export function computeAlertasOperativas(
       })
     } else {
       const valor = ultima[a.variable]
-      if (valor !== null && valor !== undefined && compara(Number(valor), a.operador, a.valor_objetivo)) {
-        const cfg = VARIABLE_CONFIG[a.variable]
-        alertas.push({
-          id: `regla-fuera-de-rango-${a.id}`,
-          nivel: "warning",
-          mensaje: `${a.nombre}: ${cfg.label.toLowerCase()} en ${Number(valor).toFixed(1)}${cfg.unidad} — fuera del rango configurado (${a.operador} ${a.valor_objetivo}${cfg.unidad}).`,
-          automatizacionId: a.id,
-        })
+      if (valor !== null && valor !== undefined) {
+        const valorNum = Number(valor)
+        const dispositivo = dispositivos.find((d) => d.id === a.dispositivo_id)
+        const nombreDispositivo = dispositivo?.nombre ?? a.nombre
+
+        if (compara(valorNum, a.operador, a.valor_objetivo)) {
+          alertas.push({
+            id: `regla-encendido-${a.id}`,
+            nivel: "warning",
+            mensaje: formatMensajeAccionAutomatizacion(nombreDispositivo, "encendido", a.variable, valorNum, a.operador, a.valor_objetivo),
+            automatizacionId: a.id,
+            dispositivoId: dispositivo?.id,
+          })
+        } else {
+          const operadorApagado = a.operador_apagado ?? negacionEstricta(a.operador)
+          const valorApagado = a.valor_apagado ?? a.valor_objetivo
+          if (compara(valorNum, operadorApagado, valorApagado)) {
+            alertas.push({
+              id: `regla-apagado-${a.id}`,
+              nivel: "warning",
+              mensaje: formatMensajeAccionAutomatizacion(nombreDispositivo, "apagado", a.variable, valorNum, operadorApagado, valorApagado),
+              automatizacionId: a.id,
+              dispositivoId: dispositivo?.id,
+            })
+          }
+        }
       }
     }
 

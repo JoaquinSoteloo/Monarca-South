@@ -20,17 +20,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { VARIABLE_CONFIG as variableConfig, formatComandoDispositivo } from "@/lib/automations/format"
+import { VARIABLE_CONFIG as variableConfig, formatComandoDispositivo, AC_MODO_OPTIONS, AC_FAN_OPTIONS } from "@/lib/automations/format"
 import { computeAlertasOperativas, type AlertaOperativa, type UltimaLecturaResumen } from "@/lib/automations/alerts"
 import { formatEjecucionHumana, type EjecucionConComando } from "@/lib/automations/history-format"
+import { tipoDispositivoConfig, comandoEstadoConfig, origenComandoLabels, formatMinutesAgo } from "@/lib/device-ui-config"
 import {
   Plus,
   Trash2,
   Pencil,
-  Snowflake,
-  Fan,
-  Droplets,
-  Zap,
   History,
   RefreshCw,
   CheckCircle2,
@@ -66,20 +63,6 @@ interface AutomatizacionesManagerProps {
 // a nuestro propio backend (/api/devices, /api/automations). Todo dato de
 // hardware real vive detrás de esos endpoints.
 
-const tipoDispositivoConfig: Record<TipoDispositivoControlable, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-  aire_acondicionado: { label: "Aire acondicionado", icon: Snowflake },
-  extractor: { label: "Extractor", icon: Fan },
-  humidificador: { label: "Humidificador", icon: Droplets },
-  deshumidificador: { label: "Deshumidificador", icon: Droplets },
-  otro: { label: "Otro", icon: Zap },
-}
-
-const origenComandoLabels: Record<string, string> = {
-  automatizacion: "por automatización",
-  manual: "manual",
-  sistema: "sistema",
-}
-
 const proveedorOpciones: { value: ProveedorDispositivo; label: string; disponible: boolean }[] = [
   { value: "manual_noop", label: "Simulación (manual_noop) — sin hardware", disponible: true },
   { value: "broadlink_ir", label: "BroadLink IR — próximamente", disponible: false },
@@ -103,27 +86,10 @@ const tipoEjecucionConfig: Record<string, { label: string; color: string; icon: 
   error: { label: "Error", color: "border-red-300 text-red-700 bg-red-50", icon: CircleAlert },
 }
 
-const comandoEstadoConfig: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
-  pendiente: { label: "Pendiente", color: "border-amber-300 text-amber-700 bg-amber-50", icon: Clock },
-  en_proceso: { label: "En proceso", color: "border-amber-300 text-amber-700 bg-amber-50", icon: RefreshCw },
-  ejecutado: { label: "Ejecutado", color: "border-emerald-300 text-emerald-700 bg-emerald-50", icon: CheckCircle2 },
-  fallido: { label: "Fallido", color: "border-red-300 text-red-700 bg-red-50", icon: CircleAlert },
-  timeout: { label: "Timeout", color: "border-red-300 text-red-700 bg-red-50", icon: CircleAlert },
-  cancelado: { label: "Cancelado", color: "border-gray-300 text-gray-700 bg-gray-50", icon: CircleAlert },
-}
-
 function resumirCondicion(variable: VariableAmbiental, operador: OperadorComparacion, valor: number, minutos: number) {
   const cfg = variableConfig[variable]
   const sostenido = minutos > 0 ? ` por ${minutos} min` : ""
   return `${cfg.label} ${operador} ${valor}${cfg.unidad}${sostenido}`
-}
-
-function formatMinutesAgo(iso: string | null): string {
-  if (!iso) return "nunca"
-  const minutes = (Date.now() - new Date(iso).getTime()) / 60000
-  if (minutes < 1) return "hace instantes"
-  if (minutes < 60) return `hace ${Math.round(minutes)} min`
-  return `hace ${Math.round(minutes / 60)} h`
 }
 
 const initialDeviceForm = {
@@ -1002,9 +968,11 @@ export function AutomatizacionesManager({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="frio">Frío</SelectItem>
-                      <SelectItem value="calor">Calor</SelectItem>
-                      <SelectItem value="ventilador">Ventilador</SelectItem>
+                      {AC_MODO_OPTIONS.map((op) => (
+                        <SelectItem key={op.value} value={op.value}>
+                          {op.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1023,10 +991,11 @@ export function AutomatizacionesManager({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="auto">Auto</SelectItem>
-                      <SelectItem value="baja">Baja</SelectItem>
-                      <SelectItem value="media">Media</SelectItem>
-                      <SelectItem value="alta">Alta</SelectItem>
+                      {AC_FAN_OPTIONS.map((op) => (
+                        <SelectItem key={op.value} value={op.value}>
+                          {op.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

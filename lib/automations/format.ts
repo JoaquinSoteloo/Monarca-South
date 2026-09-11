@@ -1,7 +1,7 @@
 // Utilidades puras para presentar el payload de un comando de dispositivo
 // controlable de forma amigable en la UI. Solo interpretan el payload para
 // mostrarlo: no cambian ni el payload almacenado ni la lógica del motor.
-import type { TipoDispositivoControlable, VariableAmbiental } from "@/lib/types"
+import type { OperadorComparacion, TipoDispositivoControlable, VariableAmbiental } from "@/lib/types"
 
 // Fuente única de etiqueta/unidad por variable ambiental — la usan tanto la
 // UI de reglas (automatizaciones-manager) como lib/automations/alerts.ts y
@@ -13,6 +13,18 @@ export const VARIABLE_CONFIG: Record<VariableAmbiental, { label: string; unidad:
   luz_lux: { label: "Luz", unidad: "lux" },
   dew_point_c: { label: "Dew Point", unidad: "°C" },
   presion_hpa: { label: "Presión", unidad: "hPa" },
+}
+
+// Forma articulada del label de arriba, para insertar en una oración
+// ("la temperatura es...", "el VPD subió a..." ) — solo la usa
+// formatMensajeAccionAutomatizacion, de acá abajo.
+const VARIABLE_LABEL_ARTICULADO: Record<VariableAmbiental, string> = {
+  temperatura_c: "la temperatura",
+  humedad_rh: "la humedad",
+  vpd: "el VPD",
+  luz_lux: "la luz",
+  dew_point_c: "el dew point",
+  presion_hpa: "la presión",
 }
 
 const MODO_AC_LABELS: Record<string, string> = {
@@ -33,6 +45,18 @@ const FAN_LABELS: Record<string, string> = {
   media: "Media",
   alta: "Alta",
 }
+
+// Mismas opciones que arriba, en forma de lista — para poblar selects (regla
+// de automatización y control manual) sin repetir los value/label a mano en
+// cada lugar que necesite un <Select> de modo/fan de aire acondicionado.
+export const AC_MODO_OPTIONS: { value: string; label: string }[] = Object.entries(MODO_AC_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}))
+export const AC_FAN_OPTIONS: { value: string; label: string }[] = Object.entries(FAN_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}))
 
 // Ícono por defecto al encender, cuando el tipo de dispositivo no tiene un
 // formateador más detallado (ver caso "aire_acondicionado" abajo).
@@ -113,4 +137,57 @@ export function formatDetalleAccion(tipo: TipoDispositivoControlable, payload: R
   if (setpoint !== null) partes.push(`${setpoint} °C`)
   if (fan) partes.push(`Fan ${FAN_LABELS[fan] ?? fan}`)
   return partes.join(" · ")
+}
+
+const COMPARADOR_ENCENDIDO: Record<OperadorComparacion, string> = {
+  ">": "mayor",
+  ">=": "mayor o igual",
+  "<": "menor",
+  "<=": "menor o igual",
+}
+
+const APAGADO_VERBO: Record<OperadorComparacion, string> = {
+  ">": "subió a",
+  ">=": "subió a",
+  "<": "bajó a",
+  "<=": "bajó a",
+}
+
+const APAGADO_PREPOSICION: Record<OperadorComparacion, string> = {
+  ">": "por encima del umbral de",
+  ">=": "por encima o igual al umbral de",
+  "<": "por debajo del umbral de",
+  "<=": "por debajo o igual al umbral de",
+}
+
+function formatNumeroEs(valor: number): string {
+  return valor.toLocaleString("es-AR", { maximumFractionDigits: 1 })
+}
+
+/**
+ * Mensaje orientado a la acción para el panel "Estado operativo": en vez de
+ * describir la lectura como "fuera de rango", explica qué hizo (o debería
+ * estar haciendo) el dispositivo y por qué, con el nombre real del
+ * dispositivo, la variable, el valor actual y el umbral configurado en la
+ * regla. Puramente de presentación — no evalúa ni decide nada, solo formatea
+ * un resultado que ya calculó lib/automations/alerts.ts.
+ */
+export function formatMensajeAccionAutomatizacion(
+  nombreDispositivo: string,
+  tipo: "encendido" | "apagado",
+  variable: VariableAmbiental,
+  valorActual: number,
+  operador: OperadorComparacion,
+  umbral: number,
+): string {
+  const cfg = VARIABLE_CONFIG[variable]
+  const variableArticulada = VARIABLE_LABEL_ARTICULADO[variable]
+  const valorFmt = `${formatNumeroEs(valorActual)} ${cfg.unidad}`
+  const umbralFmt = `${formatNumeroEs(umbral)} ${cfg.unidad}`
+
+  if (tipo === "encendido") {
+    return `${nombreDispositivo} encendido porque ${variableArticulada} es ${valorFmt}, ${COMPARADOR_ENCENDIDO[operador]} al umbral de ${umbralFmt}.`
+  }
+
+  return `${nombreDispositivo} apagado porque ${variableArticulada} ${APAGADO_VERBO[operador]} ${valorFmt}, ${APAGADO_PREPOSICION[operador]} ${umbralFmt}.`
 }

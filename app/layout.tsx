@@ -1,8 +1,9 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthGuard } from "@/components/auth-guard"
+import { PwaRegister } from "@/components/pwa-register"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -14,8 +15,18 @@ export const metadata: Metadata = {
   generator: "v0.app",
   icons: {
     icon: "/favicon.png",
-    apple: "/favicon.png",
+    apple: "/icons/apple-touch-icon.png",
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Monarca South",
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: "#00481b",
+  viewportFit: "cover",
 }
 
 export default function RootLayout({
@@ -27,6 +38,7 @@ export default function RootLayout({
     <html lang="es">
       <body className={`font-sans antialiased`}>
         <AuthGuard>{children}</AuthGuard>
+        <PwaRegister />
         <Analytics />
       </body>
     </html>

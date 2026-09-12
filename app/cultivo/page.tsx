@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { Header } from "@/components/header"
 import { CultivoManager } from "@/components/cultivo-manager"
-import { AuthGuard } from "@/components/auth-guard"
 
 export default async function CultivoPage() {
   const supabase = await createClient()
@@ -35,13 +34,11 @@ export default async function CultivoPage() {
   )
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-background">
-        <Header title="Cultivo" showBack />
-        <main className="container mx-auto px-4 py-8">
-          <CultivoManager initialSalas={salasWithCamas} geneticas={geneticas} />
-        </main>
-      </div>
-    </AuthGuard>
+    <div className="min-h-screen bg-background">
+      <Header title="Cultivo" showBack />
+      <main className="container mx-auto px-4 py-8">
+        <CultivoManager initialSalas={salasWithCamas} geneticas={geneticas} />
+      </main>
+    </div>
   )
 }

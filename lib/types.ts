@@ -95,6 +95,7 @@ export interface Venta {
   created_at: string
   socio?: Socio
   genetica?: Genetica
+  producto?: Producto
   detalles?: DetalleVenta[]
   pagos?: Pago[]
 }

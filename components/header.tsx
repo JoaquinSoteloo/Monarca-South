@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { PushNotificationsBell } from "@/components/push-notifications-bell"
 import { useRouter, usePathname } from "next/navigation"
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 
 interface HeaderProps {
@@ -52,17 +53,19 @@ const navItems = [
 export function Header({ title, showBack = false }: HeaderProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const [logoutError, setLogoutError] = useState<string | null>(null)
 
   const handleLogout = async () => {
-    sessionStorage.removeItem("auth-user")
-    // Limpia también la cookie httpOnly de sesión (lib/auth/session.ts) que
-    // gatea los endpoints que pueden mover hardware real — si solo se
-    // borrara sessionStorage, esa cookie seguiría siendo válida.
+    setLogoutError(null)
     try {
-      await fetch("/api/auth/logout", { method: "POST" })
+      const response = await fetch("/api/auth/logout", { method: "POST" })
+      if (!response.ok) {
+        setLogoutError("No se pudo cerrar sesión. Probá de nuevo.")
+        return
+      }
     } catch {
-      // Si falla la llamada, igual redirigimos: la cookie es httpOnly y
-      // expira sola al cerrar el navegador.
+      setLogoutError("No se pudo cerrar sesión. Probá de nuevo.")
+      return
     }
     window.location.href = "/login"
   }
@@ -104,6 +107,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
             </Button>
           </div>
         </div>
+        {logoutError && <p className="mt-2 text-sm text-red-400">{logoutError}</p>}
       </div>
 
       <nav className="border-t border-emerald-800/30 bg-emerald-950/40">

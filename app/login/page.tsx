@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 export default function LoginPage() {
-  const [usuario, setUsuario] = useState("")
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -21,30 +21,23 @@ export default function LoginPage() {
     setIsLoading(true)
     setError(null)
 
-    console.log("[v0] Attempting login with user:", usuario)
-
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuario, password }),
+        body: JSON.stringify({ email, password }),
       })
 
-      console.log("[v0] Response status:", response.status)
       const data = await response.json()
-      console.log("[v0] Response data:", data)
 
       if (!response.ok) {
         throw new Error(data.error || "Error al iniciar sesión")
       }
 
       if (data.success) {
-        sessionStorage.setItem("auth-user", JSON.stringify(data.user))
-        console.log("[v0] Session saved, redirecting to home")
         window.location.href = "/"
       }
     } catch (error: unknown) {
-      console.log("[v0] Login error:", error)
       setError(error instanceof Error ? error.message : "Error al iniciar sesión")
     } finally {
       setIsLoading(false)
@@ -66,25 +59,25 @@ export default function LoginPage() {
             <CardHeader>
               <CardTitle className="text-2xl text-amber-200">Iniciar Sesión</CardTitle>
               <CardDescription className="text-amber-200/60">
-                Ingresá tu usuario y contraseña para acceder
+                Ingresá tu email y contraseña para acceder
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleLogin}>
                 <div className="flex flex-col gap-6">
                   <div className="grid gap-2">
-                    <Label htmlFor="usuario" className="text-amber-200/90">
-                      Usuario
+                    <Label htmlFor="email" className="text-amber-200/90">
+                      Email
                     </Label>
                     <Input
-                      id="usuario"
-                      type="text"
-                      placeholder="admin"
+                      id="email"
+                      type="email"
+                      placeholder="admin@monarca.com"
                       required
-                      value={usuario}
-                      onChange={(e) => setUsuario(e.target.value)}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="bg-emerald-950/50 border-emerald-800/50 text-amber-200"
-                      autoComplete="username"
+                      autoComplete="email"
                     />
                   </div>
                   <div className="grid gap-2">

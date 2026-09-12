@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
 import { Header } from "@/components/header"
-import { AuthGuard } from "@/components/auth-guard"
 import { ControlManual } from "@/components/control-manual"
 import type { DispositivoControlable } from "@/lib/types"
 
@@ -21,13 +20,11 @@ export default async function ControlManualPage() {
   }))
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-background">
-        <Header title="Control manual" showBack />
-        <main className="container mx-auto px-4 py-8">
-          <ControlManual initialDispositivos={dispositivos} />
-        </main>
-      </div>
-    </AuthGuard>
+    <div className="min-h-screen bg-background">
+      <Header title="Control manual" showBack />
+      <main className="container mx-auto px-4 py-8">
+        <ControlManual initialDispositivos={dispositivos} />
+      </main>
+    </div>
   )
 }

@@ -1,15 +1,10 @@
-// Única fuente de sesión server-side de Monarca: la cookie httpOnly
-// "auth-session" que fija POST /api/auth/login. GET /api/auth/session y
-// POST /api/auth/logout ya asumían la existencia de esta cookie, pero login
-// nunca llegaba a fijarla — en la práctica NINGÚN endpoint podía verificar
-// sesión del lado del servidor, y todo el "auth" real vivía en
-// sessionStorage del navegador (ver components/auth-guard.tsx), que no
-// protege nada si alguien pega directo contra la API.
-//
-// No es un sistema de auth nuevo: es terminar de cablear el que ya existía
-// a medias, para poder gatear acá los endpoints que ahora sí importan
-// (los que pueden terminar moviendo hardware real).
-import { cookies } from "next/headers"
+// Única fuente de sesión server-side de Monarca: Supabase Auth, validada en
+// cada request vía cookies SSR (@supabase/ssr). Hay una sola cuenta admin
+// compartida, así que `usuario` queda fijo en "admin" — no pasa a ser el
+// email — porque push_subscriptions ya tiene filas guardadas con
+// usuario = "admin" como clave (lib/push/subscriptions.ts) y modo-ausente
+// registra "quién" activó/desactivó con ese mismo valor.
+import { createClient } from "@/lib/supabase/server"
 
 export interface AuthSession {
   id: string
@@ -18,14 +13,12 @@ export interface AuthSession {
 }
 
 export async function getServerSession(): Promise<AuthSession | null> {
-  try {
-    const cookieStore = await cookies()
-    const raw = cookieStore.get("auth-session")?.value
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed.usuario !== "string") return null
-    return parsed as AuthSession
-  } catch {
-    return null
-  }
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return null
+
+  return { id: user.id, usuario: "admin", nombre: user.email ?? "admin" }
 }

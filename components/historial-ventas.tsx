@@ -79,7 +79,7 @@ export function HistorialVentas() {
   const [nuevoMetodoPago, setNuevoMetodoPago] = useState<"efectivo" | "transferencia">("efectivo")
   const [updatingPago, setUpdatingPago] = useState(false)
   const [soloNoPagados, setSoloNoPagados] = useState(false)
-  const [expandedVentas, setExpandedVentas] = useState<Set<number>>(new Set())
+  const [expandedVentas, setExpandedVentas] = useState<Set<string>>(new Set())
   const [filtroSocio, setFiltroSocio] = useState("")
   const [filtroProducto, setFiltroProducto] = useState("")
   const [socios, setSocios] = useState<Socio[]>([])
@@ -191,7 +191,7 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
     setUpdatingPago(false)
   }
 
-  const toggleExpand = (ventaId: number) => {
+  const toggleExpand = (ventaId: string) => {
     const newExpanded = new Set(expandedVentas)
     if (newExpanded.has(ventaId)) {
       newExpanded.delete(ventaId)
@@ -262,7 +262,16 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
         if (idx >= 0) {
           pagosActualizados[idx] = { ...pagosActualizados[idx], comprobante_url: publicUrl }
         } else {
-          pagosActualizados.push({ id: Date.now(), monto: Number(v.total), metodo_pago: 'transferencia', comprobante_url: publicUrl, fecha: v.created_at })
+          pagosActualizados.push({
+            id: crypto.randomUUID(),
+            venta_id: v.id,
+            monto: Number(v.total),
+            metodo_pago: "transferencia",
+            comprobante_url: publicUrl,
+            notas: null,
+            fecha: v.created_at,
+            created_at: new Date().toISOString(),
+          })
         }
         return { ...v, pagos: pagosActualizados }
       }
@@ -354,22 +363,26 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
     })
 
     if (venta.detalles && venta.detalles.length > 0) {
-      const lineas = venta.detalles.map((d: any) => ({
+      const lineas: LineaVenta[] = venta.detalles.map((d) => ({
+        tipo: d.producto_id ? "producto" : "genetica",
         genetica_id: d.genetica_id || "",
         producto_id: d.producto_id || "", // Added for products
         gramos: Number(d.gramos) || 0,
         cantidad_enrolados: Number(d.cantidad_enrolados) || 0,
         peso_por_enrolado: Number(d.peso_por_enrolado) || 0,
+        cantidad_producto: d.producto_id ? Number(d.cantidad_enrolados) || 0 : 0,
       }))
       setEditLineas(lineas)
     } else {
       // Ventas legacy sin detalle_venta - usar datos de la tabla ventas
-      const lineaLegacy = {
+      const lineaLegacy: LineaVenta = {
+        tipo: "genetica",
         genetica_id: venta.genetica_id || "",
-        producto_id: null, // No hay producto en legacy
+        producto_id: "", // No hay producto en legacy
         gramos: Number(venta.gramos) || 0,
         cantidad_enrolados: 0,
         peso_por_enrolado: 0,
+        cantidad_producto: 0,
       }
       setEditLineas([lineaLegacy])
     }
@@ -623,7 +636,15 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
   const agregarLineaEdit = () => {
     setEditLineas([
       ...editLineas,
-      { genetica_id: "", producto_id: "", gramos: 0, cantidad_enrolados: 0, peso_por_enrolado: 0 },
+      {
+        tipo: "genetica",
+        genetica_id: "",
+        producto_id: "",
+        gramos: 0,
+        cantidad_enrolados: 0,
+        peso_por_enrolado: 0,
+        cantidad_producto: 0,
+      },
     ])
   }
 
@@ -636,9 +657,11 @@ console.log("[v0] Fetching ventas from:", desdeStr, "to:", hastaStr)
   const actualizarLineaEdit = (index: number, campo: keyof LineaVenta, valor: string | number) => {
     const nuevasLineas = [...editLineas]
     if (campo === "genetica_id" || campo === "producto_id") {
-      nuevasLineas[index][campo] = valor as string
+      nuevasLineas[index] = { ...nuevasLineas[index], [campo]: String(valor) }
+    } else if (campo === "tipo") {
+      nuevasLineas[index] = { ...nuevasLineas[index], tipo: valor as LineaVenta["tipo"] }
     } else {
-      nuevasLineas[index][campo] = Number(valor) || 0
+      nuevasLineas[index] = { ...nuevasLineas[index], [campo]: Number(valor) || 0 }
     }
     setEditLineas(nuevasLineas)
   }

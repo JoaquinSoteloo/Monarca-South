@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
+import { createClient } from "@/lib/supabase/server"
 
 export async function GET() {
-  try {
-    const cookieStore = await cookies()
-    const sessionCookie = cookieStore.get("auth-session")
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-    if (!sessionCookie?.value) {
-      return NextResponse.json({ user: null })
-    }
-
-    const sessionData = JSON.parse(sessionCookie.value)
-    return NextResponse.json({ user: sessionData })
-  } catch (error) {
+  if (!user) {
     return NextResponse.json({ user: null })
   }
+
+  return NextResponse.json({ user: { id: user.id, email: user.email } })
 }

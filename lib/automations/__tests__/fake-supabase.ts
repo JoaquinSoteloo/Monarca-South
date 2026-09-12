@@ -11,7 +11,7 @@ class FakeQueryBuilder {
   private filters: ((row: Row) => boolean)[] = []
   private orderSpec: { col: string; ascending: boolean } | null = null
   private limitN: number | null = null
-  private op: "select" | "insert" | "update" | "delete" = "select"
+  private op: "select" | "insert" | "update" | "delete" | "upsert" = "select"
   private payload: any = null
   private wantSingle = false
   private wantMaybe = false

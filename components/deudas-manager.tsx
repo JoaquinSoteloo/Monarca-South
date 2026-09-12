@@ -45,7 +45,7 @@ import {
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 
-interface VentaConDeuda extends Venta {
+interface VentaConDeuda extends Omit<Venta, "socio"> {
   socio: {
     id: string
     nombre: string

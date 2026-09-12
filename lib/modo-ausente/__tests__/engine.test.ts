@@ -9,9 +9,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { checkModoAusente } from "../engine"
 import { createFakeSupabase, type FakeSupabase } from "@/lib/automations/__tests__/fake-supabase"
 import type { DispositivoControlable, ModoAusenteEstado } from "@/lib/types"
+import type { PushPayload } from "@/lib/push/send"
 
 const { sendPushNotification } = vi.hoisted(() => ({
-  sendPushNotification: vi.fn(async () => ({ sent: 1, removed: 0, failed: 0 })),
+  sendPushNotification: vi.fn(async (_payload: PushPayload) => ({ sent: 1, removed: 0, failed: 0 })),
 }))
 vi.mock("@/lib/push/send", () => ({ sendPushNotification }))
 

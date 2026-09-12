@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
 import { Header } from "@/components/header"
-import { AuthGuard } from "@/components/auth-guard"
 import { AutomatizacionesManager } from "@/components/automatizaciones-manager"
 import { PushNotificationsManager } from "@/components/push-notifications-manager"
 import { getAlertasContext } from "@/lib/automations/alerts-data"
@@ -46,21 +45,19 @@ export default async function AutomatizacionesPage() {
   )
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-background">
-        <Header title="Automatizaciones" showBack />
-        <main className="container mx-auto px-4 py-8 space-y-6">
-          <PushNotificationsManager />
-          <AutomatizacionesManager
-            salas={salasResult.data || []}
-            pulseDevices={pulseDevicesResult.data || []}
-            initialDispositivos={dispositivos}
-            initialAutomatizaciones={automatizaciones}
-            ultimaLecturaPorPulseDevice={ultimaLecturaPorPulseDevice}
-            ultimoTipoLogPorAutomatizacion={ultimoTipoLogPorAutomatizacion}
-          />
-        </main>
-      </div>
-    </AuthGuard>
+    <div className="min-h-screen bg-background">
+      <Header title="Automatizaciones" showBack />
+      <main className="container mx-auto px-4 py-8 space-y-6">
+        <PushNotificationsManager />
+        <AutomatizacionesManager
+          salas={salasResult.data || []}
+          pulseDevices={pulseDevicesResult.data || []}
+          initialDispositivos={dispositivos}
+          initialAutomatizaciones={automatizaciones}
+          ultimaLecturaPorPulseDevice={ultimaLecturaPorPulseDevice}
+          ultimoTipoLogPorAutomatizacion={ultimoTipoLogPorAutomatizacion}
+        />
+      </main>
+    </div>
   )
 }

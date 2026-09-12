@@ -2,7 +2,6 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
-import { AuthGuard } from "@/components/auth-guard"
 import { PwaRegister } from "@/components/pwa-register"
 import "./globals.css"
 
@@ -37,7 +36,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`font-sans antialiased`}>
-        <AuthGuard>{children}</AuthGuard>
+        {children}
         <PwaRegister />
         <Analytics />
       </body>

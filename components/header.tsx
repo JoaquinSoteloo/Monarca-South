@@ -19,6 +19,7 @@ import {
   Thermometer,
   Zap,
   Sliders,
+  DoorClosed,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PushNotificationsBell } from "@/components/push-notifications-bell"
@@ -44,6 +45,7 @@ const navItems = [
   { href: "/monitoreo", label: "Monitoreo", icon: Thermometer },
   { href: "/automatizaciones", label: "Automatizaciones", icon: Zap },
   { href: "/control-manual", label: "Control manual", icon: Sliders },
+  { href: "/modo-ausente", label: "Modo Ausente", icon: DoorClosed },
   { href: "/sucursales", label: "Sucursales", icon: MapPin },
 ]
 

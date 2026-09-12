@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const { nombre, sala_id, tipo, proveedor, modo_ejecucion, proveedor_config, soporta_feedback } = body
+  const { nombre, sala_id, tipo, proveedor, modo_ejecucion, proveedor_config, soporta_feedback, requisito_ausente } = body
 
   if (!nombre || !tipo || !proveedor || !modo_ejecucion) {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 })
@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       modo_ejecucion,
       proveedor_config: proveedor_config ?? {},
       soporta_feedback: soporta_feedback ?? false,
+      requisito_ausente: requisito_ausente ?? null,
     })
     .select()
     .single()

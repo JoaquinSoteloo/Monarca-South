@@ -99,6 +99,8 @@ const initialDeviceForm = {
   soporta_feedback: false,
   simular_falla: false,
   latencia_ms: "",
+  // "" = no es crítico para Modo Ausente (ver app/modo-ausente).
+  requisito_ausente: "" as "" | "encendido" | "apagado",
 }
 
 const initialReglaForm = {
@@ -256,6 +258,7 @@ export function AutomatizacionesManager({
       soporta_feedback: d.soporta_feedback,
       simular_falla: Boolean((d.proveedor_config as any)?.fallarSiempre),
       latencia_ms: (d.proveedor_config as any)?.latenciaMs ? String((d.proveedor_config as any).latenciaMs) : "",
+      requisito_ausente: d.requisito_ausente ?? "",
     })
     setIsDeviceDialogOpen(true)
   }
@@ -279,6 +282,7 @@ export function AutomatizacionesManager({
       modo_ejecucion: modoEjecucionPorProveedor[deviceForm.proveedor],
       proveedor_config: proveedorConfig,
       soporta_feedback: deviceForm.soporta_feedback,
+      requisito_ausente: deviceForm.requisito_ausente || null,
     }
 
     const res = editingDeviceId
@@ -777,6 +781,26 @@ export function AutomatizacionesManager({
                 checked={deviceForm.soporta_feedback}
                 onCheckedChange={(checked) => setDeviceForm({ ...deviceForm, soporta_feedback: checked })}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Modo Ausente</Label>
+              <Select
+                value={deviceForm.requisito_ausente || "ninguno"}
+                onValueChange={(v) => setDeviceForm({ ...deviceForm, requisito_ausente: v === "ninguno" ? "" : (v as "encendido" | "apagado") })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ninguno">No es crítico</SelectItem>
+                  <SelectItem value="encendido">Debe quedar encendido</SelectItem>
+                  <SelectItem value="apagado">Debe quedar apagado</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Si se marca, este dispositivo aparece en el checklist de /modo-ausente y se sigue vigilando mientras esté activo.
+              </p>
             </div>
 
             <Button type="submit" className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={loading}>

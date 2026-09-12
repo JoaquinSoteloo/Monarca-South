@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { evaluateAutomations } from "@/lib/automations/engine"
 import { getServerSession } from "@/lib/auth/session"
 import { withEngineLock } from "@/lib/automations/lock"
+import { checkModoAusente } from "@/lib/modo-ausente/engine"
 
 // Variante del motor para el botón "Evaluar ahora" de la UI admin (debug /
 // testing manual, sin esperar al próximo tick del pinger externo). No pide
@@ -26,11 +27,15 @@ export async function POST() {
 
   const supabase = await createClient()
   try {
-    const resultado = await withEngineLock(supabase, () => evaluateAutomations(supabase))
+    const resultado = await withEngineLock(supabase, async () => {
+      const evaluacion = await evaluateAutomations(supabase)
+      const modoAusente = await checkModoAusente(supabase)
+      return { evaluacion, modoAusente }
+    })
     if (!resultado.ejecuto) {
       return NextResponse.json({ skipped: true, motivo: "Ya había una evaluación en curso" })
     }
-    return NextResponse.json({ skipped: false, ...resultado.resultado })
+    return NextResponse.json({ skipped: false, ...resultado.resultado.evaluacion, modoAusente: resultado.resultado.modoAusente })
   } catch (error) {
     console.error("[automations/evaluate/manual] Error evaluando automatizaciones:", error)
     return NextResponse.json({ error: "Error evaluando automatizaciones" }, { status: 500 })

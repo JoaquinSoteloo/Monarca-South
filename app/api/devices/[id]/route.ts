@@ -8,7 +8,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // Solo se permiten actualizar estos campos desde acá. ultimo_comando_* y
   // ultimo_estado_confirmado_* los gestiona exclusivamente el motor/adapter
   // (lib/automations/engine.ts), nunca este endpoint.
-  const camposPermitidos = ["nombre", "sala_id", "tipo", "proveedor", "modo_ejecucion", "proveedor_config", "soporta_feedback", "modo", "activo"]
+  const camposPermitidos = [
+    "nombre",
+    "sala_id",
+    "tipo",
+    "proveedor",
+    "modo_ejecucion",
+    "proveedor_config",
+    "soporta_feedback",
+    "modo",
+    "activo",
+    "requisito_ausente",
+  ]
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const campo of camposPermitidos) {
     if (campo in body) updates[campo] = body[campo]

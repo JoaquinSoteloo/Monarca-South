@@ -224,6 +224,7 @@ export type EjecutorComando = "servidor" | "bridge"
 export type AccionFailSafe = "mantener" | "apagar"
 export type TipoDisparo = "encendido" | "apagado"
 export type TipoEjecucionAutomatizacion = "encendido" | "apagado" | "fail_safe" | "error"
+export type RequisitoAusente = "encendido" | "apagado"
 
 export interface DispositivoControlable {
   id: number
@@ -242,9 +243,34 @@ export interface DispositivoControlable {
   ultimo_comando_estado: EstadoComando | null
   ultimo_estado_confirmado_payload: Record<string, unknown> | null
   ultimo_estado_confirmado_en: string | null
+  // NULL = no es crítico para Modo Ausente (default). Ver lib/modo-ausente/.
+  requisito_ausente: RequisitoAusente | null
   created_at: string
   updated_at: string
   sala?: SalaCultivo | null
+}
+
+// Modo Ausente / Cierre — ver lib/modo-ausente/engine.ts y
+// scripts/051_create_modo_ausente.sql.
+export interface ModoAusenteEstado {
+  activo: boolean
+  activado_en: string | null
+  activado_por: string | null
+  activado_desde: string | null
+  desactivado_en: string | null
+  desactivado_por: string | null
+}
+
+export type EstadoViolacionAusente = "ok" | "violacion"
+
+export interface ModoAusenteViolacion {
+  dispositivo_id: number
+  estado: EstadoViolacionAusente
+  motivo: string | null
+  detectado_en: string | null
+  notificado_en: string | null
+  resuelto_notificado_en: string | null
+  updated_at: string
 }
 
 export interface ComandoDispositivo {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import { evaluateAutomations } from "@/lib/automations/engine"
 import { withEngineLock } from "@/lib/automations/lock"
 import { checkModoAusente } from "@/lib/modo-ausente/engine"
@@ -13,9 +13,19 @@ import { checkModoAusente } from "@/lib/modo-ausente/engine"
 // Protegido con AUTOMATIONS_CRON_SECRET: sin este endpoint bloqueado,
 // cualquiera podría forzar comandos sobre el hardware controlado.
 //
+// Usa el cliente service_role (bypassa RLS) en vez del cliente anon/cookies:
+// este endpoint corre sin sesión de Supabase (el pinger externo no tiene
+// forma de presentar un JWT de usuario, solo el secret), así que una vez que
+// las tablas de automatizaciones/hardware queden con RLS restringida a
+// `authenticated` (etapa 3 de seguridad), un cliente anon ya no podría leer
+// ni escribir ahí. La autorización real de este endpoint sigue siendo
+// AUTOMATIONS_CRON_SECRET, no el rol de Postgres — mismo patrón que
+// lib/push/subscriptions.ts.
+//
 // Para el botón "Evaluar ahora" de la UI (debug/testing manual sin esperar
 // al próximo tick) usar POST /api/automations/evaluate/manual, que se
-// autentica con sesión en vez del secret.
+// autentica con sesión en vez del secret (y sigue usando el cliente
+// anon/cookies de lib/supabase/server.ts, porque ahí sí hay una sesión real).
 //
 // maxDuration: si Pulse está lento, una corrida puntual puede tardar más de
 // los 10s por defecto de una función serverless. 30s da margen sin acercarse
@@ -34,7 +44,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   try {
     // withEngineLock evita que dos invocaciones se solapen (ej. una corrida
     // lenta todavía en curso cuando el pinger dispara la siguiente, cada

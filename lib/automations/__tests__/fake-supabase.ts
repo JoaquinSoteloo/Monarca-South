@@ -1,9 +1,10 @@
 // Cliente Supabase en memoria, suficiente para ejercitar exactamente las
-// cadenas de query que usa lib/automations/engine.ts (ver engine.test.ts).
+// cadenas de query que usan lib/automations/engine.ts (ver engine.test.ts) y
+// lib/modo-ausente/engine.ts (ver ../../modo-ausente/__tests__/engine.test.ts).
 // No pretende ser un mock general de supabase-js — solo soporta los métodos
-// y el único embed (automatizaciones -> dispositivo) que el motor realmente
-// usa. Si el motor empieza a usar una cadena nueva, este archivo necesita un
-// método nuevo, no al revés.
+// y el único embed (automatizaciones -> dispositivo) que el código real
+// usa. Si algún motor empieza a usar una cadena nueva, este archivo necesita
+// un método nuevo, no al revés.
 type Row = Record<string, any>
 
 class FakeQueryBuilder {
@@ -28,6 +29,20 @@ class FakeQueryBuilder {
 
   eq(col: string, val: unknown) {
     this.filters.push((r) => r[col] === val)
+    return this
+  }
+
+  in(col: string, vals: unknown[]) {
+    this.filters.push((r) => vals.includes(r[col]))
+    return this
+  }
+
+  // Solo soporta el patrón que usa lib/modo-ausente/engine.ts:
+  // .not("col", "is", null) -> col IS NOT NULL.
+  not(col: string, op: "is", val: unknown) {
+    if (op === "is" && val === null) {
+      this.filters.push((r) => r[col] !== null && r[col] !== undefined)
+    }
     return this
   }
 
@@ -90,6 +105,17 @@ class FakeQueryBuilder {
     return this
   }
 
+  // Soporta exactamente el patrón que usa lib/modo-ausente/engine.ts: upsert
+  // de un objeto o array, sin onConflict explícito. La columna de conflicto
+  // se infiere de las filas mismas ("id" si está presente, si no
+  // "dispositivo_id") — alcanza para las dos tablas con upsert de este
+  // proyecto (modo_ausente_estado y modo_ausente_violaciones).
+  upsert(data: Row | Row[]) {
+    this.op = "upsert"
+    this.payload = data
+    return this
+  }
+
   maybeSingle() {
     this.wantSingle = true
     this.wantMaybe = true
@@ -135,6 +161,23 @@ class FakeQueryBuilder {
     if (this.op === "delete") {
       this.db.tables[this.table] = table.filter((r) => !this.filters.every((f) => f(r)))
       return { data: null, error: null }
+    }
+
+    if (this.op === "upsert") {
+      const items: Row[] = Array.isArray(this.payload) ? this.payload : [this.payload]
+      const upserted = items.map((item) => {
+        const conflictCol = "id" in item ? "id" : "dispositivo_id"
+        const existing = table.find((r) => r[conflictCol] === item[conflictCol])
+        if (existing) {
+          Object.assign(existing, item)
+          return existing
+        }
+        const row: Row = { ...item, id: item.id ?? this.db.nextId(this.table) }
+        table.push(row)
+        return row
+      })
+      const data = this.wantSingle ? (upserted[0] ?? null) : upserted
+      return { data, error: null }
     }
 
     let rows = table.filter((r) => this.filters.every((f) => f(r)))

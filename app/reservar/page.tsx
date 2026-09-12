@@ -12,12 +12,13 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import Image from "next/image"
 import { generarHorarios, CONFIG_CITAS_DEFAULT, type ConfigCitas } from "@/lib/horarios"
+import { bigintComoNumero, mapReservaError, normalizarDni } from "@/lib/reservas"
 
-interface Cita {
+// Fila devuelta por la RPC mi_cita_hoy (ver scripts/058_public_reservation_rpcs.sql).
+interface MiCita {
   id: number
-  fecha: string
   hora: string
-  documento: string
+  estado: string
 }
 
 export default function ReservarPage() {
@@ -27,23 +28,22 @@ export default function ReservarPage() {
     dni: "",
   })
   const [horarioSeleccionado, setHorarioSeleccionado] = useState<string | null>(null)
-  const [citasHoy, setCitasHoy] = useState<Cita[]>([])
+  const [ocupacion, setOcupacion] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [citaExistente, setCitaExistente] = useState<Cita | null>(null)
+  const [citaExistente, setCitaExistente] = useState<MiCita | null>(null)
   const [horaActual, setHoraActual] = useState<number>(new Date().getHours())
   const [config, setConfig] = useState<ConfigCitas>(CONFIG_CITAS_DEFAULT)
 
   const supabase = createClient()
-  const hoy = format(new Date(), "yyyy-MM-dd")
   const HORARIOS = generarHorarios(config.hora_inicio, config.hora_fin)
   const MAX_POR_TURNO = config.max_por_turno
   const reservasCerradas = horaActual >= config.hora_limite_reserva
 
   useEffect(() => {
     cargarConfig()
-    cargarCitasHoy()
+    cargarOcupacionHoy()
     // Actualizar hora cada minuto por si el usuario deja abierta la página
     const interval = setInterval(() => {
       setHoraActual(new Date().getHours())
@@ -52,90 +52,49 @@ export default function ReservarPage() {
   }, [])
 
   const cargarConfig = async () => {
+    // config_citas sigue siendo legible por anon (policy "anon_select_config_citas",
+    // scripts/059_rls_hardening_reservations_add.sql) — no necesita RPC.
     const { data } = await supabase.from("config_citas").select("*").eq("id", 1).maybeSingle()
     if (data) setConfig(data)
   }
 
-  const cargarCitasHoy = async () => {
-    // Traer confirmadas, atendidas y no_asistio (solo canceladas liberan el turno)
-    const { data } = await supabase
-      .from("citas")
-      .select("*")
-      .eq("fecha", hoy)
-      .in("estado", ["confirmada", "atendida", "no_asistio"])
-    
-    setCitasHoy(data || [])
+  const cargarOcupacionHoy = async () => {
+    const { data } = await supabase.rpc("citas_ocupacion_hoy")
+    const mapa: Record<string, number> = {}
+    for (const fila of data ?? []) {
+      // La BD guarda HH:MM:SS, comparamos solo HH:MM.
+      mapa[String(fila.hora).substring(0, 5)] = bigintComoNumero(fila.cantidad)
+    }
+    setOcupacion(mapa)
   }
 
   const getCantidadPorHorario = (hora: string) => {
-    // Comparar solo HH:MM (la BD guarda HH:MM:SS)
-    return citasHoy.filter(c => c.hora.substring(0, 5) === hora).length
+    return ocupacion[hora] ?? 0
   }
 
-  const crearReserva = async (citaPrevia?: Cita) => {
+  const ejecutarReserva = async (citaPrevia?: MiCita) => {
     setLoading(true)
     setError(null)
 
-    const dniLimpio = formData.dni.replace(/\./g, "")
+    const dniLimpio = normalizarDni(formData.dni)
 
-    // Buscar si es socio por DNI
-    const { data: socio } = await supabase
-      .from("socios")
-      .select("id")
-      .eq("dni", dniLimpio)
-      .maybeSingle()
-
-    // Limpiar citas canceladas previas con el mismo documento en el horario elegido
-    // (evita conflicto con el constraint UNIQUE (fecha, hora, documento))
-    await supabase
-      .from("citas")
-      .delete()
-      .eq("fecha", hoy)
-      .eq("hora", horarioSeleccionado)
-      .eq("documento", dniLimpio)
-      .eq("estado", "cancelada")
-
-    // Si hay cita previa activa, actualizarla (cambiar el horario)
-    // en vez de cancelar + insertar, lo que evita problemas con el constraint UNIQUE
-    if (citaPrevia) {
-      const { error: updateError } = await supabase
-        .from("citas")
-        .update({
-          hora: horarioSeleccionado,
-          nombre: formData.nombre,
-          apellido: formData.apellido,
-          socio_id: socio?.id || null,
-          estado: "confirmada",
+    const { error: rpcError } = citaPrevia
+      ? await supabase.rpc("reprogramar_reserva_publica", {
+          p_nombre: formData.nombre,
+          p_apellido: formData.apellido,
+          p_documento: dniLimpio,
+          p_hora_nueva: horarioSeleccionado,
         })
-        .eq("id", citaPrevia.id)
+      : await supabase.rpc("crear_reserva_publica", {
+          p_nombre: formData.nombre,
+          p_apellido: formData.apellido,
+          p_documento: dniLimpio,
+          p_hora: horarioSeleccionado,
+        })
 
-      if (updateError) {
-        console.log("[v0] Error update cita:", updateError)
-        setError(`Error al cambiar la cita: ${updateError.message}`)
-        setLoading(false)
-        return
-      }
-
-      setSuccess(true)
-      setLoading(false)
-      setCitaExistente(null)
-      return
-    }
-
-    // Sin cita previa: insertar nueva
-    const { error: insertError } = await supabase.from("citas").insert({
-      fecha: hoy,
-      hora: horarioSeleccionado,
-      nombre: formData.nombre,
-      apellido: formData.apellido,
-      documento: dniLimpio,
-      socio_id: socio?.id || null,
-      estado: "confirmada",
-    })
-
-    if (insertError) {
-      console.log("[v0] Error insert cita:", insertError)
-      setError(`Error al reservar la cita: ${insertError.message}`)
+    if (rpcError) {
+      console.log("[v0] Error RPC reserva:", rpcError)
+      setError(mapReservaError(rpcError))
       setLoading(false)
       return
     }
@@ -165,29 +124,42 @@ export default function ReservarPage() {
       return
     }
 
-    // Validar que haya lugar en el turno
+    // Validar que haya lugar en el turno (chequeo de UX: el cupo real lo
+    // garantiza el lock server-side dentro de las RPC).
     if (getCantidadPorHorario(horarioSeleccionado) >= MAX_POR_TURNO) {
       setError("Este horario ya está completo, elegí otro")
       return
     }
 
-    // Validar que no tenga ya una cita hoy
-    const dniLimpio = formData.dni.replace(/\./g, "")
-    const citaPrevia = citasHoy.find(c => c.documento === dniLimpio)
-    
+    const dniLimpio = normalizarDni(formData.dni)
+
+    setLoading(true)
+    const { data, error: miCitaError } = await supabase.rpc("mi_cita_hoy", { p_documento: dniLimpio })
+
+    if (miCitaError) {
+      console.log("[v0] Error RPC mi_cita_hoy:", miCitaError)
+      setError(mapReservaError(miCitaError))
+      setLoading(false)
+      return
+    }
+
+    const citaPrevia: MiCita | null = data && data.length > 0 ? data[0] : null
+
     if (citaPrevia) {
       // Si la cita existente es al mismo horario, no hacer nada
       if (citaPrevia.hora.substring(0, 5) === horarioSeleccionado) {
         setError("Ya tenés una cita reservada para este mismo horario")
+        setLoading(false)
         return
       }
       // Mostrar diálogo de confirmación para cambiar
       setCitaExistente(citaPrevia)
+      setLoading(false)
       return
     }
 
     // Sin cita previa - crear directamente
-    await crearReserva()
+    await ejecutarReserva()
   }
 
   // Pantalla de reservas cerradas (después de las 16hs)
@@ -291,7 +263,7 @@ export default function ReservarPage() {
               </Button>
               <Button
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                onClick={() => crearReserva(citaExistente)}
+                onClick={() => ejecutarReserva(citaExistente)}
                 disabled={loading}
               >
                 {loading ? "Cambiando..." : "Sí, cambiar"}
@@ -387,10 +359,10 @@ export default function ReservarPage() {
                         type="button"
                         variant={seleccionado ? "default" : "outline"}
                         className={`relative ${
-                          lleno 
-                            ? "opacity-50 cursor-not-allowed" 
-                            : seleccionado 
-                              ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
+                          lleno
+                            ? "opacity-50 cursor-not-allowed"
+                            : seleccionado
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                               : "hover:border-emerald-500 hover:text-emerald-600"
                         }`}
                         disabled={lleno}
@@ -398,16 +370,16 @@ export default function ReservarPage() {
                       >
                         {hora}
                         {cantidad > 0 && !lleno && (
-                          <Badge 
-                            variant="secondary" 
+                          <Badge
+                            variant="secondary"
                             className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs bg-amber-100 text-amber-700"
                           >
                             {MAX_POR_TURNO - cantidad}
                           </Badge>
                         )}
                         {lleno && (
-                          <Badge 
-                            variant="secondary" 
+                          <Badge
+                            variant="secondary"
                             className="absolute -top-2 -right-2 h-5 px-1 text-xs bg-red-100 text-red-700"
                           >
                             Lleno
@@ -428,8 +400,8 @@ export default function ReservarPage() {
                 </div>
               )}
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full bg-emerald-600 hover:bg-emerald-700"
                 disabled={loading || !horarioSeleccionado}
               >

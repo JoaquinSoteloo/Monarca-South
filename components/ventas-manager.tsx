@@ -216,7 +216,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
 
   const actualizarLinea = (index: number, campo: keyof LineaVenta, valor: string | number) => {
     const nuevasLineas = [...lineas]
-    if (campo === "genetica_id" || campo === "producto_id" || campo === "tipo") {
+    if (campo === "genetica_id" || campo === "producto_id" || campo === "tipo" || campo === "detalle_id") {
       nuevasLineas[index][campo] = valor as any
     } else {
       nuevasLineas[index][campo] = Number(valor) || 0

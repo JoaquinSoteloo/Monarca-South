@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   ShoppingCart,
   ImageIcon,
+  ArrowLeftRight,
 } from "lucide-react"
 import { format, startOfDay, endOfDay } from "date-fns"
 import { es } from "date-fns/locale"
@@ -88,10 +89,12 @@ export function HistorialVentas() {
   const [editingFullVenta, setEditingFullVenta] = useState<VentaConDetalles | null>(null)
   const [editFormData, setEditFormData] = useState({
     socio_id: "",
-    metodo_pago: "efectivo" as "efectivo" | "transferencia" | "pendiente",
     notas: "",
     fecha: new Date(),
   })
+  const [editingPagosVenta, setEditingPagosVenta] = useState<VentaConDetalles | null>(null)
+  const [metodoPagoCorregido, setMetodoPagoCorregido] = useState<Record<string, "efectivo" | "transferencia">>({})
+  const [guardandoMetodoPagoId, setGuardandoMetodoPagoId] = useState<string | null>(null)
   const [editLineas, setEditLineas] = useState<LineaVenta[]>([])
   const [savingEdit, setSavingEdit] = useState(false)
   const [popoverEditFechaOpen, setPopoverEditFechaOpen] = useState(false)
@@ -172,14 +175,78 @@ export function HistorialVentas() {
     setUpdatingPago(true)
     const supabase = createClient()
 
-    const { error } = await supabase.from("ventas").update({ metodo_pago: nuevoMetodoPago }).eq("id", editingVenta.id)
+    const { error } = await supabase
+      .rpc("registrar_pago_venta", {
+        p_venta_id: editingVenta.id,
+        p_monto: Number(editingVenta.saldo_pendiente),
+        p_metodo_pago: nuevoMetodoPago,
+        p_notas: null,
+        p_comprobante_url: null,
+        p_fecha: new Date().toISOString(),
+      })
+      .single()
 
     if (!error) {
-      setVentas(ventas.map((v) => (v.id === editingVenta.id ? { ...v, metodo_pago: nuevoMetodoPago } : v)))
       setEditingVenta(null)
+      await fetchVentas()
       router.refresh()
+    } else if (/^VP0\d{2}$/.test(error.code || "")) {
+      alert(error.message)
+    } else {
+      console.error("Error inesperado al confirmar el pago:", error)
+      alert("Ocurrió un error inesperado al confirmar el pago. Intentá nuevamente.")
     }
     setUpdatingPago(false)
+  }
+
+  // Único lugar que limpia el estado del diálogo de corrección de pagos —
+  // lo usan tanto el cierre normal (cerrarCorreccionPagos) como el cierre
+  // automático al terminar una corrección con éxito.
+  const limpiarCorreccionPagos = () => {
+    setEditingPagosVenta(null)
+    setMetodoPagoCorregido({})
+  }
+
+  const abrirCorreccionPagos = (venta: VentaConDetalles) => {
+    setMetodoPagoCorregido({})
+    setEditingPagosVenta(venta)
+  }
+
+  // Cierre pedido por el usuario (botón Cerrar, Escape, click afuera, X).
+  // Mientras haya un guardado en curso no cierra: al ser un Dialog
+  // controlado, si no limpiamos editingPagosVenta el diálogo se mantiene
+  // abierto sin importar qué haya intentado cerrarlo.
+  const cerrarCorreccionPagos = () => {
+    if (guardandoMetodoPagoId) return
+    limpiarCorreccionPagos()
+  }
+
+  const handleCorregirMetodoPago = async (pagoId: string, nuevoMetodo: "efectivo" | "transferencia") => {
+    setGuardandoMetodoPagoId(pagoId)
+    const supabase = createClient()
+
+    const { error } = await supabase.rpc("corregir_metodo_pago", {
+      p_pago_id: pagoId,
+      p_metodo_pago: nuevoMetodo,
+    })
+
+    if (!error) {
+      // No usamos cerrarCorreccionPagos acá: guardandoMetodoPagoId todavía no
+      // se actualizó en este mismo tick (setState es asíncrono), así que su
+      // guard de "no cerrar mientras se guarda" lo bloquearía.
+      limpiarCorreccionPagos()
+      setGuardandoMetodoPagoId(null)
+      await fetchVentas()
+      router.refresh()
+    } else {
+      setGuardandoMetodoPagoId(null)
+      if (/^MP\d{3}$/.test(error.code || "")) {
+        alert(error.message)
+      } else {
+        console.error("Error al corregir el método de pago:", error)
+        alert("Ocurrió un error inesperado al corregir el método de pago. Intentá nuevamente.")
+      }
+    }
   }
 
   const toggleExpand = (ventaId: string) => {
@@ -194,87 +261,121 @@ export function HistorialVentas() {
 
   const handleSubirComprobante = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0] || !ventaParaComprobante) return
-    
+
+    const venta = ventaParaComprobante
+    const supabase = createClient()
+    const resetInput = () => {
+      const inputEl = document.getElementById('input-comprobante-historial') as HTMLInputElement
+      if (inputEl) inputEl.value = ''
+    }
+
+    const saldoPendiente = Number(venta.saldo_pendiente) || 0
+    const pagoTransferencia = venta.pagos?.find((p) => p.metodo_pago === 'transferencia')
+
+    // Rama 4: la venta ya está completamente paga con otro método (no
+    // transferencia) — no corresponde crear un pago duplicado. Se corta acá,
+    // antes de subir nada a Storage.
+    if (!pagoTransferencia && saldoPendiente <= 0 && venta.pagos && venta.pagos.length > 0) {
+      alert(
+        "Esta venta ya está completamente paga con otro método; no corresponde asociar un comprobante de transferencia.",
+      )
+      resetInput()
+      return
+    }
+
     const file = e.target.files[0]
     setSubiendoComprobante(true)
-    
-    const supabase = createClient()
-    
+
     // Generar nombre único para el archivo
     const fileExt = file.name.split('.').pop()
-    const fileName = `${ventaParaComprobante.id}_${Date.now()}.${fileExt}`
-    
+    const fileName = `${venta.id}_${Date.now()}.${fileExt}`
+
     // Subir a Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('comprobantes')
       .upload(fileName, file, {
         cacheControl: '3600',
         upsert: false
       })
-    
+
     if (uploadError) {
       console.error('Error al subir comprobante:', uploadError)
       setSubiendoComprobante(false)
+      resetInput()
       return
     }
-    
+
     // Obtener URL pública
     const { data: urlData } = supabase.storage
       .from('comprobantes')
       .getPublicUrl(fileName)
-    
+
     const publicUrl = urlData.publicUrl
-    
-    // Buscar el pago de transferencia de esta venta
-    const pagoTransferencia = ventaParaComprobante.pagos?.find(p => p.metodo_pago === 'transferencia')
-    
+
+    let dbError: { code?: string; message: string } | null = null
+
     if (pagoTransferencia) {
-      // Actualizar el pago existente con el comprobante
-      await supabase
+      // Rama 1: ya existe un pago de transferencia — sólo actualizar el
+      // comprobante. No toca saldos, no hace falta RPC.
+      const { error } = await supabase
         .from("pagos")
         .update({ comprobante_url: publicUrl })
         .eq("id", pagoTransferencia.id)
+      dbError = error
+    } else if (saldoPendiente > 0) {
+      // Rama 2: no hay pago de transferencia y todavía hay saldo pendiente —
+      // se registra un pago nuevo por el saldo pendiente real (no por el
+      // total ciego, como hacía el código viejo).
+      const { error } = await supabase.rpc("registrar_pago_venta", {
+        p_venta_id: venta.id,
+        p_monto: saldoPendiente,
+        p_metodo_pago: "transferencia",
+        p_notas: null,
+        p_comprobante_url: publicUrl,
+        p_fecha: new Date().toISOString(),
+      })
+      dbError = error
     } else {
-      // Si no hay pago de transferencia registrado, crear uno (para ventas antiguas)
-      await supabase.from("pagos").insert({
-        venta_id: ventaParaComprobante.id,
-        monto: Number(ventaParaComprobante.total),
+      // Rama 3: venta legacy ya paga y sin ninguna fila en `pagos` — se
+      // reconstruye el registro histórico del cobro sin volver a tocar
+      // saldo_pendiente ni monto_pagado (ya están correctos). INSERT directo:
+      // una sola sentencia, atómica por sí misma, no toca `ventas`.
+      const { error } = await supabase.from("pagos").insert({
+        venta_id: venta.id,
+        monto: Number(venta.total),
         metodo_pago: "transferencia",
         comprobante_url: publicUrl,
-        fecha: ventaParaComprobante.created_at,
+        notas: "Comprobante asociado retroactivamente a venta histórica ya paga",
+        fecha: venta.created_at,
       })
+      dbError = error
     }
-    
-    // Actualizar la lista de ventas localmente
-    setVentas(ventas.map(v => {
-      if (v.id === ventaParaComprobante.id) {
-        const pagosActualizados = v.pagos ? [...v.pagos] : []
-        const idx = pagosActualizados.findIndex(p => p.metodo_pago === 'transferencia')
-        if (idx >= 0) {
-          pagosActualizados[idx] = { ...pagosActualizados[idx], comprobante_url: publicUrl }
-        } else {
-          pagosActualizados.push({
-            id: crypto.randomUUID(),
-            venta_id: v.id,
-            monto: Number(v.total),
-            metodo_pago: "transferencia",
-            comprobante_url: publicUrl,
-            notas: null,
-            fecha: v.created_at,
-            created_at: new Date().toISOString(),
-          })
-        }
-        return { ...v, pagos: pagosActualizados }
+
+    if (dbError) {
+      // Storage ya se subió con éxito pero la escritura en base falló:
+      // borrar el archivo recién subido para no dejar comprobantes huérfanos.
+      const { error: removeError } = await supabase.storage.from('comprobantes').remove([fileName])
+      if (removeError) console.error("No se pudo eliminar el comprobante huérfano:", removeError)
+
+      if (/^VP0\d{2}$/.test(dbError.code || "")) {
+        alert(dbError.message)
+      } else {
+        console.error("Error al asociar el comprobante:", dbError)
+        alert("Ocurrió un error al asociar el comprobante. Intentá nuevamente.")
       }
-      return v
-    }))
-    
+      setSubiendoComprobante(false)
+      resetInput()
+      return
+    }
+
+    // Refrescar desde la base en vez de parchear el estado local a mano: esta
+    // acción puede haber cambiado saldo_pendiente/monto_pagado además de
+    // comprobante_url.
+    await fetchVentas()
+
     setVentaParaComprobante(null)
     setSubiendoComprobante(false)
-    
-    // Resetear el input file para permitir subir otro comprobante
-    const inputEl = document.getElementById('input-comprobante-historial') as HTMLInputElement
-    if (inputEl) inputEl.value = ''
+    resetInput()
   }
 
   const getVentaInfo = (venta: VentaConDetalles) => {
@@ -348,25 +449,28 @@ export function HistorialVentas() {
     setEditingFullVenta(venta)
     setEditFormData({
       socio_id: venta.socio_id,
-      metodo_pago: venta.metodo_pago as "efectivo" | "transferencia" | "pendiente",
       notas: venta.notas || "",
       fecha: new Date(venta.created_at),
     })
 
     if (venta.detalles && venta.detalles.length > 0) {
       const lineas: LineaVenta[] = venta.detalles.map((d) => ({
+        detalle_id: d.id,
         tipo: d.producto_id ? "producto" : "genetica",
         genetica_id: d.genetica_id || "",
         producto_id: d.producto_id || "", // Added for products
         gramos: Number(d.gramos) || 0,
-        cantidad_enrolados: Number(d.cantidad_enrolados) || 0,
+        cantidad_enrolados: d.producto_id ? 0 : Number(d.cantidad_enrolados) || 0,
         peso_por_enrolado: Number(d.peso_por_enrolado) || 0,
         cantidad_producto: d.producto_id ? Number(d.cantidad_enrolados) || 0 : 0,
       }))
       setEditLineas(lineas)
     } else {
-      // Ventas legacy sin detalle_venta - usar datos de la tabla ventas
+      // Ventas legacy sin detalle_venta - usar datos de la tabla ventas.
+      // Sin detalle_id: editar_venta la reconoce como la línea legacy
+      // original sólo si mantiene el mismo genetica_id y gramos.
       const lineaLegacy: LineaVenta = {
+        detalle_id: null,
         tipo: "genetica",
         genetica_id: venta.genetica_id || "",
         producto_id: "", // No hay producto en legacy
@@ -381,174 +485,54 @@ export function HistorialVentas() {
 
   const handleSaveEdit = async () => {
     if (!editingFullVenta) return
-    setSavingEdit(true)
-    const supabase = createClient()
 
-    const gramosOriginales: Record<string, number> = {}
-    const productosOriginales: Record<string, number> = {} // Track original product quantities
-
-    if (editingFullVenta.detalles && editingFullVenta.detalles.length > 0) {
-      for (const detalle of editingFullVenta.detalles) {
-        if (detalle.genetica_id) {
-          const geneticaId = detalle.genetica_id
-          const gramosDetalle = Number(detalle.gramos) || 0
-          const pesoEnrolados = (Number(detalle.cantidad_enrolados) || 0) * (Number(detalle.peso_por_enrolado) || 0)
-          gramosOriginales[geneticaId] = (gramosOriginales[geneticaId] || 0) + gramosDetalle + pesoEnrolados
-        } else if (detalle.producto_id) {
-          const productoId = detalle.producto_id
-          const cantidadDetalle = Number(detalle.cantidad_enrolados) || 0 // Reusing for quantity
-          productosOriginales[productoId] = (productosOriginales[productoId] || 0) + cantidadDetalle
-        }
-      }
-    } else if (editingFullVenta.genetica_id) {
-      gramosOriginales[editingFullVenta.genetica_id] = Number(editingFullVenta.gramos) || 0
-    }
-
-    // Calcular totales nuevos
-    let totalGramos = 0
-    let totalProductos = 0
-    let totalVenta = 0
     const lineasValidas = editLineas.filter(
-      (l) => (l.genetica_id || l.producto_id) && (l.gramos > 0 || l.cantidad_enrolados > 0 || l.peso_por_enrolado > 0),
+      (l) =>
+        (l.tipo === "genetica" &&
+          l.genetica_id &&
+          (l.gramos > 0 || (l.cantidad_enrolados > 0 && l.peso_por_enrolado > 0))) ||
+        (l.tipo === "producto" && l.producto_id && l.cantidad_producto > 0),
     )
 
-    const gramosNuevos: Record<string, number> = {}
-    const productosNuevos: Record<string, number> = {} // Track new product quantities
-
-    for (const linea of lineasValidas) {
-      if (linea.genetica_id) {
-        const genetica = geneticas.find((g) => g.id === linea.genetica_id)
-        const pesoEnrolados = linea.cantidad_enrolados * linea.peso_por_enrolado
-        const gramosTotalesLinea = linea.gramos + pesoEnrolados
-        totalGramos += gramosTotalesLinea
-        totalVenta +=
-          linea.gramos * (genetica?.precio_por_gramo || 0) +
-          linea.cantidad_enrolados * (genetica?.precio_por_enrolado || 0)
-        gramosNuevos[linea.genetica_id] = (gramosNuevos[linea.genetica_id] || 0) + gramosTotalesLinea
-      } else if (linea.producto_id) {
-        const producto = productos.find((p) => p.id === linea.producto_id)
-        const cantidadProducto = linea.cantidad_enrolados // Reusing for quantity
-        totalProductos += cantidadProducto
-        totalVenta += cantidadProducto * (producto?.precio || 0)
-        productosNuevos[linea.producto_id] = (productosNuevos[linea.producto_id] || 0) + cantidadProducto
-      }
-    }
-
-    // Adjust stock for genetics
-    const todasLasGeneticas = new Set([...Object.keys(gramosOriginales), ...Object.keys(gramosNuevos)])
-    for (const geneticaId of todasLasGeneticas) {
-      const original = gramosOriginales[geneticaId] || 0
-      const nuevo = gramosNuevos[geneticaId] || 0
-      const diferencia = original - nuevo // Positivo = devolver, Negativo = descontar más
-
-      if (diferencia !== 0) {
-        const genetica = geneticas.find((g) => g.id === geneticaId)
-        if (genetica) {
-          await supabase
-            .from("geneticas")
-            .update({
-              gramos_disponibles: genetica.gramos_disponibles + diferencia,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", geneticaId)
-        }
-      }
-    }
-
-    // Adjust stock for products
-    const todosLosProductos = new Set([...Object.keys(productosOriginales), ...Object.keys(productosNuevos)])
-    for (const productoId of todosLosProductos) {
-      const original = productosOriginales[productoId] || 0
-      const nuevo = productosNuevos[productoId] || 0
-      const diferencia = original - nuevo // Positivo = devolver, Negativo = descontar más
-
-      if (diferencia !== 0) {
-        const producto = productos.find((p) => p.id === productoId)
-        if (producto) {
-          await supabase
-            .from("productos")
-            .update({
-              cantidad: producto.cantidad + diferencia,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", productoId)
-        }
-      }
-    }
-
-    // Actualizar venta principal
-    const { error: ventaError } = await supabase
-      .from("ventas")
-      .update({
-        socio_id: editFormData.socio_id,
-        metodo_pago: editFormData.metodo_pago,
-        notas: editFormData.notas || null,
-        created_at: editFormData.fecha.toISOString(),
-        gramos: totalGramos, // Sum of grams from genetics
-        total: totalVenta,
-        genetica_id: lineasValidas.find((l) => l.genetica_id)?.genetica_id || null, // Primary genetic for legacy display
-        tipo_venta: (() => {
-          const tieneGeneticaGramos = lineasValidas.some((l) => l.genetica_id && l.gramos > 0)
-          const tieneGeneticaEnrolados = lineasValidas.some((l) => l.genetica_id && l.cantidad_enrolados > 0)
-          const tieneProductos = lineasValidas.some((l) => l.producto_id && l.cantidad_enrolados > 0)
-          
-          if (tieneProductos && (tieneGeneticaGramos || tieneGeneticaEnrolados)) return "mixto"
-          if (tieneProductos) return "mixto" // productos solos se guardan como mixto
-          if (tieneGeneticaGramos && tieneGeneticaEnrolados) return "mixto"
-          if (tieneGeneticaEnrolados) return "enrolados"
-          return "gramos"
-        })()
-      })
-      .eq("id", editingFullVenta.id)
-
-    if (ventaError) {
-      console.error("Error al actualizar venta:", ventaError)
-      setSavingEdit(false)
+    if (lineasValidas.length === 0) {
+      alert("Agregá al menos un producto con cantidad válida")
       return
     }
 
-    // Eliminar detalles antiguos y crear nuevos
-    await supabase.from("detalle_venta").delete().eq("venta_id", editingFullVenta.id)
+    setSavingEdit(true)
+    const supabase = createClient()
 
-    for (const linea of lineasValidas) {
-      if (linea.genetica_id) {
-        const genetica = geneticas.find((g) => g.id === linea.genetica_id)
-        const pesoEnrolados = linea.cantidad_enrolados * linea.peso_por_enrolado
-        const subtotal =
-          linea.gramos * (genetica?.precio_por_gramo || 0) +
-          linea.cantidad_enrolados * (genetica?.precio_por_enrolado || 0)
+    const { error } = await supabase
+      .rpc("editar_venta", {
+        p_venta_id: editingFullVenta.id,
+        p_socio_id: editFormData.socio_id,
+        p_lineas: lineasValidas.map((l) => ({
+          detalle_id: l.detalle_id || null,
+          tipo: l.tipo,
+          genetica_id: l.genetica_id || null,
+          producto_id: l.producto_id || null,
+          gramos: l.gramos,
+          cantidad_enrolados: l.cantidad_enrolados,
+          peso_por_enrolado: l.peso_por_enrolado,
+          cantidad_producto: l.cantidad_producto,
+        })),
+        p_notas: editFormData.notas || null,
+        p_fecha: editFormData.fecha.toISOString(),
+      })
+      .single()
 
-        await supabase.from("detalle_venta").insert({
-          venta_id: editingFullVenta.id,
-          genetica_id: linea.genetica_id,
-          gramos: linea.gramos,
-          cantidad_enrolados: linea.cantidad_enrolados > 0 ? linea.cantidad_enrolados : null,
-          peso_por_enrolado: linea.peso_por_enrolado > 0 ? linea.peso_por_enrolado : null,
-          peso_enrolados: pesoEnrolados > 0 ? pesoEnrolados : null,
-          precio_unitario: genetica?.precio_por_gramo || 0,
-          precio_enrolado: genetica?.precio_por_enrolado || null,
-          subtotal: subtotal,
-        })
-      } else if (linea.producto_id) {
-        const producto = productos.find((p) => p.id === linea.producto_id)
-        const cantidadProducto = linea.cantidad_enrolados // Reusing for quantity
-        const subtotal = cantidadProducto * (producto?.precio || 0)
-
-        await supabase.from("detalle_venta").insert({
-          venta_id: editingFullVenta.id,
-          producto_id: linea.producto_id,
-          cantidad_enrolados: cantidadProducto, // Store product quantity here
-          precio_unitario: producto?.precio || 0, // Store product price here
-          subtotal: subtotal,
-        })
-      }
+    if (!error) {
+      setEditingFullVenta(null)
+      await fetchVentas()
+      await fetchGeneticasAndProductos()
+      router.refresh()
+    } else if (/^VE0\d{2}$/.test(error.code || "")) {
+      alert(error.message)
+    } else {
+      console.error("Error inesperado al editar la venta:", error)
+      alert("Ocurrió un error inesperado al editar la venta. Intentá nuevamente.")
     }
-
-    setEditingFullVenta(null)
     setSavingEdit(false)
-    fetchVentas()
-    fetchGeneticasAndProductos() // Fetch updated counts
-    router.refresh()
   }
 
   const handleDeleteVenta = async () => {
@@ -556,78 +540,26 @@ export function HistorialVentas() {
     setBorrando(true)
     const supabase = createClient()
 
-    // Calculate items to return to stock
-    const itemsARetornar: Record<string, { gramos?: number; cantidad?: number }> = {}
+    const { error } = await supabase.rpc("eliminar_venta", { p_venta_id: ventaABorrar.id })
 
-    if (ventaABorrar.detalles && ventaABorrar.detalles.length > 0) {
-      for (const detalle of ventaABorrar.detalles) {
-        if (detalle.genetica_id) {
-          const geneticaId = detalle.genetica_id
-          const gramosDetalle = Number(detalle.gramos) || 0
-          const pesoEnrolados = (Number(detalle.cantidad_enrolados) || 0) * (Number(detalle.peso_por_enrolado) || 0)
-          const totalGramos = gramosDetalle + pesoEnrolados
-          if (!itemsARetornar[geneticaId]) itemsARetornar[geneticaId] = {}
-          itemsARetornar[geneticaId].gramos = (itemsARetornar[geneticaId].gramos || 0) + totalGramos
-        } else if (detalle.producto_id) {
-          const productoId = detalle.producto_id
-          const cantidadDetalle = Number(detalle.cantidad_enrolados) || 0 // Reusing for quantity
-          if (!itemsARetornar[productoId]) itemsARetornar[productoId] = {}
-          itemsARetornar[productoId].cantidad = (itemsARetornar[productoId].cantidad || 0) + cantidadDetalle
-        }
-      }
-    } else if (ventaABorrar.genetica_id) {
-      itemsARetornar[ventaABorrar.genetica_id] = { gramos: Number(ventaABorrar.gramos) || 0 }
+    if (!error) {
+      setVentaABorrar(null)
+      await fetchVentas()
+      await fetchGeneticasAndProductos()
+    } else if (/^VD0\d{2}$/.test(error.code || "")) {
+      alert(error.message)
+    } else {
+      console.error("Error inesperado al eliminar la venta:", error)
+      alert("Ocurrió un error inesperado al eliminar la venta. Intentá nuevamente.")
     }
-
-    // Return stock for each item
-    for (const [itemId, quantities] of Object.entries(itemsARetornar)) {
-      if (quantities.gramos !== undefined) {
-        // It's a genetic
-        const genetica = geneticas.find((g) => g.id === itemId)
-        if (genetica) {
-          await supabase
-            .from("geneticas")
-            .update({
-              gramos_disponibles: genetica.gramos_disponibles + quantities.gramos,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", itemId)
-        }
-      } else if (quantities.cantidad !== undefined) {
-        // It's a product
-        const producto = productos.find((p) => p.id === itemId)
-        if (producto) {
-          await supabase
-            .from("productos")
-            .update({
-              cantidad: producto.cantidad + quantities.cantidad,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", itemId)
-        }
-      }
-    }
-
-    // Eliminar detalles
-    await supabase.from("detalle_venta").delete().eq("venta_id", ventaABorrar.id)
-
-    // Eliminar venta
-    const { error } = await supabase.from("ventas").delete().eq("id", ventaABorrar.id)
-
-    if (error) {
-      console.error("Error al borrar venta:", error)
-    }
-
-    setVentaABorrar(null)
     setBorrando(false)
-    fetchVentas()
-    fetchGeneticasAndProductos() // Fetch updated counts
   }
 
   const agregarLineaEdit = () => {
     setEditLineas([
       ...editLineas,
       {
+        detalle_id: null,
         tipo: "genetica",
         genetica_id: "",
         producto_id: "",
@@ -688,7 +620,7 @@ export function HistorialVentas() {
   }
 
   const initialVentasFiltradas = ventas.filter((v) => {
-    if (soloNoPagados && v.metodo_pago !== "pendiente") return false
+    if (soloNoPagados && !(Number(v.saldo_pendiente || 0) > 0)) return false
     if (filtroSocio) {
       const nombreCompleto = `${v.socio?.nombre} ${v.socio?.apellido} ${v.socio?.dni}`.toLowerCase()
       if (!nombreCompleto.includes(filtroSocio.toLowerCase())) return false
@@ -702,15 +634,22 @@ export function HistorialVentas() {
     const info = getVentaInfo(v)
     return sum + info.gramos
   }, 0)
+  // Efectivo/Transferencia usan ventas.metodo_pago (campo agregado, sincronizado
+  // por las RPC de pago para el caso simple de "un solo método por venta").
+  // Una venta con pagos parciales o de métodos distintos no queda representada
+  // con exactitud por este único campo — para eso habría que sumar directo
+  // desde `pagos`, fuera del alcance de esta corrección.
   const ventasEfectivo = initialVentasFiltradas
     .filter((v) => v.metodo_pago === "efectivo")
     .reduce((sum, v) => sum + Number(v.total), 0)
   const ventasTransferencia = initialVentasFiltradas
     .filter((v) => v.metodo_pago === "transferencia")
     .reduce((sum, v) => sum + Number(v.total), 0)
+  // Pendiente se deriva de saldo_pendiente > 0 (no de metodo_pago === "pendiente"):
+  // ver etapa 4B2, "pendiente" no es un método de pago real.
   const ventasPendientes = initialVentasFiltradas
-    .filter((v) => v.metodo_pago === "pendiente")
-    .reduce((sum, v) => sum + Number(v.total), 0)
+    .filter((v) => Number(v.saldo_pendiente || 0) > 0)
+    .reduce((sum, v) => sum + Number(v.saldo_pendiente || 0), 0)
 
   const formatDni = (dni: string) => {
     const cleaned = dni.replace(/\D/g, "")
@@ -775,10 +714,10 @@ export function HistorialVentas() {
             let detalleItemStr = ""
             if (detalle.genetica_id) {
               const gramosStr = detalle.gramos
-                ? `${detalle.gramos}g x $${detalle.genetica?.precio_por_gramo || 0}/g`
+                ? `${detalle.gramos}g x $${detalle.precio_unitario || 0}/g`
                 : ""
               const enroladosStr = detalle.cantidad_enrolados
-                ? `${detalle.cantidad_enrolados} enr. x $${detalle.genetica?.precio_por_enrolado || 0}`
+                ? `${detalle.cantidad_enrolados} enr. x $${detalle.precio_enrolado || 0}`
                 : ""
               detalleItemStr = [gramosStr, enroladosStr].filter(Boolean).join(" + ")
             } else if (detalle.producto_id) {
@@ -878,7 +817,6 @@ export function HistorialVentas() {
 
   const renderDetalleVenta = (venta: VentaConDetalles) => {
     const isExpanded = expandedVentas.has(venta.id)
-    const esMiembro = venta.socio?.es_miembro || false
 
     if (venta.detalles && venta.detalles.length > 0) {
       const rows: React.ReactNode[] = []
@@ -889,8 +827,8 @@ export function HistorialVentas() {
           const pesoTotal = detalle.peso_enrolados || 0
           const cantEnrolados = detalle.cantidad_enrolados || 0
           const pesoPorEnrolado = cantEnrolados > 0 ? Math.round((pesoTotal / cantEnrolados) * 10) / 10 : 0
-          const precioGramo = esMiembro ? 0 : detalle.genetica?.precio_por_gramo || 0
-          const precioEnrolado = esMiembro ? 0 : detalle.genetica?.precio_por_enrolado || 0
+          const precioGramo = detalle.precio_unitario || 0
+          const precioEnrolado = detalle.precio_enrolado || 0
 
           rows.push(
             <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-emerald-500">
@@ -920,7 +858,7 @@ export function HistorialVentas() {
               </TableCell>
               <TableCell></TableCell>
               <TableCell className="text-right text-muted-foreground">
-                ${((detalle.gramos || 0) * precioGramo + cantEnrolados * precioEnrolado).toFixed(2)}
+                ${Number(detalle.subtotal || 0).toFixed(2)}
               </TableCell>
               <TableCell></TableCell>
             </TableRow>,
@@ -928,7 +866,7 @@ export function HistorialVentas() {
         } else if (detalle.producto_id) {
           // Es un producto
           const cantidadProducto = detalle.cantidad_enrolados || 0 // Reutilizamos este campo para cantidad
-          const precioProducto = esMiembro ? 0 : detalle.precio_unitario || 0
+          const precioProducto = detalle.precio_unitario || 0
 
           rows.push(
             <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-blue-500">
@@ -946,7 +884,7 @@ export function HistorialVentas() {
               </TableCell>
               <TableCell></TableCell>
               <TableCell className="text-right text-muted-foreground">
-                ${(cantidadProducto * precioProducto).toFixed(2)}
+                ${Number(detalle.subtotal || 0).toFixed(2)}
               </TableCell>
               <TableCell></TableCell>
             </TableRow>,
@@ -976,8 +914,8 @@ export function HistorialVentas() {
       const enrolados = venta.cantidad_enrolados || 0
       const pesoTotal = Number(venta.peso_enrolados) || 0
       const pesoPorEnrolado = enrolados > 0 ? Math.round((pesoTotal / enrolados) * 10) / 10 : 0
-      const precioGramo = esMiembro ? 0 : venta.precio_unitario || 0
-      const precioEnrolado = esMiembro ? 0 : venta.genetica?.precio_por_enrolado || 0
+      const precioGramo = venta.precio_unitario || 0
+      const precioEnrolado = venta.genetica?.precio_por_enrolado || 0
 
       const rows: React.ReactNode[] = [
         <TableRow key={`${venta.id}-legacy`} className="bg-muted/30 border-l-4 border-l-emerald-500">
@@ -1032,7 +970,7 @@ export function HistorialVentas() {
   }
 
   const ventasFiltradas = ventas.filter((v) => {
-    if (soloNoPagados && v.metodo_pago !== "pendiente") return false
+    if (soloNoPagados && !(Number(v.saldo_pendiente || 0) > 0)) return false
     if (filtroSocio) {
       const nombreCompleto = `${v.socio?.nombre} ${v.socio?.apellido} ${v.socio?.dni}`.toLowerCase()
       if (!nombreCompleto.includes(filtroSocio.toLowerCase())) return false
@@ -1115,6 +1053,97 @@ export function HistorialVentas() {
               className="bg-emerald-600 hover:bg-emerald-700"
             >
               {updatingPago ? "Guardando..." : "Confirmar Pago"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para corregir el método de un pago puntual (no toca la venta completa) */}
+      <Dialog open={!!editingPagosVenta} onOpenChange={(open) => !open && cerrarCorreccionPagos()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+                <ArrowLeftRight className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-foreground">Corregir Método de Pago</DialogTitle>
+                <DialogDescription className="text-muted-foreground">
+                  Corrige el método de un cobro puntual. No modifica el total, el saldo ni el resto de la venta.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            {editingPagosVenta && (
+              <>
+                <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Socio:{" "}
+                    <strong className="text-foreground">
+                      {editingPagosVenta.socio?.apellido}, {editingPagosVenta.socio?.nombre}
+                    </strong>
+                  </p>
+                </div>
+                {(editingPagosVenta.pagos || []).length === 0 && (
+                  <p className="text-sm text-muted-foreground">Esta venta no tiene pagos registrados para corregir.</p>
+                )}
+                {(editingPagosVenta.pagos || []).map((pago) => {
+                  const valorSeleccionado = metodoPagoCorregido[pago.id] ?? pago.metodo_pago
+                  return (
+                    <div key={pago.id} className="flex items-center gap-2 p-3 rounded-lg border border-border">
+                      <div className="flex-1 space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(pago.fecha).toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </p>
+                        <p className="text-sm font-medium text-foreground">${Number(pago.monto).toFixed(2)}</p>
+                      </div>
+                      <Select
+                        value={valorSeleccionado}
+                        onValueChange={(value: "efectivo" | "transferencia") =>
+                          setMetodoPagoCorregido((prev) => ({ ...prev, [pago.id]: value }))
+                        }
+                        disabled={guardandoMetodoPagoId !== null}
+                      >
+                        <SelectTrigger className="w-[160px] bg-background border-border">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="efectivo">
+                            <div className="flex items-center gap-2">
+                              <Banknote className="h-4 w-4" />
+                              Efectivo
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="transferencia">
+                            <div className="flex items-center gap-2">
+                              <CreditCard className="h-4 w-4" />
+                              Transferencia
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        disabled={guardandoMetodoPagoId !== null || valorSeleccionado === pago.metodo_pago}
+                        onClick={() => handleCorregirMetodoPago(pago.id, valorSeleccionado)}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        {guardandoMetodoPagoId === pago.id ? "..." : "Guardar"}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={cerrarCorreccionPagos} disabled={guardandoMetodoPagoId !== null}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1230,17 +1259,41 @@ export function HistorialVentas() {
                     <Select
                       value={linea.genetica_id || linea.producto_id}
                       onValueChange={(value) => {
-                        // Determine if it's a genetic or product and update accordingly
-                        const selectedGenetica = geneticas.find((g) => g.id === value)
-                        const selectedProducto = productos.find((p) => p.id === value)
+                        // Determinar si es genética o producto y actualizar todo en un
+                        // único setEditLineas funcional: dos llamadas consecutivas a
+                        // actualizarLineaEdit leerían el mismo estado ya cerrado y la
+                        // segunda pisaría lo que hizo la primera. detalle_id se
+                        // conserva (no se toca acá) para que editar_venta reconozca
+                        // esto como "cambió el ítem de una línea existente" (clase B).
+                        const esGenetica = geneticas.some((g) => g.id === value)
+                        const esProducto = productos.some((p) => p.id === value)
 
-                        if (selectedGenetica) {
-                          actualizarLineaEdit(index, "genetica_id", value)
-                          actualizarLineaEdit(index, "producto_id", "") // Clear product if genetic is selected
-                        } else if (selectedProducto) {
-                          actualizarLineaEdit(index, "producto_id", value)
-                          actualizarLineaEdit(index, "genetica_id", "") // Clear genetic if product is selected
-                        }
+                        setEditLineas((prev) =>
+                          prev.map((l, i) => {
+                            if (i !== index) return l
+                            if (esGenetica) {
+                              return {
+                                ...l,
+                                tipo: "genetica",
+                                genetica_id: value,
+                                producto_id: "",
+                                cantidad_producto: 0,
+                              }
+                            }
+                            if (esProducto) {
+                              return {
+                                ...l,
+                                tipo: "producto",
+                                producto_id: value,
+                                genetica_id: "",
+                                gramos: 0,
+                                cantidad_enrolados: 0,
+                                peso_por_enrolado: 0,
+                              }
+                            }
+                            return l
+                          }),
+                        )
                       }}
                     >
                       <SelectTrigger className="bg-background border-border">
@@ -1308,8 +1361,8 @@ export function HistorialVentas() {
                         <Input
                           type="number"
                           min="0"
-                          value={linea.cantidad_enrolados || ""} // Reusing this field for product quantity
-                          onChange={(e) => actualizarLineaEdit(index, "cantidad_enrolados", e.target.value)}
+                          value={linea.cantidad_producto || ""}
+                          onChange={(e) => actualizarLineaEdit(index, "cantidad_producto", e.target.value)}
                           className="bg-background border-border"
                         />
                       </div>
@@ -1317,41 +1370,6 @@ export function HistorialVentas() {
                   </div>
                 )
               })}
-            </div>
-
-            {/* Método de pago */}
-            <div className="space-y-2">
-              <Label>Método de Pago</Label>
-              <Select
-                value={editFormData.metodo_pago}
-                onValueChange={(value: "efectivo" | "transferencia" | "pendiente") =>
-                  setEditFormData({ ...editFormData, metodo_pago: value })
-                }
-              >
-                <SelectTrigger className="bg-background border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="efectivo">
-                    <div className="flex items-center gap-2">
-                      <Banknote className="h-4 w-4" />
-                      Efectivo
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="transferencia">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      Transferencia
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="pendiente">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Pendiente
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             {/* Notas */}
@@ -1813,6 +1831,20 @@ export function HistorialVentas() {
                                         <Clock className="h-3 w-3 mr-1" />
                                         Debe ${saldoPendiente.toLocaleString()}
                                       </Badge>
+                                    )}
+                                    {venta.pagos && venta.pagos.length > 0 && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 w-5 p-0 hover:bg-muted"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          abrirCorreccionPagos(venta)
+                                        }}
+                                        title="Corregir método de un pago"
+                                      >
+                                        <ArrowLeftRight className="h-3 w-3 text-muted-foreground" />
+                                      </Button>
                                     )}
                                   </div>
                                 </div>

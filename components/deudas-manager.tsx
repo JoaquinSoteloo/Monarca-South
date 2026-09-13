@@ -68,7 +68,9 @@ export function DeudasManager() {
   const [metodoPago, setMetodoPago] = useState<"efectivo" | "transferencia">("efectivo")
   const [notasPago, setNotasPago] = useState("")
   const [comprobanteUrl, setComprobanteUrl] = useState("")
+  const [comprobantePath, setComprobantePath] = useState("")
   const [uploadingComprobante, setUploadingComprobante] = useState(false)
+  const [procesandoPago, setProcesandoPago] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   // Dialog para registrar pago por monto total del socio
@@ -122,6 +124,7 @@ export function DeudasManager() {
     setMetodoPago("efectivo")
     setNotasPago("")
     setComprobanteUrl("")
+    setComprobantePath("")
     setPagoDialogOpen(true)
   }
 
@@ -154,56 +157,90 @@ export function DeudasManager() {
       .getPublicUrl(fileName)
     
     setComprobanteUrl(urlData.publicUrl)
+    setComprobantePath(fileName)
     setUploadingComprobante(false)
+  }
+
+  // Si ya se subió un comprobante a Storage pero la escritura en base de
+  // datos falla, borramos el archivo para no dejar comprobantes huérfanos.
+  // Best-effort: un fallo acá no debe tapar el error original.
+  const limpiarComprobanteHuerfano = async (path: string) => {
+    try {
+      const { error } = await supabase.storage.from("comprobantes").remove([path])
+      if (error) console.error("No se pudo eliminar el comprobante huérfano:", error)
+    } catch (e) {
+      console.error("No se pudo eliminar el comprobante huérfano:", e)
+    }
+  }
+
+  // Descarta un comprobante recién subido que todavía no quedó asociado a
+  // ningún pago. Limpia el estado visual de inmediato (sin esperar a
+  // Storage): si se esperara la respuesta de Storage antes de limpiar
+  // comprobanteUrl/comprobantePath, el usuario todavía podría confirmar el
+  // pago en esa ventana con una URL que se está borrando en paralelo. El
+  // borrado en Storage se dispara best-effort, sin bloquear la UI.
+  const descartarComprobantePendiente = () => {
+    const pathAEliminar = comprobantePath
+    setComprobanteUrl("")
+    setComprobantePath("")
+    if (pathAEliminar) void limpiarComprobanteHuerfano(pathAEliminar)
+  }
+
+  // Cierre controlado de los diálogos de pago: si hay un comprobante
+  // pendiente, se descarta. No se permite cerrar (Cancelar, Escape, clic
+  // afuera o el botón de cierre, todos pasan por acá vía onOpenChange)
+  // mientras se está subiendo un archivo o procesando el pago — en ese
+  // último caso porque el comprobante ya viajó como parte de la llamada en
+  // curso y borrarlo ahora sería una condición de carrera con la RPC.
+  const cerrarPagoDialog = () => {
+    if (uploadingComprobante || procesandoPago) return
+    descartarComprobantePendiente()
+    setPagoDialogOpen(false)
+  }
+
+  const cerrarPagoSocioDialog = () => {
+    if (uploadingComprobante || procesandoPagoSocio) return
+    descartarComprobantePendiente()
+    setPagoSocioDialogOpen(false)
   }
 
   const handleRegistrarPago = async () => {
     if (!ventaSeleccionada || !montoPago || Number(montoPago) <= 0) return
-    
+
     const montoNum = Number(montoPago)
     if (montoNum > Number(ventaSeleccionada.saldo_pendiente)) {
       alert("El monto no puede ser mayor al saldo pendiente")
       return
     }
 
-    // Insertar el pago
-    const { error: pagoError } = await supabase
-      .from("pagos")
-      .insert({
-        venta_id: ventaSeleccionada.id,
-        monto: montoNum,
-        metodo_pago: metodoPago,
-        comprobante_url: comprobanteUrl || null,
-        notas: notasPago || null,
-        fecha: new Date().toISOString(),
+    setProcesandoPago(true)
+
+    const { error } = await supabase
+      .rpc("registrar_pago_venta", {
+        p_venta_id: ventaSeleccionada.id,
+        p_monto: montoNum,
+        p_metodo_pago: metodoPago,
+        p_notas: notasPago || null,
+        p_comprobante_url: comprobanteUrl || null,
+        p_fecha: new Date().toISOString(),
       })
+      .single()
 
-    if (pagoError) {
-      alert("Error al registrar el pago: " + pagoError.message)
-      return
-    }
-
-    // Actualizar la venta
-    const nuevoSaldo = Number(ventaSeleccionada.saldo_pendiente) - montoNum
-    const nuevoMontoPagado = Number(ventaSeleccionada.monto_pagado || 0) + montoNum
-    const nuevoMetodoPago = nuevoSaldo <= 0 ? metodoPago : "pendiente"
-
-    const { error: ventaError } = await supabase
-      .from("ventas")
-      .update({
-        saldo_pendiente: nuevoSaldo,
-        monto_pagado: nuevoMontoPagado,
-        metodo_pago: nuevoMetodoPago,
-      })
-      .eq("id", ventaSeleccionada.id)
-
-    if (ventaError) {
-      alert("Error al actualizar la venta: " + ventaError.message)
+    if (error) {
+      descartarComprobantePendiente()
+      if (/^VP0\d{2}$/.test(error.code || "")) {
+        alert(error.message)
+      } else {
+        console.error("Error inesperado al registrar el pago:", error)
+        alert("Ocurrió un error inesperado al registrar el pago. Intentá nuevamente.")
+      }
+      setProcesandoPago(false)
       return
     }
 
     setPagoDialogOpen(false)
     fetchDeudas()
+    setProcesandoPago(false)
   }
 
   const handleOpenPagoSocioDialog = (grupo: {
@@ -216,6 +253,7 @@ export function DeudasManager() {
     setMetodoPago("efectivo")
     setNotasPago("")
     setComprobanteUrl("")
+    setComprobantePath("")
     setPagoSocioDialogOpen(true)
   }
 
@@ -230,64 +268,31 @@ export function DeudasManager() {
 
     setProcesandoPagoSocio(true)
 
-    // Aplicar el monto a los pedidos pendientes del socio, del más antiguo al más nuevo
-    const ventasOrdenadas = [...socioPago.deudas].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-    )
+    const { error } = await supabase.rpc("registrar_pago_socio", {
+      p_socio_id: socioPago.socio.id,
+      p_monto: montoNum,
+      p_metodo_pago: metodoPago,
+      p_notas: notasPago || null,
+      p_comprobante_url: comprobanteUrl || null,
+      p_fecha: new Date().toISOString(),
+    })
 
-    const fecha = new Date().toISOString()
-    let restante = montoNum
-
-    for (const venta of ventasOrdenadas) {
-      if (restante <= 0) break
-
-      const saldo = Number(venta.saldo_pendiente || 0)
-      if (saldo <= 0) continue
-
-      const aplicar = Math.min(restante, saldo)
-
-      const { error: pagoError } = await supabase.from("pagos").insert({
-        venta_id: venta.id,
-        monto: aplicar,
-        metodo_pago: metodoPago,
-        comprobante_url: comprobanteUrl || null,
-        notas: notasPago || "Pago aplicado a cuenta del socio",
-        fecha,
-      })
-
-      if (pagoError) {
-        alert("Error al registrar el pago: " + pagoError.message)
-        setProcesandoPagoSocio(false)
-        fetchDeudas()
-        return
+    if (error) {
+      descartarComprobantePendiente()
+      if (/^VP0\d{2}$/.test(error.code || "")) {
+        alert(error.message)
+      } else {
+        console.error("Error inesperado al registrar el pago del socio:", error)
+        alert("Ocurrió un error inesperado al registrar el pago. Intentá nuevamente.")
       }
-
-      const nuevoSaldo = saldo - aplicar
-      const nuevoMontoPagado = Number(venta.monto_pagado || 0) + aplicar
-      const nuevoMetodoPago = nuevoSaldo <= 0 ? metodoPago : "pendiente"
-
-      const { error: ventaError } = await supabase
-        .from("ventas")
-        .update({
-          saldo_pendiente: nuevoSaldo,
-          monto_pagado: nuevoMontoPagado,
-          metodo_pago: nuevoMetodoPago,
-        })
-        .eq("id", venta.id)
-
-      if (ventaError) {
-        alert("Error al actualizar la venta: " + ventaError.message)
-        setProcesandoPagoSocio(false)
-        fetchDeudas()
-        return
-      }
-
-      restante -= aplicar
+      fetchDeudas()
+      setProcesandoPagoSocio(false)
+      return
     }
 
-    setProcesandoPagoSocio(false)
     setPagoSocioDialogOpen(false)
     fetchDeudas()
+    setProcesandoPagoSocio(false)
   }
 
   const handleVerHistorial = async (venta: VentaConDeuda) => {
@@ -497,7 +502,13 @@ export function DeudasManager() {
       )}
 
       {/* Dialog Registrar Pago */}
-      <Dialog open={pagoDialogOpen} onOpenChange={setPagoDialogOpen}>
+      <Dialog
+        open={pagoDialogOpen}
+        onOpenChange={(open) => {
+          if (open) setPagoDialogOpen(true)
+          else cerrarPagoDialog()
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Registrar Pago</DialogTitle>
@@ -523,7 +534,17 @@ export function DeudasManager() {
 
             <div>
               <Label>Método de pago</Label>
-              <Select value={metodoPago} onValueChange={(v) => setMetodoPago(v as "efectivo" | "transferencia")}>
+              <Select
+                value={metodoPago}
+                disabled={procesandoPago}
+                onValueChange={(v) => {
+                  const nuevoMetodo = v as "efectivo" | "transferencia"
+                  if (nuevoMetodo !== "transferencia" && comprobantePath) {
+                    descartarComprobantePendiente()
+                  }
+                  setMetodoPago(nuevoMetodo)
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -565,7 +586,8 @@ export function DeudasManager() {
                       variant="destructive"
                       size="icon"
                       className="absolute top-2 right-2 h-6 w-6"
-                      onClick={() => setComprobanteUrl("")}
+                      onClick={descartarComprobantePendiente}
+                      disabled={procesandoPago}
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -575,7 +597,7 @@ export function DeudasManager() {
                     variant="outline"
                     className="w-full mt-2 bg-transparent"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingComprobante}
+                    disabled={uploadingComprobante || procesandoPago}
                   >
                     <Upload className="h-4 w-4 mr-2" />
                     {uploadingComprobante ? "Subiendo..." : "Adjuntar comprobante"}
@@ -595,22 +617,28 @@ export function DeudasManager() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPagoDialogOpen(false)}>
+            <Button variant="outline" onClick={cerrarPagoDialog} disabled={uploadingComprobante || procesandoPago}>
               Cancelar
             </Button>
-            <Button 
+            <Button
               className="bg-emerald-600 hover:bg-emerald-700"
               onClick={handleRegistrarPago}
-              disabled={!montoPago || Number(montoPago) <= 0}
+              disabled={!montoPago || Number(montoPago) <= 0 || procesandoPago || uploadingComprobante}
             >
-              Registrar Pago
+              {procesandoPago ? "Procesando..." : "Registrar Pago"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Dialog Registrar Pago por monto del socio */}
-      <Dialog open={pagoSocioDialogOpen} onOpenChange={setPagoSocioDialogOpen}>
+      <Dialog
+        open={pagoSocioDialogOpen}
+        onOpenChange={(open) => {
+          if (open) setPagoSocioDialogOpen(true)
+          else cerrarPagoSocioDialog()
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Pagar deuda del socio</DialogTitle>
@@ -647,7 +675,17 @@ export function DeudasManager() {
 
             <div>
               <Label>Método de pago</Label>
-              <Select value={metodoPago} onValueChange={(v) => setMetodoPago(v as "efectivo" | "transferencia")}>
+              <Select
+                value={metodoPago}
+                disabled={procesandoPagoSocio}
+                onValueChange={(v) => {
+                  const nuevoMetodo = v as "efectivo" | "transferencia"
+                  if (nuevoMetodo !== "transferencia" && comprobantePath) {
+                    descartarComprobantePendiente()
+                  }
+                  setMetodoPago(nuevoMetodo)
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -689,7 +727,8 @@ export function DeudasManager() {
                       variant="destructive"
                       size="icon"
                       className="absolute top-2 right-2 h-6 w-6"
-                      onClick={() => setComprobanteUrl("")}
+                      onClick={descartarComprobantePendiente}
+                      disabled={procesandoPagoSocio}
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -699,7 +738,7 @@ export function DeudasManager() {
                     variant="outline"
                     className="w-full mt-2 bg-transparent"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingComprobante}
+                    disabled={uploadingComprobante || procesandoPagoSocio}
                   >
                     <Upload className="h-4 w-4 mr-2" />
                     {uploadingComprobante ? "Subiendo..." : "Adjuntar comprobante"}
@@ -719,7 +758,11 @@ export function DeudasManager() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPagoSocioDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={cerrarPagoSocioDialog}
+              disabled={uploadingComprobante || procesandoPagoSocio}
+            >
               Cancelar
             </Button>
             <Button
@@ -727,6 +770,7 @@ export function DeudasManager() {
               onClick={handleRegistrarPagoSocio}
               disabled={
                 procesandoPagoSocio ||
+                uploadingComprobante ||
                 !montoPagoSocio ||
                 Number(montoPagoSocio) <= 0 ||
                 (socioPago ? Number(montoPagoSocio) > socioPago.totalDeuda : false)

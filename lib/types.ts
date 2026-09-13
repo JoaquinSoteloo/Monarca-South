@@ -76,6 +76,7 @@ export interface LineaVenta {
   cantidad_enrolados: number
   peso_por_enrolado: number
   cantidad_producto: number // Cantidad del producto
+  detalle_id?: string | null // Sólo para editar_venta: id de la fila detalle_venta original (null/ausente = línea nueva)
 }
 
 export interface Venta {

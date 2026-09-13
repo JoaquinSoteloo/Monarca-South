@@ -86,7 +86,7 @@ export interface Venta {
   precio_unitario: number
   total: number
   metodo_pago: "efectivo" | "transferencia" | "pendiente"
-  tipo_venta: "gramos" | "enrolados" | "mixto"
+  tipo_venta: "gramos" | "enrolados" | "mixto" | "producto"
   cantidad_enrolados: number | null
   peso_enrolados: number | null
   notas: string | null

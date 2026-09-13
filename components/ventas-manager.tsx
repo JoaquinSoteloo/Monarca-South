@@ -85,6 +85,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
   const [scannerOpen, setScannerOpen] = useState(false)
   const [scanningLineIndex, setScanningLineIndex] = useState<number | null>(null)
   const [deudaSocio, setDeudaSocio] = useState<number>(0)
+  const [lineasParaEnviar, setLineasParaEnviar] = useState<LineaVenta[]>([])
   const supabase = createClient()
 
   const selectedSocio = socios.find((s) => s.id === formData.socio_id)
@@ -223,30 +224,13 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
     setLineas(nuevasLineas)
   }
 
-  const getTipoVenta = () => {
-    let tieneGramos = false
-    let tieneEnrolados = false
-    let tieneProducto = false
-    for (const linea of lineas) {
-      if (linea.tipo === "genetica") {
-        if (linea.gramos > 0) tieneGramos = true
-        if (linea.cantidad_enrolados > 0) tieneEnrolados = true
-      } else if (linea.tipo === "producto") {
-        if (linea.cantidad_producto > 0) tieneProducto = true
-      }
-    }
-    if (tieneGramos && tieneEnrolados && tieneProducto) return "mixto"
-    if (tieneGramos && tieneEnrolados) return "mixto"
-    if (tieneEnrolados) return "enrolados"
-    if (tieneProducto) return "producto"
-    return "gramos"
-  }
-
-  const procesarVenta = async () => {
+  const procesarVenta = async (lineasValidas: LineaVenta[]) => {
     setLoading(true)
     setShowLimitDialog(false)
 
-    for (const linea of lineas) {
+    // Chequeo rápido de UX (no es la autoridad: el servidor vuelve a validar
+    // todo contra el stock y los precios vigentes al momento de la llamada).
+    for (const linea of lineasValidas) {
       if (linea.tipo === "genetica" && linea.genetica_id) {
         const { gramosTotales, genetica } = calcularLinea(linea)
         if (genetica && gramosTotales > genetica.gramos_disponibles) {
@@ -264,147 +248,58 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       }
     }
 
-    // Calcular montos - deuda se calcula automáticamente
-    const montoPagado = pagoCombinado.efectivo + pagoCombinado.transferencia
-    const saldoPendiente = Math.max(0, totalVenta - montoPagado)
-    
-    // Determinar método de pago principal
-    let metodoPagoFinal: "efectivo" | "transferencia" | "pendiente" = "efectivo"
-    if (saldoPendiente >= totalVenta) {
-      metodoPagoFinal = "pendiente" // Todo es deuda
-    } else if (pagoCombinado.transferencia > pagoCombinado.efectivo) {
-      metodoPagoFinal = "transferencia"
-    } else if (pagoCombinado.efectivo > 0) {
-      metodoPagoFinal = "efectivo"
-    } else if (saldoPendiente > 0) {
-      metodoPagoFinal = "pendiente"
-    }
-
-    const ventaData = {
-      socio_id: formData.socio_id,
-      genetica_id: lineas.find((l) => l.tipo === "genetica")?.genetica_id || null,
-      tipo_venta: getTipoVenta(),
-      gramos: gramosTotalesVenta,
-      precio_unitario: lineas.length === 1 && lineas[0].tipo === "genetica" ? calcularLinea(lineas[0]).precioGramo : 0,
-      total: totalVenta,
-      metodo_pago: metodoPagoFinal,
-      saldo_pendiente: saldoPendiente,
-      monto_pagado: montoPagado,
-      notas: formData.notas || null,
-      created_at: fechaVenta.toISOString(),
-    }
-
-    console.log("[v0] ventaData a insertar:", JSON.stringify(ventaData, null, 2))
-    console.log("[v0] metodoPagoFinal:", metodoPagoFinal, "tipo_venta:", getTipoVenta())
-
-    const { data: newVenta, error: ventaError } = await supabase
-      .from("ventas")
-      .insert(ventaData)
-      .select("*, socio:socios(nombre, apellido)")
+    const { data: newVenta, error: rpcError } = await supabase
+      .rpc("registrar_venta", {
+        p_socio_id: formData.socio_id,
+        p_lineas: lineasValidas.map((l) => ({
+          tipo: l.tipo,
+          genetica_id: l.genetica_id || null,
+          producto_id: l.producto_id || null,
+          gramos: l.gramos,
+          cantidad_enrolados: l.cantidad_enrolados,
+          peso_por_enrolado: l.peso_por_enrolado,
+          cantidad_producto: l.cantidad_producto,
+        })),
+        p_pago_efectivo: pagoCombinado.efectivo,
+        p_pago_transferencia: pagoCombinado.transferencia,
+        p_notas: formData.notas || null,
+        p_fecha: fechaVenta.toISOString(),
+      })
       .single()
 
-    if (ventaError) {
-      setError("Error al registrar la venta: " + ventaError.message)
+    if (rpcError) {
       setLoading(false)
+      if (/^VT0\d{2}$/.test(rpcError.code || "")) {
+        setError(rpcError.message)
+      } else {
+        console.error("Error inesperado al registrar venta:", rpcError)
+        setError("Ocurrió un error inesperado. Intentá nuevamente.")
+      }
       return
     }
 
-    // Registrar pagos si hay montos
-    if (pagoCombinado.efectivo > 0) {
-      await supabase.from("pagos").insert({
-        venta_id: newVenta.id,
-        monto: pagoCombinado.efectivo,
-        metodo_pago: "efectivo",
-        fecha: fechaVenta.toISOString(),
-      })
-    }
-    if (pagoCombinado.transferencia > 0) {
-      await supabase.from("pagos").insert({
-        venta_id: newVenta.id,
-        monto: pagoCombinado.transferencia,
-        metodo_pago: "transferencia",
-        fecha: fechaVenta.toISOString(),
-      })
-    }
-
-    for (const linea of lineas) {
-      if (linea.tipo === "genetica" && linea.genetica_id) {
-        const { gramosTotales, subtotal, precioGramo, precioEnrolado, genetica, pesoEnrolados } = calcularLinea(linea)
-        if (linea.gramos <= 0 && linea.cantidad_enrolados <= 0) continue
-
-        await supabase.from("detalle_venta").insert({
-          venta_id: newVenta.id,
-          genetica_id: linea.genetica_id,
-          producto_id: null,
-          gramos: linea.gramos,
-          cantidad_enrolados: linea.cantidad_enrolados > 0 ? linea.cantidad_enrolados : null,
-          peso_por_enrolado: linea.peso_por_enrolado > 0 ? linea.peso_por_enrolado : null,
-          peso_enrolados: pesoEnrolados > 0 ? pesoEnrolados : null,
-          precio_unitario: precioGramo,
-          precio_enrolado: precioEnrolado > 0 ? precioEnrolado : null,
-          subtotal: subtotal,
-        })
-
-        if (genetica) {
-          await supabase
-            .from("geneticas")
-            .update({
-              gramos_disponibles: genetica.gramos_disponibles - gramosTotales,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", linea.genetica_id)
-        }
-      } else if (linea.tipo === "producto" && linea.producto_id) {
-        const { subtotal, precioProducto, producto } = calcularLinea(linea)
-        if (linea.cantidad_producto <= 0) continue
-
-        await supabase.from("detalle_venta").insert({
-          venta_id: newVenta.id,
-          genetica_id: null,
-          producto_id: linea.producto_id,
-          gramos: 0,
-          cantidad_enrolados: linea.cantidad_producto,
-          peso_por_enrolado: null,
-          peso_enrolados: null,
-          precio_unitario: precioProducto,
-          precio_enrolado: null,
-          subtotal: subtotal,
-        })
-
-        if (producto) {
-          await supabase
-            .from("productos")
-            .update({
-              cantidad: producto.cantidad - linea.cantidad_producto,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", linea.producto_id)
-        }
-      }
-    }
-
-    await supabase
-      .from("socios")
-      .update({
-        gramos_consumidos_mes: consumidoMes + gramosTotalesVenta,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", formData.socio_id)
-
-    const geneticasNombres = lineas
+    // La RPC devuelve sólo la fila de `ventas` (sin el join a socios que
+    // hacía el insert directo antes) — se arma el mismo objeto de
+    // visualización usando los datos que el cliente ya tiene cargados.
+    const geneticasNombres = lineasValidas
       .filter((l) => l.tipo === "genetica" && l.genetica_id)
       .map((l) => geneticas.find((g) => g.id === l.genetica_id)?.nombre)
       .filter(Boolean)
       .join(", ")
 
-    const productosNombres = lineas
+    const productosNombres = lineasValidas
       .filter((l) => l.tipo === "producto" && l.producto_id)
       .map((l) => productos.find((p) => p.id === l.producto_id)?.nombre)
       .filter(Boolean)
       .join(", ")
 
     setVentas([
-      { ...newVenta, genetica: { nombre: geneticasNombres } as any, producto: { nombre: productosNombres } as any },
+      {
+        ...(newVenta as any),
+        socio: selectedSocio ? { nombre: selectedSocio.nombre, apellido: selectedSocio.apellido } : undefined,
+        genetica: { nombre: geneticasNombres } as any,
+        producto: { nombre: productosNombres } as any,
+      },
       ...ventas,
     ])
     setLineas([
@@ -444,13 +339,15 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       return
     }
 
-    for (const linea of lineas) {
+    for (const linea of lineasValidas) {
       if (linea.cantidad_enrolados > 0 && linea.peso_por_enrolado <= 0) {
         const gen = geneticas.find((g) => g.id === linea.genetica_id)
         setError(`Ingresa el peso por enrolado para ${gen?.nombre || "la genética"}`)
         return
       }
     }
+
+    setLineasParaEnviar(lineasValidas)
 
     if (excedeLimit) {
       setShowLimitDialog(true)
@@ -464,7 +361,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       return
     }
 
-    await procesarVenta()
+    await procesarVenta(lineasValidas)
   }
 
   const handleBarcodeScan = (barcode: string) => {
@@ -533,7 +430,11 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             <Button variant="outline" onClick={() => setShowLimitDialog(false)} className="border-border">
               Cancelar
             </Button>
-            <Button onClick={procesarVenta} disabled={loading} className="bg-amber-600 hover:bg-amber-700">
+            <Button
+              onClick={() => procesarVenta(lineasParaEnviar)}
+              disabled={loading}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
               {loading ? "Registrando..." : "Sí, continuar con la venta"}
             </Button>
           </DialogFooter>

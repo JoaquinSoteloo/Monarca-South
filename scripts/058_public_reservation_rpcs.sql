@@ -192,7 +192,10 @@ DECLARE
   v_existente_hora time;
   v_existente_estado text;
 BEGIN
-  SELECT * INTO v_config FROM public.config_citas WHERE id = 1;
+  SELECT cfg.*
+  INTO v_config
+  FROM public.config_citas AS cfg
+  WHERE cfg.id = 1;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'La configuración de turnos no está disponible' USING ERRCODE = 'MC008';
   END IF;
@@ -332,7 +335,10 @@ DECLARE
   v_cita_hora time;
   v_cita_estado text;
 BEGIN
-  SELECT * INTO v_config FROM public.config_citas WHERE id = 1;
+  SELECT cfg.*
+  INTO v_config
+  FROM public.config_citas AS cfg
+  WHERE cfg.id = 1;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'La configuración de turnos no está disponible' USING ERRCODE = 'MC008';
   END IF;

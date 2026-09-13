@@ -15,10 +15,11 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { CalendarIcon, Plus, DollarSign, Pencil, Trash2, Tag, Check } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { CalendarIcon, Plus, DollarSign, Pencil, Trash2, Tag, Banknote, CreditCard } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { formatCurrency } from "@/lib/format"
 import { useToast } from "@/hooks/use-toast"
 
 export function GastosManager() {
@@ -231,34 +232,34 @@ export function GastosManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Gestión de Gastos</h2>
+          <h2 className="text-2xl font-bold text-foreground">Gastos</h2>
           <p className="text-muted-foreground">Registrá y administrá los gastos del club</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowCategoriasDialog(true)}>
+        <div className="flex flex-wrap gap-2">
+          <Button className="bg-card" variant="outline" onClick={() => setShowCategoriasDialog(true)}>
             <Tag className="h-4 w-4 mr-2" />
             Categorías
           </Button>
-          <Button onClick={() => setShowForm(true)} className="bg-emerald-700 hover:bg-emerald-800">
+          <Button onClick={() => setShowForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
             <Plus className="h-4 w-4 mr-2" />
-            Nuevo Gasto
+            Nuevo gasto
           </Button>
         </div>
       </div>
 
       {/* Filtro por mes */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col items-start gap-2 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:gap-4">
         <Label htmlFor="filtro-mes" className="whitespace-nowrap">
           Ver período:
         </Label>
         <Select value={mesSeleccionado} onValueChange={setMesSeleccionado}>
-          <SelectTrigger id="filtro-mes" className="w-56 capitalize">
+          <SelectTrigger id="filtro-mes" className="w-full bg-white capitalize sm:w-60">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="monarca-theme">
             <SelectItem value="todos">Todos los meses</SelectItem>
             {mesesDisponibles.map((ym) => (
               <SelectItem key={ym} value={ym} className="capitalize">
@@ -269,56 +270,57 @@ export function GastosManager() {
         </Select>
       </div>
 
-      {/* Total + desglose por categoría */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-red-50 to-white border-red-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-red-800 text-base">
-              <DollarSign className="h-5 w-5" />
-              {mesSeleccionado === "todos" ? "Total General" : "Total del Mes"}
+      {/* Resumen y distribución del período seleccionado */}
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <Card className="min-w-0 justify-center gap-3 border-primary bg-primary text-primary-foreground">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-primary-foreground/80">
+              <DollarSign className="h-4 w-4" />Total de gastos
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-red-700">${totalFiltrado.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {gastosFiltrados.length} {gastosFiltrados.length === 1 ? "gasto" : "gastos"}
+            <div className="break-words text-3xl font-semibold tabular-nums">{loading ? "—" : formatCurrency(totalFiltrado)}</div>
+            <p className="mt-2 text-sm text-primary-foreground/80">
+              {loading ? "Cargando gastos…" : `${gastosFiltrados.length} ${gastosFiltrados.length === 1 ? "gasto registrado" : "gastos registrados"}`}
+            </p>
+            <p className="mt-1 text-xs capitalize text-primary-foreground/80">
+              {mesSeleccionado === "todos" ? "Todos los meses" : nombreMes(mesSeleccionado)}
             </p>
           </CardContent>
         </Card>
-
-        <Card className="md:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Gastos por categoría</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {totalesPorCategoria.length === 0 ? (
+        <Card className="min-w-0 gap-4 bg-card">
+          <CardHeader><CardTitle className="text-base">Distribución por categoría</CardTitle></CardHeader>
+          <CardContent className="max-h-64 space-y-4 overflow-y-auto">
+            {loading ? <p className="text-sm text-muted-foreground">Cargando categorías…</p> : totalesPorCategoria.length === 0 ? (
               <p className="text-sm text-muted-foreground">Sin gastos en este período</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {totalesPorCategoria.map(([cat, monto]) => (
-                  <div
-                    key={cat}
-                    className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2"
-                  >
-                    <span className="text-sm font-medium text-foreground">{cat}</span>
-                    <span className="text-sm font-bold text-red-700">${monto.toFixed(2)}</span>
-                  </div>
-                ))}
+            ) : totalesPorCategoria.map(([cat, monto]) => (
+              <div key={cat} className="space-y-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                  <span className="font-medium">{cat}</span>
+                  <span className="font-semibold tabular-nums">{formatCurrency(monto)}</span>
+                </div>
+                <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-primary/10">
+                  <div className="h-full rounded-full bg-primary/65" style={{ width: `${totalFiltrado > 0 ? Math.max(0, Math.min(100, monto / totalFiltrado * 100)) : 0}%` }} />
+                </div>
               </div>
-            )}
+            ))}
           </CardContent>
         </Card>
       </div>
 
       {/* Dialog gestión de categorías */}
       <Dialog open={showCategoriasDialog} onOpenChange={setShowCategoriasDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="monarca-theme max-h-[90dvh] overflow-y-auto bg-white sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle>Categorías de gastos</DialogTitle>
+            <DialogDescription>Organizá las categorías disponibles al registrar un gasto.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <Label htmlFor="nueva-categoria">Nueva categoría</Label>
             <div className="flex gap-2">
               <Input
+                id="nueva-categoria"
+                className="min-w-0 bg-white"
                 placeholder="Nueva categoría..."
                 value={nuevaCategoria}
                 onChange={(e) => setNuevaCategoria(e.target.value)}
@@ -329,21 +331,23 @@ export function GastosManager() {
                   }
                 }}
               />
-              <Button onClick={agregarCategoria} className="bg-emerald-700 hover:bg-emerald-800">
-                <Check className="h-4 w-4" />
+              <Button onClick={agregarCategoria} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                <Plus className="h-4 w-4" /> Agregar
               </Button>
             </div>
             <div className="space-y-2">
               {categorias.map((cat) => (
                 <div
                   key={cat.id}
-                  className="flex items-center justify-between rounded-lg border px-3 py-2"
+                  className="flex items-center justify-between gap-3 rounded-lg border bg-primary/5 px-3 py-2"
                 >
                   <span className="text-sm">{cat.nombre}</span>
                   <Button
                     size="icon"
                     variant="ghost"
                     className="text-red-600 hover:text-red-700 h-8 w-8"
+                    aria-label={`Eliminar categoría ${cat.nombre}`}
+                    title={`Eliminar categoría ${cat.nombre}`}
                     onClick={() => eliminarCategoria(cat.id)}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -360,21 +364,25 @@ export function GastosManager() {
 
       {/* Dialog nuevo/editar gasto */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingGasto ? "Editar Gasto" : "Nuevo Gasto"}</DialogTitle>
+        <DialogContent className="monarca-theme flex w-[calc(100%-2rem)] max-h-[90dvh] flex-col gap-0 overflow-hidden bg-white p-0 sm:max-w-[800px]">
+          <DialogHeader className="shrink-0 border-b bg-white p-5 pr-12 text-left">
+            <DialogTitle>{editingGasto ? "Editar gasto" : "Nuevo gasto"}</DialogTitle>
+            <DialogDescription>Completá el detalle, el importe y cómo se pagó.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-col overflow-hidden">
+            <div className="grid min-h-0 gap-6 overflow-y-auto bg-background/50 p-5 sm:p-6 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="min-w-0 space-y-4">
+                <h3 className="text-sm font-semibold text-primary">Detalle del gasto</h3>
             <div className="space-y-2">
               <Label htmlFor="fecha">Fecha del Gasto</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
+                  <Button variant="outline" id="fecha" className="w-full justify-start bg-white text-left font-normal">
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {format(formData.fecha, "PPP", { locale: es })}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="monarca-theme w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={formData.fecha}
@@ -385,17 +393,16 @@ export function GastosManager() {
                 </PopoverContent>
               </Popover>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="categoria">Categoría</Label>
               <Select
                 value={formData.categoria}
                 onValueChange={(value) => setFormData({ ...formData, categoria: value })}
               >
-                <SelectTrigger id="categoria">
+                <SelectTrigger id="categoria" className="w-full bg-white">
                   <SelectValue placeholder="Seleccionar categoría" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="monarca-theme">
                   {categorias.map((cat) => (
                     <SelectItem key={cat.id} value={cat.nombre}>
                       {cat.nombre}
@@ -404,22 +411,25 @@ export function GastosManager() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="descripcion">Descripción</Label>
               <Textarea
                 id="descripcion"
+                className="min-h-24 bg-white"
                 placeholder="Ej: Compra de luces LED, Pago de alquiler..."
                 value={formData.descripcion}
                 onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                 required
               />
             </div>
-
+              </div>
+              <div className="min-w-0 space-y-4 self-start rounded-xl border border-primary/15 bg-primary/5 p-4">
+                <h3 className="text-sm font-semibold text-primary">Importe y pago</h3>
             <div className="space-y-2">
-              <Label htmlFor="monto">Monto</Label>
+              <Label htmlFor="monto">Monto ($)</Label>
               <Input
                 id="monto"
+                className="h-12 bg-white text-xl font-semibold tabular-nums"
                 type="number"
                 step="0.01"
                 min="0"
@@ -429,7 +439,6 @@ export function GastosManager() {
                 required
               />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="metodo_pago">Método de Pago</Label>
               <Select
@@ -438,31 +447,28 @@ export function GastosManager() {
                   setFormData({ ...formData, metodo_pago: value })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="metodo_pago" className="w-full bg-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="monarca-theme">
                   <SelectItem value="efectivo">Efectivo</SelectItem>
                   <SelectItem value="transferencia">Transferencia</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
-                Cancelar
-              </Button>
-              <Button type="submit" className="flex-1 bg-emerald-700 hover:bg-emerald-800">
-                {editingGasto ? "Actualizar" : "Registrar"}
-              </Button>
+              </div>
+            </div>
+            <div className="flex shrink-0 justify-end gap-2 border-t bg-white p-4">
+              <Button type="button" variant="outline" onClick={resetForm}>Cancelar</Button>
+              <Button type="submit">{editingGasto ? "Guardar cambios" : "Registrar gasto"}</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Card>
+      <Card className="min-w-0 gap-4 bg-card">
         <CardHeader>
-          <CardTitle>Historial de Gastos</CardTitle>
+          <CardTitle className="text-base">Historial de gastos</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -472,38 +478,40 @@ export function GastosManager() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="bg-primary/10 hover:bg-primary/10">
                   <TableHead>Fecha</TableHead>
-                  <TableHead>Categoría</TableHead>
                   <TableHead>Descripción</TableHead>
-                  <TableHead>Monto</TableHead>
+                  <TableHead className="text-right">Monto</TableHead>
                   <TableHead>Método de Pago</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {gastosFiltrados.map((gasto) => (
-                  <TableRow key={gasto.id}>
+                  <TableRow key={gasto.id} className="hover:bg-primary/5">
                     <TableCell>{format(new Date(gasto.fecha + "T00:00:00"), "dd/MM/yyyy", { locale: es })}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{gasto.categoria || "Varios"}</Badge>
+                    <TableCell className="min-w-48 max-w-sm whitespace-normal">
+                      <p className="font-medium">{gasto.descripcion}</p>
+                      <span className="mt-1 inline-block text-xs text-muted-foreground">{gasto.categoria || "Varios"}</span>
                     </TableCell>
-                    <TableCell className="max-w-xs">{gasto.descripcion}</TableCell>
-                    <TableCell className="font-medium text-red-700">${Number(gasto.monto).toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(Number(gasto.monto))}</TableCell>
                     <TableCell>
-                      <Badge variant={gasto.metodo_pago === "efectivo" ? "default" : "secondary"}>
+                      <Badge variant="outline" className="gap-1.5 border-primary/20 bg-primary/5 font-normal text-primary">
+                        {gasto.metodo_pago === "efectivo" ? <Banknote className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
                         {gasto.metodo_pago === "efectivo" ? "Efectivo" : "Transferencia"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button size="icon" variant="ghost" onClick={() => handleEdit(gasto)}>
+                        <Button size="icon" variant="ghost" className="text-primary" title="Editar gasto" aria-label={`Editar gasto: ${gasto.descripcion}`} onClick={() => handleEdit(gasto)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           size="icon"
                           variant="ghost"
                           className="text-red-600 hover:text-red-700"
+                          title="Eliminar gasto"
+                          aria-label={`Eliminar gasto: ${gasto.descripcion}`}
                           onClick={() => handleDelete(gasto.id)}
                         >
                           <Trash2 className="h-4 w-4" />

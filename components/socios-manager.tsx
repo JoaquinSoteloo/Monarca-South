@@ -22,8 +22,10 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Trash2, Search, AlertTriangle, Crown, Star } from "lucide-react"
+import { Plus, Pencil, Trash2, Search, AlertTriangle, Crown, Star, CheckCircle2, Clock } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
+import { formatGramos } from "@/lib/format"
 
 interface SociosManagerProps {
   initialSocios: Socio[]
@@ -222,12 +224,12 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <Dialog open={dniDuplicadoDialogOpen} onOpenChange={setDniDuplicadoDialogOpen}>
         <DialogContent className="bg-card border-border sm:max-w-md">
           <DialogHeader>
-            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center">
-              <AlertTriangle className="h-6 w-6 text-amber-500" />
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center">
+              <AlertTriangle className="h-6 w-6 text-amber-600" />
             </div>
             <DialogTitle className="text-center text-foreground">DNI ya registrado</DialogTitle>
             <DialogDescription className="text-center text-muted-foreground">
@@ -237,10 +239,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
-            <Button
-              className="w-full bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => setDniDuplicadoDialogOpen(false)}
-            >
+            <Button className="w-full" onClick={() => setDniDuplicadoDialogOpen(false)}>
               Entendido
             </Button>
           </DialogFooter>
@@ -250,8 +249,8 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="bg-card border-border sm:max-w-md">
           <DialogHeader>
-            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-red-500/10 flex items-center justify-center">
-              <AlertTriangle className="h-6 w-6 text-red-500" />
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
+              <AlertTriangle className="h-6 w-6 text-destructive" />
             </div>
             <DialogTitle className="text-center text-foreground">¿Eliminar socio?</DialogTitle>
             <DialogDescription className="text-center text-muted-foreground">
@@ -267,33 +266,27 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
           <DialogFooter className="flex gap-3 sm:gap-3 mt-4">
             <Button
               variant="outline"
-              className="flex-1 border-border bg-transparent"
+              className="flex-1 bg-card"
               onClick={() => setDeleteDialogOpen(false)}
               disabled={deleting}
             >
               Cancelar
             </Button>
-            <Button
-              variant="destructive"
-              className="flex-1 bg-red-600 hover:bg-red-700"
-              onClick={handleConfirmDelete}
-              disabled={deleting}
-            >
+            <Button variant="destructive" className="flex-1" onClick={handleConfirmDelete} disabled={deleting}>
               {deleting ? "Eliminando..." : "Sí, eliminar"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nombre o DNI..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 bg-background border-border"
-          />
+      {/* Encabezado */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-[26px] font-semibold leading-tight text-foreground">Socios</h1>
+          <p className="text-sm text-muted-foreground">
+            {filteredSocios.length} socio{filteredSocios.length === 1 ? "" : "s"} activo
+            {filteredSocios.length === 1 ? "" : "s"}
+          </p>
         </div>
         <Dialog
           open={isOpen}
@@ -303,198 +296,263 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
           }}
         >
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700">
+            <Button className="shrink-0">
               <Plus className="h-4 w-4 mr-2" />
-              Agregar Socio
+              Agregar socio
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-card border-border max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="text-foreground">{editingSocio ? "Editar Socio" : "Nuevo Socio"}</DialogTitle>
+          <DialogContent
+            className="w-[calc(100%-2rem)] sm:max-w-[960px] max-h-[90dvh] grid-rows-[auto_1fr_auto] gap-0 overflow-hidden bg-background p-0"
+          >
+            <DialogHeader className="border-b border-border bg-card px-6 py-4 pr-12">
+              <DialogTitle className="text-foreground">{editingSocio ? "Editar socio" : "Nuevo socio"}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="nombre">
-                    Nombre <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="nombre"
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    required
-                    className="bg-background border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="apellido">
-                    Apellido <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="apellido"
-                    value={formData.apellido}
-                    onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
-                    required
-                    className="bg-background border-border"
-                  />
+
+            <form id="socio-form" onSubmit={handleSubmit} className="contents">
+              <div className="min-h-0 overflow-y-auto bg-background px-6 py-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  {/* Columna izquierda: información personal */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-primary">Información personal</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="nombre">
+                          Nombre <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id="nombre"
+                          value={formData.nombre}
+                          onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                          required
+                          className="bg-card"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="apellido">
+                          Apellido <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id="apellido"
+                          value={formData.apellido}
+                          onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
+                          required
+                          className="bg-card"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="dni">
+                          DNI <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id="dni"
+                          value={formData.dni}
+                          onChange={handleDniChange}
+                          placeholder="12.345.678"
+                          required
+                          className="bg-card"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="telefono">Teléfono (opcional)</Label>
+                        <Input
+                          id="telefono"
+                          value={formData.telefono}
+                          onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                          className="bg-card"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email (opcional)</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="bg-card"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Columna derecha: membresía y consumo */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-primary">Membresía</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="estado_reprocan">
+                          Estado Reprocan <span className="text-destructive">*</span>
+                        </Label>
+                        <Select
+                          value={formData.estado_reprocan}
+                          onValueChange={(value: "Activo" | "Pendiente") =>
+                            setFormData({ ...formData, estado_reprocan: value })
+                          }
+                          required
+                        >
+                          <SelectTrigger className="w-full bg-card">
+                            <SelectValue placeholder="Seleccionar estado" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Activo">Activo</SelectItem>
+                            <SelectItem value="Pendiente">Pendiente</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="sucursal">
+                          Sucursal <span className="text-destructive">*</span>
+                        </Label>
+                        <Select
+                          value={formData.sucursal_id}
+                          onValueChange={(value) => setFormData({ ...formData, sucursal_id: value })}
+                          required
+                        >
+                          <SelectTrigger className="w-full bg-card">
+                            <SelectValue placeholder="Seleccionar sucursal" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sucursales.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div
+                      className={cn(
+                        "flex items-center space-x-3 rounded-lg border p-3 transition-colors",
+                        formData.es_miembro ? "border-accent/40 bg-accent/10" : "border-border bg-card",
+                      )}
+                    >
+                      <Checkbox
+                        id="es_miembro"
+                        checked={formData.es_miembro}
+                        onCheckedChange={(checked) =>
+                          setFormData({
+                            ...formData,
+                            es_miembro: checked === true,
+                            es_vip: checked === true ? false : formData.es_vip,
+                          })
+                        }
+                        className="border-accent data-[state=checked]:bg-accent data-[state=checked]:border-accent"
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor="es_miembro" className="flex items-center gap-2 cursor-pointer">
+                          <Crown className="h-4 w-4 text-accent" />
+                          <span className="font-medium text-foreground">Es miembro del club</span>
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Los miembros trabajan en el club y tienen precio de miembro
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className={cn(
+                        "flex items-center space-x-3 rounded-lg border p-3 transition-colors",
+                        formData.es_vip ? "border-primary/40 bg-primary/10" : "border-border bg-card",
+                      )}
+                    >
+                      <Checkbox
+                        id="es_vip"
+                        checked={formData.es_vip}
+                        onCheckedChange={(checked) =>
+                          setFormData({
+                            ...formData,
+                            es_vip: checked === true,
+                            es_miembro: checked === true ? false : formData.es_miembro,
+                          })
+                        }
+                        className="border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor="es_vip" className="flex items-center gap-2 cursor-pointer">
+                          <Star className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-foreground">Es socio VIP</span>
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Los socios VIP no trabajan pero tienen precio especial VIP
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 border-t border-border pt-4">
+                      <h3 className="text-sm font-semibold text-primary">Consumo</h3>
+                      <div className="space-y-2">
+                        <Label htmlFor="gramos_mensuales">
+                          Gramos por mes <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id="gramos_mensuales"
+                          type="number"
+                          min="1"
+                          max="500"
+                          value={formData.gramos_mensuales}
+                          onChange={(e) => setFormData({ ...formData, gramos_mensuales: e.target.value })}
+                          placeholder="Ej: 30"
+                          required
+                          className="bg-card"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="dni">
-                    DNI <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="dni"
-                    value={formData.dni}
-                    onChange={handleDniChange}
-                    placeholder="12.345.678"
-                    required
-                    className="bg-background border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="estado_reprocan">
-                    Estado Reprocan <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={formData.estado_reprocan}
-                    onValueChange={(value: "Activo" | "Pendiente") =>
-                      setFormData({ ...formData, estado_reprocan: value })
-                    }
-                    required
-                  >
-                    <SelectTrigger className="bg-background border-border">
-                      <SelectValue placeholder="Seleccionar estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Activo">Activo</SelectItem>
-                      <SelectItem value="Pendiente">Pendiente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="sucursal">
-                    Sucursal <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={formData.sucursal_id}
-                    onValueChange={(value) => setFormData({ ...formData, sucursal_id: value })}
-                    required
-                  >
-                    <SelectTrigger className="bg-background border-border">
-                      <SelectValue placeholder="Seleccionar sucursal" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sucursales.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="gramos_mensuales">
-                    Gramos por mes <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="gramos_mensuales"
-                    type="number"
-                    min="1"
-                    max="500"
-                    value={formData.gramos_mensuales}
-                    onChange={(e) => setFormData({ ...formData, gramos_mensuales: e.target.value })}
-                    placeholder="Ej: 30"
-                    required
-                    className="bg-background border-border"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center space-x-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                <Checkbox
-                  id="es_miembro"
-                  checked={formData.es_miembro}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, es_miembro: checked === true, es_vip: checked === true ? false : formData.es_vip })
+
+              <DialogFooter className="border-t border-border bg-card px-6 py-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="bg-card"
+                  onClick={() => {
+                    setIsOpen(false)
+                    resetForm()
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    loading ||
+                    !formData.nombre ||
+                    !formData.apellido ||
+                    !formData.dni ||
+                    !formData.estado_reprocan ||
+                    !formData.sucursal_id ||
+                    !formData.gramos_mensuales
                   }
-                  className="border-amber-500 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
-                />
-                <div className="flex-1">
-                  <Label htmlFor="es_miembro" className="flex items-center gap-2 cursor-pointer">
-                    <Crown className="h-4 w-4 text-amber-500" />
-                    <span className="font-medium text-foreground">Es miembro del club</span>
-                  </Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Los miembros trabajan en el club y tienen precio de miembro
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <Checkbox
-                  id="es_vip"
-                  checked={formData.es_vip}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, es_vip: checked === true, es_miembro: checked === true ? false : formData.es_miembro })
-                  }
-                  className="border-blue-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                />
-                <div className="flex-1">
-                  <Label htmlFor="es_vip" className="flex items-center gap-2 cursor-pointer">
-                    <Star className="h-4 w-4 text-blue-500" />
-                    <span className="font-medium text-foreground">Es socio VIP</span>
-                  </Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Los socios VIP no trabajan pero tienen precio especial VIP
-                  </p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email (opcional)</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="bg-background border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="telefono">Teléfono (opcional)</Label>
-                  <Input
-                    id="telefono"
-                    value={formData.telefono}
-                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                    className="bg-background border-border"
-                  />
-                </div>
-              </div>
-              <Button
-                type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700"
-                disabled={
-                  loading ||
-                  !formData.nombre ||
-                  !formData.apellido ||
-                  !formData.dni ||
-                  !formData.estado_reprocan ||
-                  !formData.sucursal_id ||
-                  !formData.gramos_mensuales
-                }
-              >
-                {loading ? "Guardando..." : editingSocio ? "Actualizar" : "Agregar"}
-              </Button>
+                >
+                  {loading ? "Guardando..." : editingSocio ? "Actualizar" : "Agregar"}
+                </Button>
+              </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      <Card className="bg-card border-border">
+      {/* Búsqueda */}
+      <Card className="bg-card border-border py-4">
+        <CardContent>
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre o DNI..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 bg-card"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card border-border gap-3">
         <CardHeader>
-          <CardTitle className="text-foreground">Lista de Socios ({filteredSocios.length})</CardTitle>
+          <CardTitle className="text-foreground">Lista de socios ({filteredSocios.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {filteredSocios.length === 0 ? (
@@ -502,106 +560,139 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
               {search ? "No se encontraron socios" : "No hay socios registrados"}
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="rounded-md border border-border overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-border">
-                    <TableHead className="text-muted-foreground">Nombre</TableHead>
-                    <TableHead className="text-muted-foreground">DNI</TableHead>
-                    <TableHead className="text-muted-foreground">Estado Reprocan</TableHead>
-                    <TableHead className="text-muted-foreground">Sucursal</TableHead>
-                    <TableHead className="text-muted-foreground">Gramos/Mes</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Consumido/Mes</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Acciones</TableHead>
+                  <TableRow className="bg-primary/10 hover:bg-primary/10">
+                    <TableHead className="text-foreground">Socio</TableHead>
+                    <TableHead className="text-foreground">Estado Reprocan</TableHead>
+                    <TableHead className="text-foreground">Sucursal</TableHead>
+                    <TableHead className="text-foreground">Consumo mensual</TableHead>
+                    <TableHead className="text-center text-foreground w-24">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredSocios.map((socio) => {
-                    const limite = socio.gramos_mensuales || 0
+                    // gramos_mensuales null/undefined = sin límite configurado; 0 es un
+                    // límite real (no consumir nada), no se trata como "sin configurar".
+                    const limiteConfigurado = socio.gramos_mensuales !== null && socio.gramos_mensuales !== undefined
+                    const limite = socio.gramos_mensuales ?? 0
                     const consumido = socio.gramos_consumidos_mes
-                    const porcentaje = limite > 0 ? (consumido / limite) * 100 : 0
+                    const excedente = Math.max(0, consumido - limite)
+                    const excedido = limiteConfigurado && excedente > 0
+                    const porcentaje = !limiteConfigurado ? 0 : limite > 0 ? (consumido / limite) * 100 : consumido > 0 ? 100 : 0
+                    const porcentajeBarra = Math.min(100, Math.max(0, porcentaje))
+                    const cercaDelLimite = limiteConfigurado && !excedido && limite > 0 && porcentaje >= 80
 
                     return (
-                      <TableRow key={socio.id} className="border-border">
-                        <TableCell className="font-medium text-foreground">
-                          <div className="flex items-center gap-2">
-                            {socio.apellido}, {socio.nombre}
-                            {socio.es_miembro && (
-                              <Badge variant="outline" className="border-amber-400 text-amber-500 bg-amber-500/10">
-                                <Crown className="h-3 w-3 mr-1" />
-                                Miembro
-                              </Badge>
-                            )}
-                            {socio.es_vip && (
-                              <Badge variant="outline" className="border-blue-400 text-blue-500 bg-blue-500/10">
-                                <Star className="h-3 w-3 mr-1" />
-                                VIP
-                              </Badge>
-                            )}
+                      <TableRow key={socio.id} className="hover:bg-muted/40">
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-foreground">
+                                {socio.apellido}, {socio.nombre}
+                              </span>
+                              {socio.es_miembro && (
+                                <Badge variant="outline" className="border-accent/50 bg-accent/10 text-accent-foreground">
+                                  <Crown className="h-3 w-3 mr-1" />
+                                  Miembro
+                                </Badge>
+                              )}
+                              {socio.es_vip && (
+                                <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
+                                  <Star className="h-3 w-3 mr-1" />
+                                  VIP
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground select-text">{formatDni(socio.dni)}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{formatDni(socio.dni)}</TableCell>
                         <TableCell>
                           {socio.estado_reprocan ? (
-                            <span
-                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            <Badge
+                              variant="outline"
+                              className={
                                 socio.estado_reprocan === "Activo"
-                                  ? "bg-emerald-500/10 text-emerald-500"
-                                  : "bg-amber-500/10 text-amber-500"
-                              }`}
+                                  ? "border-primary/30 bg-primary/10 text-primary"
+                                  : "border-amber-300 bg-amber-50 text-amber-700"
+                              }
                             >
+                              {socio.estado_reprocan === "Activo" ? (
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                              ) : (
+                                <Clock className="h-3 w-3 mr-1" />
+                              )}
                               {socio.estado_reprocan}
-                            </span>
+                            </Badge>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
                         <TableCell>
                           {socio.sucursal ? (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-500">
-                              {socio.sucursal.nombre}
-                            </span>
+                            <span className="text-sm text-foreground">{socio.sucursal.nombre}</span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          {socio.gramos_mensuales ? (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500">
-                              {socio.gramos_mensuales}g/mes
-                            </span>
+                        <TableCell className="min-w-[11rem]">
+                          {!limiteConfigurado ? (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              {formatGramos(consumido)} consumidos
+                              <span className="text-xs">(sin límite configurado)</span>
+                            </div>
                           ) : (
-                            <span className="text-muted-foreground">-</span>
+                            <div className="flex flex-col gap-1">
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 text-sm tabular-nums",
+                                  excedido
+                                    ? "font-medium text-destructive"
+                                    : cercaDelLimite
+                                      ? "font-medium text-amber-700"
+                                      : "text-foreground",
+                                )}
+                              >
+                                {(excedido || cercaDelLimite) && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                                {formatGramos(consumido)} de {formatGramos(limite)}
+                              </span>
+                              <div className="h-1.5 w-full max-w-32 overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className={cn(
+                                    "h-full rounded-full",
+                                    excedido ? "bg-destructive" : cercaDelLimite ? "bg-amber-500" : "bg-primary",
+                                  )}
+                                  style={{ width: `${porcentajeBarra}%` }}
+                                />
+                              </div>
+                              {excedido && (
+                                <span className="text-xs font-medium text-destructive">
+                                  Excedido por {formatGramos(excedente)}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <span
-                            className={
-                              porcentaje >= 100
-                                ? "text-red-500 font-medium"
-                                : porcentaje >= 80
-                                  ? "text-amber-500"
-                                  : "text-emerald-500"
-                            }
-                          >
-                            {consumido}g
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1">
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="sm"
                               onClick={() => handleEdit(socio)}
-                              className="hover:bg-emerald-500/10 hover:text-emerald-500"
+                              className="h-9 w-9 p-0 hover:bg-primary/10"
+                              title="Editar socio"
+                              aria-label={`Editar ${socio.nombre} ${socio.apellido}`}
                             >
-                              <Pencil className="h-4 w-4" />
+                              <Pencil className="h-4 w-4 text-primary" />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="sm"
                               onClick={() => openDeleteDialog(socio)}
-                              className="hover:bg-red-500/10 hover:text-red-500"
+                              className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              title="Eliminar socio"
+                              aria-label={`Eliminar ${socio.nombre} ${socio.apellido}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

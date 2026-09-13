@@ -9,20 +9,62 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Pencil, Trash2, Scan } from "lucide-react"
+import { Pencil, Trash2, PackageX, PackageSearch, PackageCheck } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { BarcodeScanner } from "./barcode-scanner"
+import { cn } from "@/lib/utils"
+import { formatCurrency, formatNumero } from "@/lib/format"
 
 interface ProductosManagerProps {
   initialProductos: Producto[]
+  // El diálogo de alta/edición y el escáner se abren desde botones que ahora
+  // viven junto a las pestañas (ver components/stock-tabs.tsx), para
+  // compartir la misma fila. El estado de apertura lo controla ese padre;
+  // acá sigue toda la lógica de guardado y de escaneo, sin cambios.
+  dialogOpen: boolean
+  onDialogOpenChange: (open: boolean) => void
+  scannerOpen: boolean
+  onScannerOpenChange: (open: boolean) => void
 }
 
-export function ProductosManager({ initialProductos }: ProductosManagerProps) {
+// Mismo umbral de "stock bajo" que ya usaba esta tabla (cantidad < 5) —
+// distinto del de Genéticas (gramos < 100), no se mezclan. Sólo se subdivide
+// en 0 para diferenciar "sin stock" de "stock bajo", igual que en Genéticas.
+function getDisponibilidadProducto(cantidad: number) {
+  if (cantidad <= 0) {
+    return {
+      label: "Sin stock",
+      Icon: PackageX,
+      textClass: "text-muted-foreground",
+      bgClass: "bg-muted text-muted-foreground",
+    }
+  }
+  if (cantidad < 5) {
+    return {
+      label: "Stock bajo",
+      Icon: PackageSearch,
+      textClass: "text-amber-700",
+      bgClass: "bg-amber-50 text-amber-700",
+    }
+  }
+  return {
+    label: "Disponible",
+    Icon: PackageCheck,
+    textClass: "text-primary",
+    bgClass: "bg-primary/10 text-primary",
+  }
+}
+
+export function ProductosManager({
+  initialProductos,
+  dialogOpen,
+  onDialogOpenChange,
+  scannerOpen,
+  onScannerOpenChange,
+}: ProductosManagerProps) {
   const [productos, setProductos] = useState(initialProductos)
-  const [isOpen, setIsOpen] = useState(false)
-  const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [editingProducto, setEditingProducto] = useState<Producto | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -46,6 +88,11 @@ export function ProductosManager({ initialProductos }: ProductosManagerProps) {
     setEditingProducto(null)
   }
 
+  const closeAndReset = () => {
+    onDialogOpenChange(false)
+    resetForm()
+  }
+
   const handleScan = async (barcode: string) => {
     const supabase = createClient()
 
@@ -64,7 +111,7 @@ export function ProductosManager({ initialProductos }: ProductosManagerProps) {
         precio: "",
         cantidad: "",
       })
-      setIsOpen(true)
+      onDialogOpenChange(true)
     }
   }
 
@@ -99,8 +146,7 @@ export function ProductosManager({ initialProductos }: ProductosManagerProps) {
     }
 
     setLoading(false)
-    setIsOpen(false)
-    resetForm()
+    closeAndReset()
     router.refresh()
   }
 
@@ -113,7 +159,7 @@ export function ProductosManager({ initialProductos }: ProductosManagerProps) {
       precio: producto.precio.toString(),
       cantidad: producto.cantidad.toString(),
     })
-    setIsOpen(true)
+    onDialogOpenChange(true)
   }
 
   const handleDelete = async (id: string) => {
@@ -128,59 +174,53 @@ export function ProductosManager({ initialProductos }: ProductosManagerProps) {
     }
   }
 
+  const activos = productos.filter((p) => p.activo)
+
   return (
-    <>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <p className="text-muted-foreground">Administra productos adicionales (rosin, accesorios, etc)</p>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setIsScannerOpen(true)}
-              variant="outline"
-              className="border-emerald-600 text-emerald-600 hover:bg-emerald-600/10"
-            >
-              <Scan className="h-4 w-4 mr-2" />
-              Escanear Código
-            </Button>
-            <Dialog
-              open={isOpen}
-              onOpenChange={(open) => {
-                setIsOpen(open)
-                if (!open) resetForm()
-              }}
-            >
-              <DialogTrigger asChild>
-                <Button className="bg-emerald-600 hover:bg-emerald-700">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Agregar Producto
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-card border-border">
-                <DialogHeader>
-                  <DialogTitle className="text-foreground">
-                    {editingProducto ? "Editar Producto" : "Nuevo Producto"}
-                  </DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="flex flex-col gap-6">
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          onDialogOpenChange(open)
+          if (!open) resetForm()
+        }}
+      >
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[800px] max-h-[90dvh] grid-rows-[auto_1fr_auto] gap-0 overflow-hidden bg-background p-0">
+          <DialogHeader className="border-b border-border bg-card px-6 py-4 pr-12">
+            <DialogTitle className="text-foreground">
+              {editingProducto ? "Editar producto" : "Nuevo producto"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <form id="producto-form" onSubmit={handleSubmit} className="contents">
+            <div className="min-h-0 overflow-y-auto bg-background px-6 py-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.3fr_1fr]">
+                {/* Columna izquierda: información del producto */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-primary">Información del producto</h3>
                   <div className="space-y-2">
-                    <Label htmlFor="codigo_barras">Código de Barras (opcional)</Label>
-                    <Input
-                      id="codigo_barras"
-                      value={formData.codigo_barras}
-                      onChange={(e) => setFormData({ ...formData, codigo_barras: e.target.value })}
-                      placeholder="7891234567890"
-                      className="bg-background border-border"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="nombre">Nombre del Producto</Label>
+                    <Label htmlFor="nombre">
+                      Nombre <span className="text-destructive">*</span>
+                    </Label>
                     <Input
                       id="nombre"
                       value={formData.nombre}
                       onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                       placeholder="Ej: Rosin Premium 1g"
                       required
-                      className="bg-background border-border"
+                      className="bg-card"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="codigo_barras">Código de barras (opcional)</Label>
+                    <Input
+                      id="codigo_barras"
+                      type="text"
+                      inputMode="numeric"
+                      value={formData.codigo_barras}
+                      onChange={(e) => setFormData({ ...formData, codigo_barras: e.target.value })}
+                      placeholder="7891234567890"
+                      className="bg-card"
                     />
                   </div>
                   <div className="space-y-2">
@@ -190,26 +230,40 @@ export function ProductosManager({ initialProductos }: ProductosManagerProps) {
                       value={formData.descripcion}
                       onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                       placeholder="Descripción del producto..."
-                      className="bg-background border-border"
+                      className="bg-card"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                </div>
+
+                {/* Columna derecha: precio y existencias */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-primary">Precio y existencias</h3>
+                  <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
                     <div className="space-y-2">
-                      <Label htmlFor="precio">Precio ($)</Label>
-                      <Input
-                        id="precio"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.precio}
-                        onChange={(e) => setFormData({ ...formData, precio: e.target.value })}
-                        placeholder="0"
-                        required
-                        className="bg-background border-border"
-                      />
+                      <Label htmlFor="precio">
+                        Precio <span className="text-destructive">*</span>
+                      </Label>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          $
+                        </span>
+                        <Input
+                          id="precio"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.precio}
+                          onChange={(e) => setFormData({ ...formData, precio: e.target.value })}
+                          placeholder="0"
+                          required
+                          className="bg-card pl-7"
+                        />
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="cantidad">Cantidad</Label>
+                      <Label htmlFor="cantidad">
+                        Cantidad <span className="text-destructive">*</span>
+                      </Label>
                       <Input
                         id="cantidad"
                         type="number"
@@ -218,90 +272,182 @@ export function ProductosManager({ initialProductos }: ProductosManagerProps) {
                         onChange={(e) => setFormData({ ...formData, cantidad: e.target.value })}
                         placeholder="0"
                         required
-                        className="bg-background border-border"
+                        className="bg-card"
                       />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
-                    {loading ? "Guardando..." : editingProducto ? "Actualizar" : "Agregar"}
-                  </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
+                </div>
+              </div>
+            </div>
 
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle className="text-foreground">Inventario de Productos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {productos.filter((p) => p.activo).length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No hay productos registrados. Agrega uno para comenzar.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border">
-                    <TableHead className="text-muted-foreground">Código</TableHead>
-                    <TableHead className="text-muted-foreground">Nombre</TableHead>
-                    <TableHead className="text-muted-foreground">Descripción</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Precio</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Cantidad</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {productos
-                    .filter((p) => p.activo)
-                    .map((producto) => (
-                      <TableRow key={producto.id} className="border-border">
-                        <TableCell className="font-mono text-sm text-muted-foreground">
-                          {producto.codigo_barras || "-"}
-                        </TableCell>
-                        <TableCell className="font-medium text-foreground">{producto.nombre}</TableCell>
-                        <TableCell className="text-muted-foreground max-w-xs truncate">
-                          {producto.descripcion || "-"}
-                        </TableCell>
-                        <TableCell className="text-right text-foreground font-medium">${producto.precio}</TableCell>
-                        <TableCell
-                          className={`text-right font-medium ${
-                            producto.cantidad < 5 ? "text-amber-500" : "text-emerald-500"
-                          }`}
+            <DialogFooter className="border-t border-border bg-card px-6 py-4">
+              <Button type="button" variant="outline" className="bg-card" onClick={closeAndReset}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Guardando..." : editingProducto ? "Guardar cambios" : "Agregar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <BarcodeScanner isOpen={scannerOpen} onClose={() => onScannerOpenChange(false)} onScan={handleScan} />
+
+      <Card className="bg-card border-border gap-3">
+        <CardHeader>
+          <CardTitle className="text-foreground">Inventario de productos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {activos.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              No hay productos registrados. Agregá uno para comenzar.
+            </p>
+          ) : (
+            <>
+              {/* Escritorio/tablet: tabla */}
+              <div className="hidden rounded-md border border-border overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-primary/10 hover:bg-primary/10">
+                      <TableHead className="text-foreground">Producto</TableHead>
+                      <TableHead className="text-foreground">Disponible</TableHead>
+                      <TableHead className="text-right text-foreground">Precio</TableHead>
+                      <TableHead className="text-center text-foreground w-24">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activos.map((producto) => {
+                      const disponibilidad = getDisponibilidadProducto(producto.cantidad)
+                      return (
+                        <TableRow key={producto.id} className="hover:bg-muted/40">
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-foreground">{producto.nombre}</span>
+                              {producto.codigo_barras && (
+                                <span className="text-xs text-muted-foreground select-text font-mono">
+                                  {producto.codigo_barras}
+                                </span>
+                              )}
+                              {producto.descripcion && (
+                                <span className="text-xs text-muted-foreground line-clamp-1 max-w-xs">
+                                  {producto.descripcion}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium text-foreground tabular-nums">
+                                {formatNumero(producto.cantidad)}
+                              </span>
+                              <span className={cn("inline-flex items-center gap-1 text-xs", disponibilidad.textClass)}>
+                                <disponibilidad.Icon className="h-3 w-3 shrink-0" />
+                                {disponibilidad.label}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className="font-medium text-foreground tabular-nums">
+                              {formatCurrency(producto.precio)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEdit(producto)}
+                                className="h-9 w-9 p-0 hover:bg-primary/10"
+                                title="Editar producto"
+                                aria-label={`Editar ${producto.nombre}`}
+                              >
+                                <Pencil className="h-4 w-4 text-primary" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(producto.id)}
+                                className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                title="Eliminar producto"
+                                aria-label={`Eliminar ${producto.nombre}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Móvil: fichas */}
+              <div className="flex flex-col gap-3 md:hidden">
+                {activos.map((producto) => {
+                  const disponibilidad = getDisponibilidadProducto(producto.cantidad)
+                  return (
+                    <div key={producto.id} className="rounded-lg border border-border bg-card p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground">{producto.nombre}</p>
+                          {producto.codigo_barras && (
+                            <p className="text-xs text-muted-foreground select-text font-mono mt-0.5">
+                              {producto.codigo_barras}
+                            </p>
+                          )}
+                          {producto.descripcion && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{producto.descripcion}</p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(producto)}
+                            className="h-9 w-9 p-0 hover:bg-primary/10"
+                            title="Editar producto"
+                            aria-label={`Editar ${producto.nombre}`}
+                          >
+                            <Pencil className="h-4 w-4 text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(producto.id)}
+                            className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            title="Eliminar producto"
+                            aria-label={`Eliminar ${producto.nombre}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div
+                          className={cn(
+                            "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm",
+                            disponibilidad.bgClass,
+                          )}
                         >
-                          {producto.cantidad}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(producto)}
-                              className="hover:bg-emerald-500/10 hover:text-emerald-500"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDelete(producto.id)}
-                              className="hover:bg-red-500/10 hover:text-red-500"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <BarcodeScanner isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onScan={handleScan} />
-    </>
+                          <disponibilidad.Icon className="h-4 w-4 shrink-0" />
+                          <span className="font-medium tabular-nums">{formatNumero(producto.cantidad)}</span>
+                          <span className="text-xs">{disponibilidad.label}</span>
+                        </div>
+                        <span className="font-medium text-foreground tabular-nums">
+                          {formatCurrency(producto.precio)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }

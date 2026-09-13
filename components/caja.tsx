@@ -7,10 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, TrendingUp, TrendingDown, DollarSign, Receipt } from "lucide-react"
+import { CalendarIcon, Receipt, AlertTriangle, Info } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/format"
 
 interface ResumenCaja {
   ventasEfectivo: number
@@ -24,21 +25,57 @@ interface ResumenCaja {
   transferenciaNeto: number
 }
 
+// Estilo según signo, usado tanto en el bloque de Resultado como en la fila
+// de Balance de la tabla: verde bosque si es positivo, cálido/ámbar si es
+// negativo (con indicación explícita, no sólo color), neutro si es cero.
+function getResultadoEstilo(valor: number) {
+  if (valor > 0) {
+    return {
+      texto: "positivo",
+      claseTexto: "text-primary",
+      claseBloque: "border-primary bg-primary text-primary-foreground",
+      claseSubtexto: "text-primary-foreground/70",
+    }
+  }
+  if (valor < 0) {
+    return {
+      texto: "negativo",
+      claseTexto: "text-amber-800",
+      claseBloque: "border-amber-200 bg-amber-50 text-amber-900",
+      claseSubtexto: "text-amber-800/70",
+    }
+  }
+  return {
+    texto: "neutral",
+    claseTexto: "text-foreground",
+    claseBloque: "border-border bg-card text-foreground",
+    claseSubtexto: "text-muted-foreground",
+  }
+}
+
 export function Caja() {
   const [fechaDesde, setFechaDesde] = useState<Date>(new Date())
   const [fechaHasta, setFechaHasta] = useState<Date>(new Date())
   const [resumen, setResumen] = useState<ResumenCaja | null>(null)
+  // Período efectivamente calculado, independiente de lo que haya en los
+  // selectores: si el usuario cambia las fechas sin apretar "Calcular
+  // resumen", los resultados y esta etiqueta siguen mostrando el rango
+  // anterior — nunca se etiquetan los resultados viejos con fechas nuevas.
+  const [resumenPeriodo, setResumenPeriodo] = useState<{ desde: Date; hasta: Date } | null>(null)
   const [loading, setLoading] = useState(false)
-  const { toast } = useToast()
+  const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
 
   async function calcularResumen() {
     setLoading(true)
+    setError(null)
 
-    const desde = format(fechaDesde, "yyyy-MM-dd")
-    const hasta = format(fechaHasta, "yyyy-MM-dd")
+    const desdeCalculo = fechaDesde
+    const hastaCalculo = fechaHasta
+    const desde = format(desdeCalculo, "yyyy-MM-dd")
+    const hasta = format(hastaCalculo, "yyyy-MM-dd")
 
-    const [{ data: ventas }, { data: gastos }] = await Promise.all([
+    const [ventasResult, gastosResult] = await Promise.all([
       supabase
         .from("ventas")
         .select("total, metodo_pago, created_at")
@@ -46,6 +83,18 @@ export function Caja() {
         .lte("created_at", `${hasta}T23:59:59`),
       supabase.from("gastos").select("monto, metodo_pago, fecha").gte("fecha", desde).lte("fecha", hasta),
     ])
+
+    // Una consulta fallida no es un período sin movimientos: no debe
+    // mostrarse como un resumen válido en cero.
+    if (ventasResult.error || gastosResult.error) {
+      console.error("Error al calcular el resumen de caja:", ventasResult.error || gastosResult.error)
+      setError("No se pudo calcular el resumen. Probá de nuevo.")
+      setLoading(false)
+      return
+    }
+
+    const ventas = ventasResult.data
+    const gastos = gastosResult.data
 
     const ventasEfectivo =
       ventas?.filter((v) => v.metodo_pago === "efectivo").reduce((sum, v) => sum + Number(v.total), 0) || 0
@@ -74,34 +123,41 @@ export function Caja() {
       efectivoNeto,
       transferenciaNeto,
     })
+    setResumenPeriodo({ desde: desdeCalculo, hasta: hastaCalculo })
 
     setLoading(false)
   }
 
   useEffect(() => {
     calcularResumen()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const fechasSinRecalcular =
+    resumenPeriodo !== null &&
+    (fechaDesde.toDateString() !== resumenPeriodo.desde.toDateString() ||
+      fechaHasta.toDateString() !== resumenPeriodo.hasta.toDateString())
+
+  const resultadoEstilo = resumen ? getResultadoEstilo(resumen.gananciaNeta) : null
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">Reporte de Caja</h2>
-        <p className="text-muted-foreground">Visualizá las ganancias y gastos por período</p>
+        <h1 className="text-[26px] font-semibold leading-tight text-foreground">Caja</h1>
+        <p className="text-sm text-muted-foreground">Resumen del período</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Seleccionar Período</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Fecha Desde</label>
+      {/* Filtros compactos */}
+      <Card className="bg-card border-border py-4">
+        <CardContent>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="caja-fecha-desde" className="text-sm font-medium text-foreground">Desde</label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(fechaDesde, "PPP", { locale: es })}
+                  <Button id="caja-fecha-desde" variant="outline" className="w-full justify-start bg-card text-left font-normal sm:w-[180px]">
+                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                    {format(fechaDesde, "dd/MM/yyyy")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -115,13 +171,13 @@ export function Caja() {
               </Popover>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Fecha Hasta</label>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="caja-fecha-hasta" className="text-sm font-medium text-foreground">Hasta</label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(fechaHasta, "PPP", { locale: es })}
+                  <Button id="caja-fecha-hasta" variant="outline" className="w-full justify-start bg-card text-left font-normal sm:w-[180px]">
+                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                    {format(fechaHasta, "dd/MM/yyyy")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -134,162 +190,151 @@ export function Caja() {
                 </PopoverContent>
               </Popover>
             </div>
+
+            <Button onClick={calcularResumen} disabled={loading} className="w-full sm:w-auto">
+              {loading ? "Calculando..." : "Calcular resumen"}
+            </Button>
           </div>
 
-          <Button onClick={calcularResumen} className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={loading}>
-            {loading ? "Calculando..." : "Calcular Resumen"}
-          </Button>
+          {fechasSinRecalcular && (
+            <p className="mt-3 flex items-center gap-1.5 text-xs text-amber-700">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              Cambiaste las fechas — presioná &quot;Calcular resumen&quot; para ver el resultado de este nuevo rango.
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {resumen && (
+      {error && (
+        <p className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {error}
+        </p>
+      )}
+
+      {loading && !resumen && !error && <p className="text-sm text-muted-foreground">Calculando resumen...</p>}
+
+      {resumen && resumenPeriodo && resultadoEstilo && (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-emerald-800 text-base">
-                  <TrendingUp className="h-5 w-5" />
-                  Total Ventas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-emerald-700">${resumen.totalVentas.toFixed(2)}</div>
-                <div className="mt-2 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Efectivo:</span>
-                    <span className="font-medium">${resumen.ventasEfectivo.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Transferencia:</span>
-                    <span className="font-medium">${resumen.ventasTransferencia.toFixed(2)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <section className="min-w-0 space-y-3" aria-label="Resumen del período calculado">
+            <p className="text-sm text-muted-foreground">
+              Período: {format(resumenPeriodo.desde, "dd/MM/yyyy")} – {format(resumenPeriodo.hasta, "dd/MM/yyyy")}
+            </p>
 
-            <Card className="bg-gradient-to-br from-red-50 to-white border-red-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-800 text-base">
-                  <TrendingDown className="h-5 w-5" />
-                  Total Gastos
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-red-700">${resumen.totalGastos.toFixed(2)}</div>
-                <div className="mt-2 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Efectivo:</span>
-                    <span className="font-medium">${resumen.gastosEfectivo.toFixed(2)}</span>
+            <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <Card className={cn("min-w-0 gap-4 shadow-sm lg:min-h-[180px]", resultadoEstilo.claseBloque)}>
+                <CardHeader className="px-5">
+                  <CardTitle className={cn("text-sm font-medium leading-5", resultadoEstilo.claseSubtexto)}>
+                    Resultado del período
+                    {resumen.gananciaNeta < 0 && " (negativo)"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-5">
+                  <div className="break-words text-2xl font-bold leading-9 tabular-nums xl:text-3xl">
+                    {formatCurrency(resumen.gananciaNeta)}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Transferencia:</span>
-                    <span className="font-medium">${resumen.gastosTransferencia.toFixed(2)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  <p className={cn("mt-1 text-xs", resultadoEstilo.claseSubtexto)}>
+                    Ventas menos gastos registrados
+                  </p>
+                </CardContent>
+              </Card>
 
-            <Card
-              className={`bg-gradient-to-br ${
-                resumen.gananciaNeta >= 0
-                  ? "from-blue-50 to-white border-blue-200"
-                  : "from-orange-50 to-white border-orange-200"
-              }`}
-            >
-              <CardHeader>
-                <CardTitle
-                  className={`flex items-center gap-2 text-base ${
-                    resumen.gananciaNeta >= 0 ? "text-blue-800" : "text-orange-800"
-                  }`}
-                >
-                  <DollarSign className="h-5 w-5" />
-                  {resumen.gananciaNeta >= 0 ? "Ganancia Neta" : "Pérdida Neta"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div
-                  className={`text-3xl font-bold ${resumen.gananciaNeta >= 0 ? "text-blue-700" : "text-orange-700"}`}
-                >
-                  ${Math.abs(resumen.gananciaNeta).toFixed(2)}
-                </div>
-                <div className="mt-2 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Efectivo:</span>
-                    <span className={`font-medium ${resumen.efectivoNeto >= 0 ? "text-emerald-700" : "text-red-700"}`}>
-                      ${Math.abs(resumen.efectivoNeto).toFixed(2)}
-                    </span>
+              <Card className="min-w-0 gap-4 border-border bg-card shadow-sm lg:min-h-[180px]">
+                <CardHeader className="px-5">
+                  <CardTitle className="text-sm font-medium leading-5 text-muted-foreground">Total ventas</CardTitle>
+                </CardHeader>
+                <CardContent className="px-5">
+                  <div className="break-words text-2xl font-bold leading-9 text-foreground tabular-nums">
+                    {formatCurrency(resumen.totalVentas)}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Transferencia:</span>
-                    <span
-                      className={`font-medium ${resumen.transferenciaNeto >= 0 ? "text-emerald-700" : "text-red-700"}`}
-                    >
-                      ${Math.abs(resumen.transferenciaNeto).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
 
-          <Card>
+              <Card className="min-w-0 gap-4 border-border bg-card shadow-sm lg:min-h-[180px]">
+                <CardHeader className="px-5">
+                  <CardTitle className="text-sm font-medium leading-5 text-muted-foreground">Total gastos</CardTitle>
+                </CardHeader>
+                <CardContent className="px-5">
+                  <div className="break-words text-2xl font-bold leading-9 text-foreground tabular-nums">
+                    {formatCurrency(resumen.totalGastos)}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              El resultado no representa cobros ni deudas pendientes.
+            </p>
+          </section>
+
+          {/* Desglose por medio de pago */}
+          <Card className="bg-card border-border gap-3">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Receipt className="h-5 w-5" />
-                Resumen Detallado
+              <CardTitle className="flex items-center gap-2 text-foreground">
+                <Receipt className="h-5 w-5 text-primary" />
+                Desglose por medio de pago
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Concepto</TableHead>
-                    <TableHead className="text-right">Efectivo</TableHead>
-                    <TableHead className="text-right">Transferencia</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium">Ingresos (Ventas)</TableCell>
-                    <TableCell className="text-right text-emerald-700">${resumen.ventasEfectivo.toFixed(2)}</TableCell>
-                    <TableCell className="text-right text-emerald-700">
-                      ${resumen.ventasTransferencia.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right font-medium text-emerald-700">
-                      ${resumen.totalVentas.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Egresos (Gastos)</TableCell>
-                    <TableCell className="text-right text-red-700">${resumen.gastosEfectivo.toFixed(2)}</TableCell>
-                    <TableCell className="text-right text-red-700">${resumen.gastosTransferencia.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-medium text-red-700">
-                      ${resumen.totalGastos.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className="bg-muted/50">
-                    <TableCell className="font-bold">Balance</TableCell>
-                    <TableCell
-                      className={`text-right font-bold ${resumen.efectivoNeto >= 0 ? "text-emerald-700" : "text-red-700"}`}
-                    >
-                      ${resumen.efectivoNeto.toFixed(2)}
-                    </TableCell>
-                    <TableCell
-                      className={`text-right font-bold ${
-                        resumen.transferenciaNeto >= 0 ? "text-emerald-700" : "text-red-700"
-                      }`}
-                    >
-                      ${resumen.transferenciaNeto.toFixed(2)}
-                    </TableCell>
-                    <TableCell
-                      className={`text-right font-bold ${resumen.gananciaNeta >= 0 ? "text-emerald-700" : "text-red-700"}`}
-                    >
-                      ${resumen.gananciaNeta.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+              <div className="rounded-md border border-border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-primary/10 hover:bg-primary/10">
+                      <TableHead className="text-foreground">Concepto</TableHead>
+                      <TableHead className="text-right text-foreground">Efectivo</TableHead>
+                      <TableHead className="text-right text-foreground">Transferencia</TableHead>
+                      <TableHead className="text-right text-foreground">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow className="hover:bg-muted/40">
+                      <TableCell className="font-medium text-foreground">Ingresos (ventas)</TableCell>
+                      <TableCell className="text-right text-foreground tabular-nums">
+                        {formatCurrency(resumen.ventasEfectivo)}
+                      </TableCell>
+                      <TableCell className="text-right text-foreground tabular-nums">
+                        {formatCurrency(resumen.ventasTransferencia)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-foreground tabular-nums">
+                        {formatCurrency(resumen.totalVentas)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow className="hover:bg-muted/40">
+                      <TableCell className="font-medium text-foreground">Egresos (gastos)</TableCell>
+                      <TableCell className="text-right text-foreground tabular-nums">
+                        {formatCurrency(resumen.gastosEfectivo)}
+                      </TableCell>
+                      <TableCell className="text-right text-foreground tabular-nums">
+                        {formatCurrency(resumen.gastosTransferencia)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-foreground tabular-nums">
+                        {formatCurrency(resumen.totalGastos)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow className="bg-primary/5 hover:bg-primary/5">
+                      <TableCell className="font-bold text-foreground">Balance</TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-bold tabular-nums",
+                          getResultadoEstilo(resumen.efectivoNeto).claseTexto,
+                        )}
+                      >
+                        {formatCurrency(resumen.efectivoNeto)}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-bold tabular-nums",
+                          getResultadoEstilo(resumen.transferenciaNeto).claseTexto,
+                        )}
+                      >
+                        {formatCurrency(resumen.transferenciaNeto)}
+                      </TableCell>
+                      <TableCell className={cn("text-right font-bold tabular-nums", resultadoEstilo.claseTexto)}>
+                        {formatCurrency(resumen.gananciaNeta)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </>

@@ -31,10 +31,12 @@ import {
   ShoppingCart,
   ImageIcon,
   ArrowLeftRight,
+  Upload,
 } from "lucide-react"
 import { format, startOfDay, endOfDay } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
+import { formatCurrency, formatGramos } from "@/lib/format"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -412,12 +414,12 @@ export function HistorialVentas() {
 
       let detalleString = ""
       if (tieneGenetica) {
-        detalleString += `${totalGramos.toFixed(1)}g`
+        detalleString += formatGramos(totalGramos)
         if (totalEnrolados > 0) detalleString += ` + ${totalEnrolados} enr.`
       }
       if (tieneProducto) {
         if (detalleString) detalleString += " | "
-        detalleString += `${totalCantidadProductos} productos`
+        detalleString += `${totalCantidadProductos} producto${totalCantidadProductos === 1 ? "" : "s"}`
       }
 
       return {
@@ -440,7 +442,7 @@ export function HistorialVentas() {
       enrolados: venta.cantidad_enrolados || 0,
       tieneDetalle: (venta.cantidad_enrolados || 0) > 0 || (Number(venta.gramos) || 0) > 0,
       detalleString:
-        `${totalGramos}g` + (venta.cantidad_enrolados || 0 > 0 ? ` + ${venta.cantidad_enrolados} enr.` : ""),
+        formatGramos(totalGramos) + (venta.cantidad_enrolados || 0 > 0 ? ` + ${venta.cantidad_enrolados} enr.` : ""),
       totalCantidadProductos: 0,
     }
   }
@@ -831,8 +833,7 @@ export function HistorialVentas() {
           const precioEnrolado = detalle.precio_enrolado || 0
 
           rows.push(
-            <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-emerald-500">
-              <TableCell></TableCell>
+            <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-primary">
               <TableCell></TableCell>
               <TableCell></TableCell>
               <TableCell className="font-medium text-foreground">{detalle.genetica?.nombre}</TableCell>
@@ -840,25 +841,25 @@ export function HistorialVentas() {
                 <div className="flex flex-col gap-1">
                   {detalle.gramos > 0 && (
                     <div className="flex items-center gap-1 text-sm">
-                      <Scale className="h-3 w-3 text-emerald-600" />
+                      <Scale className="h-3 w-3 text-primary" />
                       <span>
-                        {detalle.gramos}g x ${precioGramo}/g
+                        {formatGramos(detalle.gramos)} x {formatCurrency(precioGramo)}/g
                       </span>
                     </div>
                   )}
                   {cantEnrolados > 0 && (
-                    <div className="flex items-center gap-1 text-sm text-amber-600">
-                      <Cigarette className="h-3 w-3" />
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Cigarette className="h-3 w-3 text-accent" />
                       <span>
-                        {cantEnrolados} enr. ({pesoPorEnrolado}g c/u) x ${precioEnrolado}
+                        {cantEnrolados} enr. ({formatGramos(pesoPorEnrolado)} c/u) x {formatCurrency(precioEnrolado)}
                       </span>
                     </div>
                   )}
                 </div>
               </TableCell>
               <TableCell></TableCell>
-              <TableCell className="text-right text-muted-foreground">
-                ${Number(detalle.subtotal || 0).toFixed(2)}
+              <TableCell className="text-right text-muted-foreground tabular-nums">
+                {formatCurrency(Number(detalle.subtotal || 0))}
               </TableCell>
               <TableCell></TableCell>
             </TableRow>,
@@ -869,22 +870,21 @@ export function HistorialVentas() {
           const precioProducto = detalle.precio_unitario || 0
 
           rows.push(
-            <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-blue-500">
-              <TableCell></TableCell>
+            <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-accent">
               <TableCell></TableCell>
               <TableCell></TableCell>
               <TableCell className="font-medium text-foreground">{detalle.producto?.nombre}</TableCell>
               <TableCell>
-                <div className="flex items-center gap-1 text-sm text-blue-600">
-                  <ShoppingCart className="h-3 w-3" />
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <ShoppingCart className="h-3 w-3 text-accent" />
                   <span>
-                    {cantidadProducto} x ${precioProducto}
+                    {cantidadProducto} x {formatCurrency(precioProducto)}
                   </span>
                 </div>
               </TableCell>
               <TableCell></TableCell>
-              <TableCell className="text-right text-muted-foreground">
-                ${Number(detalle.subtotal || 0).toFixed(2)}
+              <TableCell className="text-right text-muted-foreground tabular-nums">
+                {formatCurrency(Number(detalle.subtotal || 0))}
               </TableCell>
               <TableCell></TableCell>
             </TableRow>,
@@ -894,12 +894,12 @@ export function HistorialVentas() {
 
       if (venta.notas) {
         rows.push(
-          <TableRow key={`${venta.id}-notas`} className="bg-muted/20 border-l-4 border-l-blue-500">
-            <TableCell colSpan={8} className="py-2">
+          <TableRow key={`${venta.id}-notas`} className="bg-muted/20 border-l-4 border-l-border">
+            <TableCell colSpan={7} className="py-2">
               <div className="flex items-start gap-2 text-sm">
-                <FileText className="h-4 w-4 text-blue-500 mt-0.5" />
+                <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
                 <div>
-                  <span className="font-medium text-blue-600">Nota:</span>{" "}
+                  <span className="font-medium text-foreground">Nota:</span>{" "}
                   <span className="text-muted-foreground">{venta.notas}</span>
                 </div>
               </div>
@@ -918,8 +918,7 @@ export function HistorialVentas() {
       const precioEnrolado = venta.genetica?.precio_por_enrolado || 0
 
       const rows: React.ReactNode[] = [
-        <TableRow key={`${venta.id}-legacy`} className="bg-muted/30 border-l-4 border-l-emerald-500">
-          <TableCell></TableCell>
+        <TableRow key={`${venta.id}-legacy`} className="bg-muted/30 border-l-4 border-l-primary">
           <TableCell></TableCell>
           <TableCell></TableCell>
           <TableCell className="font-medium text-foreground">{venta.genetica?.nombre}</TableCell>
@@ -927,17 +926,17 @@ export function HistorialVentas() {
             <div className="flex flex-col gap-1">
               {gramos > 0 && (
                 <div className="flex items-center gap-1 text-sm">
-                  <Scale className="h-3 w-3 text-emerald-600" />
+                  <Scale className="h-3 w-3 text-primary" />
                   <span>
-                    {gramos}g x ${precioGramo}/g
+                    {formatGramos(gramos)} x {formatCurrency(precioGramo)}/g
                   </span>
                 </div>
               )}
               {enrolados > 0 && (
-                <div className="flex items-center gap-1 text-sm text-amber-600">
-                  <Cigarette className="h-3 w-3" />
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Cigarette className="h-3 w-3 text-accent" />
                   <span>
-                    {enrolados} enr. ({pesoPorEnrolado}g c/u) x ${precioEnrolado}
+                    {enrolados} enr. ({formatGramos(pesoPorEnrolado)} c/u) x {formatCurrency(precioEnrolado)}
                   </span>
                 </div>
               )}
@@ -951,12 +950,12 @@ export function HistorialVentas() {
 
       if (venta.notas) {
         rows.push(
-          <TableRow key={`${venta.id}-legacy-notas`} className="bg-muted/20 border-l-4 border-l-blue-500">
-            <TableCell colSpan={8} className="py-2">
+          <TableRow key={`${venta.id}-legacy-notas`} className="bg-muted/20 border-l-4 border-l-border">
+            <TableCell colSpan={7} className="py-2">
               <div className="flex items-start gap-2 text-sm">
-                <FileText className="h-4 w-4 text-blue-500 mt-0.5" />
+                <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
                 <div>
-                  <span className="font-medium text-blue-600">Nota:</span>{" "}
+                  <span className="font-medium text-foreground">Nota:</span>{" "}
                   <span className="text-muted-foreground">{venta.notas}</span>
                 </div>
               </div>
@@ -989,11 +988,11 @@ export function HistorialVentas() {
     <div className="space-y-6">
       {/* Dialog para confirmar pago (existente) */}
       <Dialog open={!!editingVenta} onOpenChange={(open) => !open && setEditingVenta(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-card">
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
-                <Check className="h-6 w-6 text-emerald-600" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <Check className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <DialogTitle className="text-foreground">Confirmar Pago</DialogTitle>
@@ -1012,7 +1011,7 @@ export function HistorialVentas() {
                     </strong>
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Total: <strong className="text-emerald-600">${Number(editingVenta.total).toFixed(2)}</strong>
+                    Total: <strong className="text-primary">{formatCurrency(Number(editingVenta.total))}</strong>
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -1021,7 +1020,7 @@ export function HistorialVentas() {
                     value={nuevoMetodoPago}
                     onValueChange={(value: "efectivo" | "transferencia") => setNuevoMetodoPago(value)}
                   >
-                    <SelectTrigger className="bg-background border-border">
+                    <SelectTrigger className="bg-card">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1044,14 +1043,13 @@ export function HistorialVentas() {
             )}
           </div>
           <DialogFooter className="flex gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setEditingVenta(null)} className="border-border">
+            <Button variant="outline" onClick={() => setEditingVenta(null)} className="bg-card">
               Cancelar
             </Button>
             <Button
               onClick={handleUpdateMetodoPago}
               disabled={updatingPago}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
+                          >
               {updatingPago ? "Guardando..." : "Confirmar Pago"}
             </Button>
           </DialogFooter>
@@ -1060,11 +1058,11 @@ export function HistorialVentas() {
 
       {/* Dialog para corregir el método de un pago puntual (no toca la venta completa) */}
       <Dialog open={!!editingPagosVenta} onOpenChange={(open) => !open && cerrarCorreccionPagos()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-card">
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-                <ArrowLeftRight className="h-6 w-6 text-blue-600" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <ArrowLeftRight className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <DialogTitle className="text-foreground">Corregir Método de Pago</DialogTitle>
@@ -1100,7 +1098,9 @@ export function HistorialVentas() {
                             year: "numeric",
                           })}
                         </p>
-                        <p className="text-sm font-medium text-foreground">${Number(pago.monto).toFixed(2)}</p>
+                        <p className="text-sm font-medium text-foreground tabular-nums">
+                          {formatCurrency(Number(pago.monto))}
+                        </p>
                       </div>
                       <Select
                         value={valorSeleccionado}
@@ -1109,7 +1109,7 @@ export function HistorialVentas() {
                         }
                         disabled={guardandoMetodoPagoId !== null}
                       >
-                        <SelectTrigger className="w-[160px] bg-background border-border">
+                        <SelectTrigger className="w-[160px] bg-card">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1131,8 +1131,7 @@ export function HistorialVentas() {
                         size="sm"
                         disabled={guardandoMetodoPagoId !== null || valorSeleccionado === pago.metodo_pago}
                         onClick={() => handleCorregirMetodoPago(pago.id, valorSeleccionado)}
-                        className="bg-emerald-600 hover:bg-emerald-700"
-                      >
+                                              >
                         {guardandoMetodoPagoId === pago.id ? "..." : "Guardar"}
                       </Button>
                     </div>
@@ -1142,7 +1141,12 @@ export function HistorialVentas() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={cerrarCorreccionPagos} disabled={guardandoMetodoPagoId !== null}>
+            <Button
+              variant="outline"
+              onClick={cerrarCorreccionPagos}
+              disabled={guardandoMetodoPagoId !== null}
+              className="bg-card"
+            >
               Cerrar
             </Button>
           </DialogFooter>
@@ -1150,11 +1154,11 @@ export function HistorialVentas() {
       </Dialog>
 
       <Dialog open={!!editingFullVenta} onOpenChange={(open) => !open && setEditingFullVenta(null)}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-card">
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
-                <Pencil className="h-6 w-6 text-emerald-600" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <Pencil className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <DialogTitle className="text-foreground">Editar Venta</DialogTitle>
@@ -1176,7 +1180,7 @@ export function HistorialVentas() {
                     variant="outline"
                     className="w-full justify-start text-left font-normal border-border bg-transparent"
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
+                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
                     {format(editFormData.fecha, "dd 'de' MMMM, yyyy", { locale: es })}
                   </Button>
                 </PopoverTrigger>
@@ -1204,7 +1208,7 @@ export function HistorialVentas() {
                 value={editFormData.socio_id}
                 onValueChange={(value) => setEditFormData({ ...editFormData, socio_id: value })}
               >
-                <SelectTrigger className="bg-background border-border">
+                <SelectTrigger className="bg-card">
                   <SelectValue placeholder="Seleccionar socio" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1226,7 +1230,7 @@ export function HistorialVentas() {
                   variant="outline"
                   size="sm"
                   onClick={agregarLineaEdit}
-                  className="h-8 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 bg-transparent"
+                  className="h-8 text-xs border-primary/30 text-primary hover:bg-primary/5 bg-card"
                 >
                   <Plus className="h-3 w-3 mr-1" />
                   Agregar
@@ -1249,7 +1253,7 @@ export function HistorialVentas() {
                           variant="ghost"
                           size="sm"
                           onClick={() => eliminarLineaEdit(index)}
-                          className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
+                          className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1296,20 +1300,20 @@ export function HistorialVentas() {
                         )
                       }}
                     >
-                      <SelectTrigger className="bg-background border-border">
+                      <SelectTrigger className="bg-card">
                         <SelectValue placeholder="Seleccionar genética o producto" />
                       </SelectTrigger>
                       <SelectContent>
                         <div className="text-sm font-semibold text-muted-foreground px-2 py-1">Genéticas</div>
                         {geneticas.map((g) => (
                           <SelectItem key={g.id} value={g.id}>
-                            {g.nombre} (${g.precio_por_gramo}/g)
+                            {g.nombre} ({formatCurrency(g.precio_por_gramo)}/g)
                           </SelectItem>
                         ))}
                         <div className="text-sm font-semibold text-muted-foreground px-2 py-1 mt-2">Productos</div>
                         {productos.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.nombre} (${p.precio})
+                            {p.nombre} ({formatCurrency(p.precio)})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1325,7 +1329,7 @@ export function HistorialVentas() {
                             min="0"
                             value={linea.gramos || ""}
                             onChange={(e) => actualizarLineaEdit(index, "gramos", e.target.value)}
-                            className="bg-background border-border"
+                            className="bg-card"
                           />
                         </div>
                         <div className="space-y-1">
@@ -1335,7 +1339,7 @@ export function HistorialVentas() {
                             min="0"
                             value={linea.cantidad_enrolados || ""}
                             onChange={(e) => actualizarLineaEdit(index, "cantidad_enrolados", e.target.value)}
-                            className="bg-background border-border"
+                            className="bg-card"
                           />
                         </div>
                       </div>
@@ -1350,7 +1354,7 @@ export function HistorialVentas() {
                           min="0"
                           value={linea.peso_por_enrolado || ""}
                           onChange={(e) => actualizarLineaEdit(index, "peso_por_enrolado", e.target.value)}
-                          className="bg-background border-border"
+                          className="bg-card"
                         />
                       </div>
                     )}
@@ -1363,7 +1367,7 @@ export function HistorialVentas() {
                           min="0"
                           value={linea.cantidad_producto || ""}
                           onChange={(e) => actualizarLineaEdit(index, "cantidad_producto", e.target.value)}
-                          className="bg-background border-border"
+                          className="bg-card"
                         />
                       </div>
                     )}
@@ -1379,16 +1383,16 @@ export function HistorialVentas() {
                 value={editFormData.notas}
                 onChange={(e) => setEditFormData({ ...editFormData, notas: e.target.value })}
                 placeholder="Notas adicionales..."
-                className="bg-background border-border"
+                className="bg-card"
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingFullVenta(null)}>
+            <Button variant="outline" onClick={() => setEditingFullVenta(null)} className="bg-card">
               Cancelar
             </Button>
-            <Button onClick={handleSaveEdit} disabled={savingEdit} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={handleSaveEdit} disabled={savingEdit} >
               {savingEdit ? "Guardando..." : "Guardar Cambios"}
             </Button>
           </DialogFooter>
@@ -1396,10 +1400,10 @@ export function HistorialVentas() {
       </Dialog>
 
       <AlertDialog open={!!ventaABorrar} onOpenChange={(open) => !open && setVentaABorrar(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-card">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <AlertTriangle className="h-5 w-5 text-destructive" />
               ¿Eliminar esta venta?
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -1411,7 +1415,7 @@ export function HistorialVentas() {
                     <strong>Socio:</strong> {ventaABorrar.socio?.apellido}, {ventaABorrar.socio?.nombre}
                   </div>
                   <div>
-                    <strong>Total:</strong> ${ventaABorrar.total?.toLocaleString()}
+                    <strong>Total:</strong> {formatCurrency(Number(ventaABorrar.total))}
                   </div>
                   {ventaABorrar.detalles && ventaABorrar.detalles.length > 0 ? (
                     <div>
@@ -1419,7 +1423,7 @@ export function HistorialVentas() {
                     </div>
                   ) : (
                     <div>
-                      <strong>Gramos a devolver:</strong> {ventaABorrar.gramos}g
+                      <strong>Gramos a devolver:</strong> {formatGramos(ventaABorrar.gramos)}
                     </div>
                   )}
                 </div>
@@ -1427,43 +1431,59 @@ export function HistorialVentas() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteVenta} disabled={borrando} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogCancel className="bg-card">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteVenta}
+              disabled={borrando}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               {borrando ? "Eliminando..." : "Eliminar Venta"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <CalendarIcon className="h-5 w-5 text-emerald-600" />
-            Filtrar por Período
-          </CardTitle>
-        </CardHeader>
+      {/* Encabezado */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-[26px] font-semibold leading-tight text-foreground">Historial de ventas</h1>
+          {fechaDesde && fechaHasta && (
+            <p className="text-sm text-muted-foreground">
+              {format(fechaDesde, "dd/MM/yyyy")} – {format(fechaHasta, "dd/MM/yyyy")}
+            </p>
+          )}
+        </div>
+        <Button
+          onClick={exportarPDF}
+          variant="outline"
+          className="bg-card"
+          disabled={exportando || ventas.length === 0}
+        >
+          <FileDown className="h-4 w-4 mr-2" />
+          {exportando ? "Exportando..." : "Exportar PDF"}
+        </Button>
+      </div>
+
+      {/* Filtros compactos */}
+      <Card className="bg-card border-border py-4">
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-1 space-y-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
+            <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Desde</label>
               <Popover open={popoverDesdeOpen} onOpenChange={setPopoverDesdeOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50/50",
+                      "w-full justify-start bg-card text-left font-normal",
                       !fechaDesde && "text-muted-foreground",
                     )}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
-                    {fechaDesde ? (
-                      format(fechaDesde, "dd 'de' MMMM, yyyy", { locale: es })
-                    ) : (
-                      <span>Seleccionar fecha</span>
-                    )}
+                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                    {fechaDesde ? format(fechaDesde, "dd/MM/yyyy") : <span>Seleccionar</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 border-emerald-200" align="start">
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={fechaDesde}
@@ -1472,32 +1492,27 @@ export function HistorialVentas() {
                       setPopoverDesdeOpen(false)
                     }}
                     locale={es}
-                    className="rounded-md"
                   />
                 </PopoverContent>
               </Popover>
             </div>
 
-            <div className="flex-1 space-y-2">
+            <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Hasta</label>
               <Popover open={popoverHastaOpen} onOpenChange={setPopoverHastaOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50/50",
+                      "w-full justify-start bg-card text-left font-normal",
                       !fechaHasta && "text-muted-foreground",
                     )}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
-                    {fechaHasta ? (
-                      format(fechaHasta, "dd 'de' MMMM, yyyy", { locale: es })
-                    ) : (
-                      <span>Seleccionar fecha</span>
-                    )}
+                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                    {fechaHasta ? format(fechaHasta, "dd/MM/yyyy") : <span>Seleccionar</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 border-emerald-200" align="start">
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={fechaHasta}
@@ -1506,42 +1521,12 @@ export function HistorialVentas() {
                       setPopoverHastaOpen(false)
                     }}
                     locale={es}
-                    className="rounded-md"
                   />
                 </PopoverContent>
               </Popover>
             </div>
 
-            <Button
-              onClick={() => setSoloNoPagados(!soloNoPagados)}
-              variant={soloNoPagados ? "default" : "outline"}
-              className={cn(
-                soloNoPagados
-                  ? "bg-red-600 hover:bg-red-700 text-white"
-                  : "border-red-300 text-red-600 hover:bg-red-50",
-              )}
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              {soloNoPagados ? "Mostrando Pendientes" : "Ver Pendientes"}
-            </Button>
-
-            <Button onClick={fetchVentas} className="bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
-              <FileDown className="h-4 w-4 mr-2" />
-              {loading ? "Buscando..." : "Buscar"}
-            </Button>
-            <Button
-              onClick={exportarPDF}
-              variant="outline"
-              className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 bg-transparent"
-              disabled={exportando || ventas.length === 0}
-            >
-              <FileDown className="h-4 w-4 mr-2" />
-              {exportando ? "Exportando..." : "Exportar PDF"}
-            </Button>
-          </div>
-
-          <div className="mt-4 flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-1 space-y-2">
+            <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">Buscar Socio</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1549,7 +1534,7 @@ export function HistorialVentas() {
                   placeholder="Nombre, apellido o DNI..."
                   value={filtroSocio}
                   onChange={(e) => setFiltroSocio(e.target.value)}
-                  className="pl-10 bg-background border-border"
+                  className="pl-10 bg-card"
                 />
                 {filtroSocio && (
                   <Button
@@ -1558,6 +1543,8 @@ export function HistorialVentas() {
                     size="sm"
                     onClick={() => setFiltroSocio("")}
                     className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
+                    title="Limpiar búsqueda de socio"
+                    aria-label="Limpiar búsqueda de socio"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -1565,15 +1552,15 @@ export function HistorialVentas() {
               </div>
             </div>
 
-            <div className="flex-1 space-y-2">
-              <Label className="text-sm font-medium text-foreground">Filtrar por Producto</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">Producto</Label>
               <div className="flex gap-2">
                 <Select
                   value={filtroProducto || "todos"}
                   onValueChange={(value) => setFiltroProducto(value === "todos" ? "" : value)}
                 >
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Todos los productos" />
+                  <SelectTrigger className="bg-card">
+                    <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos los productos</SelectItem>
@@ -1600,6 +1587,8 @@ export function HistorialVentas() {
                     size="sm"
                     onClick={() => setFiltroProducto("")}
                     className="h-9 w-9 p-0 shrink-0"
+                    title="Limpiar filtro de producto"
+                    aria-label="Limpiar filtro de producto"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -1607,94 +1596,104 @@ export function HistorialVentas() {
               </div>
             </div>
 
-            <Button
-              variant={soloNoPagados ? "default" : "outline"}
-              onClick={() => setSoloNoPagados(!soloNoPagados)}
-              className={cn(
-                soloNoPagados
-                  ? "bg-red-600 hover:bg-red-700 text-white"
-                  : "border-border hover:border-red-300 hover:bg-red-50/50",
-              )}
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              {soloNoPagados ? "Mostrando Pendientes" : "Ver Pendientes"}
-            </Button>
-
-            {/* ... existing export button ... */}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={() => setSoloNoPagados(!soloNoPagados)}
+                variant={soloNoPagados ? "default" : "outline"}
+                className={cn(
+                  "flex-1",
+                  soloNoPagados
+                    ? "bg-amber-600 hover:bg-amber-700 text-white border-amber-600"
+                    : "bg-card border-amber-300 text-amber-700 hover:bg-amber-50",
+                )}
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                {soloNoPagados ? "Pendientes" : "Ver pendientes"}
+              </Button>
+              <Button onClick={fetchVentas} disabled={loading} className="shrink-0">
+                <Search className="h-4 w-4 mr-2" />
+                {loading ? "..." : "Buscar"}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card className="bg-card border-border">
+      {/* Indicadores */}
+      <div className="grid gap-3 md:grid-cols-5">
+        <Card className="border-primary bg-primary text-primary-foreground shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Ventas</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-600" />
+            <CardTitle className="text-sm font-medium text-primary-foreground/70">Total ventas</CardTitle>
+            <DollarSign className="h-4 w-4 text-primary-foreground/70" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">${totalVentasFiltradas.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">{ventasFiltradas.length} transacciones</p>
+            <div className="text-2xl font-bold tabular-nums">{formatCurrency(totalVentasFiltradas)}</div>
+            <p className="text-xs text-primary-foreground/70">{ventasFiltradas.length} transacciones</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card className="border-border bg-card py-4 shadow-none">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Gramos</CardTitle>
-            <Package className="h-4 w-4 text-emerald-600" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Gramos</CardTitle>
+            <Package className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{totalGramosFiltradas.toFixed(1)}g</div>
+            <div className="text-2xl font-bold text-foreground tabular-nums">{formatGramos(totalGramosFiltradas)}</div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card className="border-border bg-card py-4 shadow-none">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Efectivo</CardTitle>
-            <Banknote className="h-4 w-4 text-emerald-600" />
+            <Banknote className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">${ventasEfectivo.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-foreground tabular-nums">{formatCurrency(ventasEfectivo)}</div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card className="border-border bg-card py-4 shadow-none">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Transferencia</CardTitle>
-            <CreditCard className="h-4 w-4 text-emerald-600" />
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">${ventasTransferencia.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-foreground tabular-nums">
+              {formatCurrency(ventasTransferencia)}
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border border-red-200">
+        <Card className="border-amber-200 bg-amber-50 py-4 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pendiente</CardTitle>
-            <Clock className="h-4 w-4 text-red-500" />
+            <CardTitle className="text-sm font-medium text-amber-800/70">Pendiente</CardTitle>
+            <Clock className="h-4 w-4 text-amber-700" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-500">${ventasPendientes.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-amber-900 tabular-nums">{formatCurrency(ventasPendientes)}</div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="bg-card border-border">
+      <Card className="bg-card border-border gap-3">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
-            <Package className="h-5 w-5 text-emerald-600" />
+            <Package className="h-5 w-5 text-primary" />
             Detalle de Ventas
             {soloNoPagados && (
-              <Badge variant="outline" className="ml-2 border-red-300 text-red-600">
+              <Badge variant="outline" className="ml-2 border-amber-300 text-amber-700">
+                <Clock className="h-3 w-3 mr-1" />
                 Solo Pendientes
               </Badge>
             )}
             {filtroSocio && (
-              <Badge variant="outline" className="ml-2 text-emerald-600 border-emerald-300">
+              <Badge variant="outline" className="ml-2 border-primary/30 text-primary">
                 Filtrado por: {filtroSocio}
               </Badge>
             )}
             {filtroProducto && (
-              <Badge variant="outline" className="ml-2 text-emerald-600 border-emerald-300">
+              <Badge variant="outline" className="ml-2 border-primary/30 text-primary">
                 Producto: {filtroProducto.slice(filtroProducto.indexOf(":") + 1)}
               </Badge>
             )}
@@ -1708,10 +1707,10 @@ export function HistorialVentas() {
               {soloNoPagados ? "No hay ventas pendientes de pago en este período" : "No hay ventas en este período"}
             </div>
           ) : (
-            <div className="rounded-md border border-border overflow-hidden">
+            <div className="rounded-md border border-border overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50"><TableHead className="text-foreground">Fecha</TableHead><TableHead className="text-foreground">Socio</TableHead><TableHead className="text-foreground">DNI</TableHead><TableHead className="text-foreground">Item</TableHead><TableHead className="text-foreground">Detalle</TableHead><TableHead className="text-foreground">Pago</TableHead><TableHead className="text-right text-foreground">Total</TableHead><TableHead className="text-center text-foreground w-20">Acciones</TableHead></TableRow>
+                  <TableRow className="bg-primary/10 hover:bg-primary/10"><TableHead className="text-foreground">Fecha</TableHead><TableHead className="text-foreground">Socio</TableHead><TableHead className="text-foreground">Item</TableHead><TableHead className="text-foreground">Detalle</TableHead><TableHead className="text-foreground">Pago</TableHead><TableHead className="text-right text-foreground">Total</TableHead><TableHead className="text-center text-foreground w-20">Acciones</TableHead></TableRow>
                 </TableHeader>
                 <TableBody>
                   {ventasFiltradas.map((venta) => {
@@ -1720,25 +1719,38 @@ export function HistorialVentas() {
 
                     return (
                       <React.Fragment key={venta.id}>
-                        <TableRow className="hover:bg-muted/50 cursor-pointer" onClick={() => toggleExpand(venta.id)}>
+                        <TableRow className="hover:bg-muted/40 cursor-pointer" onClick={() => toggleExpand(venta.id)}>
                           <TableCell className="text-foreground">
-                            {new Date(venta.created_at).toLocaleDateString("es-AR", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            <div className="flex flex-col">
+                              <span>
+                                {new Date(venta.created_at).toLocaleDateString("es-AR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                })}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(venta.created_at).toLocaleTimeString("es-AR", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hourCycle: "h23",
+                                })}
+                              </span>
+                            </div>
                           </TableCell>
-                          <TableCell className="font-medium text-foreground">
-                            {venta.socio?.apellido}, {venta.socio?.nombre}
-                          </TableCell>
-                          <TableCell className="text-foreground">
-                            {venta.socio?.dni ? formatDni(venta.socio.dni) : "-"}
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-foreground">
+                                {venta.socio?.apellido}, {venta.socio?.nombre}
+                              </span>
+                              <span className="text-xs text-muted-foreground select-text">
+                                {venta.socio?.dni ? formatDni(venta.socio.dni) : "-"}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell>
                             {info.esMultiple ? (
-                              <Badge variant="outline" className="border-emerald-300 text-emerald-600">
+                              <Badge variant="outline" className="border-primary/30 text-primary">
                                 {info.genetica}
                               </Badge>
                             ) : (
@@ -1766,7 +1778,7 @@ export function HistorialVentas() {
                                 return (
                                   <Badge
                                     variant="outline"
-                                    className="border-red-300 text-red-600 cursor-pointer hover:bg-red-50"
+                                    className="border-amber-300 text-amber-700 cursor-pointer hover:bg-amber-50"
                                     onClick={() => {
                                       setEditingVenta(venta)
                                       setNuevoMetodoPago("efectivo")
@@ -1779,80 +1791,82 @@ export function HistorialVentas() {
                               }
 
                               return (
-                                <div className="flex flex-col gap-1">
-                                  <div className="flex items-center gap-1 flex-wrap">
+                                <div className="flex flex-col gap-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     {tieneEfectivo && (
-                                      <Badge variant="outline" className="border-emerald-300 text-emerald-600 text-xs">
+                                      <Badge variant="outline" className="border-primary/30 text-primary text-xs">
                                         <Banknote className="h-3 w-3 mr-1" />
                                         Efectivo
                                       </Badge>
                                     )}
                                     {tieneTransferencia && (
-                                      <div className="flex items-center gap-1">
-                                        <Badge variant="outline" className="border-blue-300 text-blue-600 text-xs">
-                                          <CreditCard className="h-3 w-3 mr-1" />
-                                          Transf.
-                                        </Badge>
-                                        {venta.pagos && venta.pagos.some(p => p.comprobante_url) ? (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-5 w-5 p-0 hover:bg-blue-100"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              const pagoConComprobante = venta.pagos?.find(p => p.comprobante_url)
-                                              if (pagoConComprobante?.comprobante_url) {
-                                                setComprobanteUrl(pagoConComprobante.comprobante_url)
-                                              }
-                                            }}
-                                            title="Ver comprobante"
-                                          >
-                                            <ImageIcon className="h-3 w-3 text-blue-600" />
-                                          </Button>
-                                        ) : (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-5 w-5 p-0 hover:bg-blue-100"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              setVentaParaComprobante(venta)
-                                              document.getElementById('input-comprobante-historial')?.click()
-                                            }}
-                                            title="Cargar comprobante"
-                                          >
-                                            <Plus className="h-3 w-3 text-blue-600" />
-                                          </Button>
-                                        )}
-                                      </div>
-                                    )}
-                                    {tieneDeuda && (
-                                      <Badge variant="outline" className="border-amber-300 text-amber-600 text-xs">
-                                        <Clock className="h-3 w-3 mr-1" />
-                                        Debe ${saldoPendiente.toLocaleString()}
+                                      <Badge variant="outline" className="text-xs">
+                                        <CreditCard className="h-3 w-3 mr-1" />
+                                        Transf.
                                       </Badge>
                                     )}
+                                    {tieneTransferencia &&
+                                      (venta.pagos && venta.pagos.some(p => p.comprobante_url) ? (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 hover:bg-muted"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            const pagoConComprobante = venta.pagos?.find(p => p.comprobante_url)
+                                            if (pagoConComprobante?.comprobante_url) {
+                                              setComprobanteUrl(pagoConComprobante.comprobante_url)
+                                            }
+                                          }}
+                                          title="Ver comprobante"
+                                          aria-label="Ver comprobante de transferencia"
+                                        >
+                                          <ImageIcon className="h-3 w-3 text-muted-foreground" />
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 hover:bg-muted"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setVentaParaComprobante(venta)
+                                            document.getElementById('input-comprobante-historial')?.click()
+                                          }}
+                                          title="Cargar comprobante"
+                                          aria-label="Cargar comprobante de transferencia"
+                                        >
+                                          <Upload className="h-3 w-3 text-muted-foreground" />
+                                        </Button>
+                                      ))}
                                     {venta.pagos && venta.pagos.length > 0 && (
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-5 w-5 p-0 hover:bg-muted"
+                                        className="h-6 w-6 p-0 hover:bg-muted"
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           abrirCorreccionPagos(venta)
                                         }}
                                         title="Corregir método de un pago"
+                                        aria-label="Corregir método de un pago"
                                       >
                                         <ArrowLeftRight className="h-3 w-3 text-muted-foreground" />
                                       </Button>
                                     )}
                                   </div>
+                                  {tieneDeuda && (
+                                    <Badge variant="outline" className="w-fit border-amber-300 bg-amber-50 text-amber-700 text-xs">
+                                      <Clock className="h-3 w-3 mr-1" />
+                                      Debe {formatCurrency(saldoPendiente)}
+                                    </Badge>
+                                  )}
                                 </div>
                               )
                             })()}
                           </TableCell>
-                          <TableCell className="text-right font-bold text-emerald-600">
-                            ${Number(venta.total).toFixed(2)}
+                          <TableCell className="text-right font-bold text-foreground tabular-nums">
+                            {formatCurrency(Number(venta.total))}
                           </TableCell>
                           <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-1">
@@ -1860,16 +1874,19 @@ export function HistorialVentas() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => openEditVenta(venta)}
-                                className="h-8 w-8 p-0 hover:bg-emerald-100"
+                                className="h-9 w-9 p-0 hover:bg-primary/10"
+                                title="Editar venta"
+                                aria-label="Editar venta"
                               >
-                                <Pencil className="h-4 w-4 text-emerald-600" />
+                                <Pencil className="h-4 w-4 text-primary" />
                               </Button>
-                              {/* Botón de borrar */}
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setVentaABorrar(venta)}
-                                className="h-8 w-8 p-0 text-red-500 hover:bg-red-100 hover:text-red-700"
+                                className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                title="Eliminar venta"
+                                aria-label="Eliminar venta"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1889,7 +1906,7 @@ export function HistorialVentas() {
 
       {/* Dialog para ver comprobante */}
       <Dialog open={!!comprobanteUrl} onOpenChange={(open) => !open && setComprobanteUrl(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-card">
           <DialogHeader>
             <DialogTitle>Comprobante de Transferencia</DialogTitle>
           </DialogHeader>

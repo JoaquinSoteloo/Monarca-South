@@ -32,7 +32,7 @@ import {
   DollarSign,
   CreditCard,
   Banknote,
-  Eye,
+  ChevronDown,
   Plus,
   History,
   Upload,
@@ -44,6 +44,7 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { formatCurrency } from "@/lib/format"
 
 interface VentaConDeuda extends Omit<Venta, "socio"> {
   socio: {
@@ -335,54 +336,57 @@ export function DeudasManager() {
   }, {} as Record<string, { socio: VentaConDeuda["socio"]; deudas: VentaConDeuda[]; totalDeuda: number }>)
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-5">
+      <div><h1 className="text-[26px] font-semibold">Deudas</h1><p className="text-sm text-muted-foreground">Saldos pendientes y pagos por socio</p></div>
       {/* Resumen */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="bg-gradient-to-br from-red-50 to-white border-red-200">
+      <div className="grid gap-4 md:grid-cols-[2fr_1fr_1fr]">
+        <Card className="gap-3 border-amber-200 bg-amber-50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Deudas</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-600" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total pendiente</CardTitle>
+            <AlertCircle className="h-4 w-4 text-amber-700" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-700">${totalDeuda.toLocaleString()}</div>
+            <div className="break-words text-2xl font-semibold tabular-nums text-amber-900">{loading ? "—" : formatCurrency(totalDeuda)}</div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-amber-50 to-white border-amber-200">
+        <Card className="gap-3 bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Socios con Deuda</CardTitle>
-            <User className="h-4 w-4 text-amber-600" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">{filtroSocio ? "Socios encontrados" : "Socios con deuda"}</CardTitle>
+            <User className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-700">{Object.keys(deudasPorSocio).length}</div>
+            <div className="break-words text-2xl font-semibold tabular-nums text-foreground">{loading ? "—" : Object.keys(deudasPorSocio).length}</div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200">
+        <Card className="gap-3 bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Ventas Pendientes</CardTitle>
-            <CreditCard className="h-4 w-4 text-blue-600" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Ventas pendientes</CardTitle>
+            <CreditCard className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-700">{deudas.length}</div>
+            <div className="break-words text-2xl font-semibold tabular-nums text-foreground">{loading ? "—" : deudas.length}</div>
           </CardContent>
         </Card>
       </div>
 
       {/* Filtro */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="flex gap-4 items-end">
             <div className="flex-1">
-              <Label>Buscar socio</Label>
+              <Label htmlFor="buscar-deuda" className="mb-2">Buscar socio</Label>
               <Input
+                id="buscar-deuda"
+                className="bg-white"
                 placeholder="Nombre, apellido o DNI..."
                 value={filtroSocio}
                 onChange={(e) => setFiltroSocio(e.target.value)}
               />
             </div>
             {filtroSocio && (
-              <Button variant="ghost" size="icon" onClick={() => setFiltroSocio("")}>
+              <Button variant="ghost" size="icon" aria-label="Limpiar búsqueda" onClick={() => setFiltroSocio("")}>
                 <X className="h-4 w-4" />
               </Button>
             )}
@@ -400,49 +404,40 @@ export function DeudasManager() {
       ) : Object.keys(deudasPorSocio).length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            <CheckCircle className="h-12 w-12 mx-auto mb-4 text-emerald-500" />
-            <p className="text-lg font-medium">No hay deudas pendientes</p>
+            <CheckCircle className="h-12 w-12 mx-auto mb-4 text-primary" />
+            <p className="text-lg font-medium">{filtroSocio ? "No hay socios que coincidan con la búsqueda" : "No hay deudas pendientes"}</p>
           </CardContent>
         </Card>
       ) : (
         Object.values(deudasPorSocio).map((grupo) => {
           const { socio, deudas: deudasSocio, totalDeuda: totalSocio } = grupo
           return (
-          <Card key={socio?.id} className="overflow-hidden">
-            <CardHeader className="bg-muted/30">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <User className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <CardTitle className="text-lg">
-                      {socio?.apellido}, {socio?.nombre}
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground">DNI: {socio?.dni}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Deuda total</p>
-                    <p className="text-xl font-bold text-red-600">${totalSocio.toLocaleString()}</p>
-                  </div>
-                  <Button
-                    className="bg-emerald-600 hover:bg-emerald-700"
-                    onClick={() => handleOpenPagoSocioDialog(grupo)}
-                  >
-                    <DollarSign className="h-4 w-4 mr-1" />
-                    Pagar deuda
-                  </Button>
+          <details key={socio?.id} className="group min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-4 p-5 transition-colors hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary [&::-webkit-details-marker]:hidden">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="rounded-full bg-primary/10 p-2 text-primary"><User className="h-5 w-5" /></div>
+                <div className="min-w-0">
+                  <h2 className="break-words font-semibold">{socio?.apellido}, {socio?.nombre}</h2>
+                  <p className="text-xs text-muted-foreground">DNI: {socio?.dni} · {deudasSocio.length} {deudasSocio.length === 1 ? "venta pendiente" : "ventas pendientes"}</p>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
+              <div className="flex items-center gap-4">
+                <div className="text-right"><p className="text-xs text-muted-foreground">Saldo pendiente</p><p className="text-xl font-semibold tabular-nums text-amber-900">{formatCurrency(totalSocio)}</p></div>
+                <ChevronDown className="h-5 w-5 shrink-0 text-primary transition-transform group-open:rotate-180" />
+              </div>
+            </summary>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-primary/5 px-5 py-3">
+              <p className="text-sm text-muted-foreground">Ventas pendientes de este socio</p>
+              <Button onClick={() => handleOpenPagoSocioDialog(grupo)}><DollarSign className="h-4 w-4" />Pagar deuda del socio</Button>
+            </div>
+            <div className="min-w-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/20">
+                  <TableRow className="bg-primary/10">
                     <TableHead>Fecha</TableHead>
-                    <TableHead>Total Venta</TableHead>
-                    <TableHead>Pagado</TableHead>
-                    <TableHead>Pendiente</TableHead>
+                    <TableHead className="text-right">Total venta</TableHead>
+                    <TableHead className="text-right">Pagado</TableHead>
+                    <TableHead className="text-right">Pendiente</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -458,17 +453,17 @@ export function DeudasManager() {
                           <p className="text-xs text-muted-foreground mt-1 ml-6 italic">{deuda.notas}</p>
                         )}
                       </TableCell>
-                      <TableCell className="font-medium">
-                        ${Number(deuda.total).toLocaleString()}
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {formatCurrency(Number(deuda.total))}
                       </TableCell>
-                      <TableCell>
-                        <span className="text-emerald-600">
-                          ${Number(deuda.monto_pagado || 0).toLocaleString()}
+                      <TableCell className="text-right tabular-nums">
+                        <span className="text-primary">
+                          {formatCurrency(Number(deuda.monto_pagado || 0))}
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="destructive">
-                          ${Number(deuda.saldo_pendiente || 0).toLocaleString()}
+                      <TableCell className="text-right tabular-nums">
+                        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900">
+                          {formatCurrency(Number(deuda.saldo_pendiente || 0))}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -483,11 +478,11 @@ export function DeudasManager() {
                           </Button>
                           <Button
                             size="sm"
-                            className="bg-emerald-600 hover:bg-emerald-700"
+                            variant="outline" className="border-primary/25 bg-white text-primary hover:bg-primary/10"
                             onClick={() => handleOpenPagoDialog(deuda)}
                           >
                             <Plus className="h-4 w-4 mr-1" />
-                            Registrar Pago
+                            Pagar esta venta
                           </Button>
                         </div>
                       </TableCell>
@@ -495,8 +490,8 @@ export function DeudasManager() {
                   ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+            </div>
+          </details>
           )
         })
       )}
@@ -509,17 +504,18 @@ export function DeudasManager() {
           else cerrarPagoDialog()
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="monarca-theme flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
+          <DialogHeader className="shrink-0 border-b bg-white p-5 pr-12 text-left">
             <DialogTitle>Registrar Pago</DialogTitle>
             <DialogDescription>
-              Saldo pendiente: ${Number(ventaSeleccionada?.saldo_pendiente || 0).toLocaleString()}
+              {ventaSeleccionada?.socio?.apellido}, {ventaSeleccionada?.socio?.nombre}
+              <br />Saldo pendiente de esta venta: {formatCurrency(Number(ventaSeleccionada?.saldo_pendiente || 0))}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div>
-              <Label>Monto a pagar</Label>
+              <Label className="mb-2">Monto a pagar</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -527,7 +523,8 @@ export function DeudasManager() {
                   placeholder="0"
                   value={montoPago}
                   onChange={(e) => setMontoPago(e.target.value)}
-                  className="pl-9"
+                  aria-label="Monto a pagar"
+                  className="h-12 bg-white pl-9 text-xl font-semibold tabular-nums"
                 />
               </div>
             </div>
@@ -545,10 +542,10 @@ export function DeudasManager() {
                   setMetodoPago(nuevoMetodo)
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Método de pago" className="mt-2 w-full bg-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="monarca-theme">
                   <SelectItem value="efectivo">
                     <div className="flex items-center gap-2">
                       <Banknote className="h-4 w-4" />
@@ -580,12 +577,13 @@ export function DeudasManager() {
                     <img
                       src={comprobanteUrl || "/placeholder.svg"}
                       alt="Comprobante"
-                      className="w-full h-32 object-cover rounded-md border"
+                      className="w-full h-32 object-contain rounded-md border bg-white"
                     />
                     <Button
                       variant="destructive"
                       size="icon"
                       className="absolute top-2 right-2 h-6 w-6"
+                      aria-label="Quitar comprobante"
                       onClick={descartarComprobantePendiente}
                       disabled={procesandoPago}
                     >
@@ -595,7 +593,7 @@ export function DeudasManager() {
                 ) : (
                   <Button
                     variant="outline"
-                    className="w-full mt-2 bg-transparent"
+                    className="w-full mt-2 border-dashed bg-white"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadingComprobante || procesandoPago}
                   >
@@ -608,7 +606,7 @@ export function DeudasManager() {
 
             <div>
               <Label>Notas (opcional)</Label>
-              <Textarea
+              <Textarea aria-label="Notas del pago" className="mt-2 bg-white"
                 placeholder="Notas adicionales..."
                 value={notasPago}
                 onChange={(e) => setNotasPago(e.target.value)}
@@ -616,12 +614,12 @@ export function DeudasManager() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t bg-white p-4">
             <Button variant="outline" onClick={cerrarPagoDialog} disabled={uploadingComprobante || procesandoPago}>
               Cancelar
             </Button>
             <Button
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={handleRegistrarPago}
               disabled={!montoPago || Number(montoPago) <= 0 || procesandoPago || uploadingComprobante}
             >
@@ -639,23 +637,22 @@ export function DeudasManager() {
           else cerrarPagoSocioDialog()
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="monarca-theme flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
+          <DialogHeader className="shrink-0 border-b bg-white p-5 pr-12 text-left">
             <DialogTitle>Pagar deuda del socio</DialogTitle>
             <DialogDescription>
-              {socioPago?.socio?.apellido}, {socioPago?.socio?.nombre} — Deuda total: $
-              {Number(socioPago?.totalDeuda || 0).toLocaleString()}
+              {socioPago?.socio?.apellido}, {socioPago?.socio?.nombre} — Deuda total: {formatCurrency(Number(socioPago?.totalDeuda || 0))}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
               El monto se aplica automáticamente a los pedidos pendientes, empezando por el más antiguo.
               Los pedidos que queden cubiertos se marcan como pagados.
             </div>
 
             <div>
-              <Label>Monto a pagar</Label>
+              <Label className="mb-2">Monto a pagar</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -663,12 +660,13 @@ export function DeudasManager() {
                   placeholder="0"
                   value={montoPagoSocio}
                   onChange={(e) => setMontoPagoSocio(e.target.value)}
-                  className="pl-9"
+                  aria-label="Monto a pagar"
+                  className="h-12 bg-white pl-9 text-xl font-semibold tabular-nums"
                 />
               </div>
               {socioPago && Number(montoPagoSocio) > socioPago.totalDeuda && (
-                <p className="text-xs text-red-600 mt-1">
-                  El monto supera la deuda total (${socioPago.totalDeuda.toLocaleString()}).
+                <p className="text-xs text-amber-700 mt-1">
+                  El monto supera la deuda total ({formatCurrency(socioPago.totalDeuda)}).
                 </p>
               )}
             </div>
@@ -686,10 +684,10 @@ export function DeudasManager() {
                   setMetodoPago(nuevoMetodo)
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Método de pago" className="mt-2 w-full bg-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="monarca-theme">
                   <SelectItem value="efectivo">
                     <div className="flex items-center gap-2">
                       <Banknote className="h-4 w-4" />
@@ -721,12 +719,13 @@ export function DeudasManager() {
                     <img
                       src={comprobanteUrl || "/placeholder.svg"}
                       alt="Comprobante"
-                      className="w-full h-32 object-cover rounded-md border"
+                      className="w-full h-32 object-contain rounded-md border bg-white"
                     />
                     <Button
                       variant="destructive"
                       size="icon"
                       className="absolute top-2 right-2 h-6 w-6"
+                      aria-label="Quitar comprobante"
                       onClick={descartarComprobantePendiente}
                       disabled={procesandoPagoSocio}
                     >
@@ -736,7 +735,7 @@ export function DeudasManager() {
                 ) : (
                   <Button
                     variant="outline"
-                    className="w-full mt-2 bg-transparent"
+                    className="w-full mt-2 border-dashed bg-white"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadingComprobante || procesandoPagoSocio}
                   >
@@ -749,7 +748,7 @@ export function DeudasManager() {
 
             <div>
               <Label>Notas (opcional)</Label>
-              <Textarea
+              <Textarea aria-label="Notas del pago" className="mt-2 bg-white"
                 placeholder="Notas adicionales..."
                 value={notasPago}
                 onChange={(e) => setNotasPago(e.target.value)}
@@ -757,7 +756,7 @@ export function DeudasManager() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t bg-white p-4">
             <Button
               variant="outline"
               onClick={cerrarPagoSocioDialog}
@@ -766,7 +765,7 @@ export function DeudasManager() {
               Cancelar
             </Button>
             <Button
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={handleRegistrarPagoSocio}
               disabled={
                 procesandoPagoSocio ||
@@ -784,11 +783,11 @@ export function DeudasManager() {
 
       {/* Dialog Historial de Pagos */}
       <Dialog open={historialDialogOpen} onOpenChange={setHistorialDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="monarca-theme max-h-[90dvh] overflow-y-auto sm:max-w-[680px]">
           <DialogHeader>
             <DialogTitle>Historial de Pagos</DialogTitle>
             <DialogDescription>
-              Venta del {ventaSeleccionada && format(new Date(ventaSeleccionada.created_at), "dd/MM/yyyy", { locale: es })} - Total: ${Number(ventaSeleccionada?.total || 0).toLocaleString()}
+              Venta del {ventaSeleccionada && format(new Date(ventaSeleccionada.created_at), "dd/MM/yyyy", { locale: es })} - Total: {formatCurrency(Number(ventaSeleccionada?.total || 0))}
             </DialogDescription>
           </DialogHeader>
 
@@ -797,15 +796,15 @@ export function DeudasManager() {
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {pagosHistorial.map((pago) => (
-                <div key={pago.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                <div key={pago.id} className="flex flex-wrap items-center justify-between gap-3 border bg-white p-3 rounded-lg">
                   <div className="flex items-center gap-3">
                     {pago.metodo_pago === "efectivo" ? (
-                      <Banknote className="h-5 w-5 text-emerald-600" />
+                      <Banknote className="h-5 w-5 text-primary" />
                     ) : (
-                      <CreditCard className="h-5 w-5 text-blue-600" />
+                      <CreditCard className="h-5 w-5 text-primary" />
                     )}
                     <div>
-                      <p className="font-medium">${Number(pago.monto).toLocaleString()}</p>
+                      <p className="font-medium">{formatCurrency(Number(pago.monto))}</p>
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(pago.fecha), "dd/MM/yyyy HH:mm", { locale: es })}
                       </p>
@@ -822,6 +821,8 @@ export function DeudasManager() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label="Ver comprobante"
+                        title="Ver comprobante"
                         onClick={() => handleVerComprobante(pago.comprobante_url!)}
                       >
                         <ImageIcon className="h-4 w-4" />
@@ -843,7 +844,7 @@ export function DeudasManager() {
 
       {/* Dialog Ver Comprobante */}
       <Dialog open={comprobanteDialogOpen} onOpenChange={setComprobanteDialogOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="monarca-theme max-h-[90dvh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Comprobante de Transferencia</DialogTitle>
           </DialogHeader>

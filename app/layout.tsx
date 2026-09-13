@@ -5,8 +5,8 @@ import { Analytics } from "@vercel/analytics/next"
 import { PwaRegister } from "@/components/pwa-register"
 import "./globals.css"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const geist = Geist({ subsets: ["latin"] })
+const geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Monarca South - Sistema de Gestión",
@@ -34,8 +34,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es">
-      <body className={`font-sans antialiased`}>
+    <html lang="es" className={geistMono.className}>
+      <body className={`${geist.className} font-sans antialiased`}>
         {children}
         <PwaRegister />
         <Analytics />

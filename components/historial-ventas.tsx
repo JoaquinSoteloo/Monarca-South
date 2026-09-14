@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { Venta, DetalleVenta, Socio, Genetica, LineaVenta, Producto } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,15 +12,12 @@ import { Label } from "@/components/ui/label"
 import {
   CalendarIcon,
   Package,
-  DollarSign,
   FileDown,
   Clock,
   Banknote,
   CreditCard,
   Check,
   Filter,
-  Cigarette,
-  Scale,
   Search,
   Pencil,
   X,
@@ -28,10 +25,10 @@ import {
   Trash2,
   FileText,
   AlertTriangle,
-  ShoppingCart,
   ImageIcon,
   ArrowLeftRight,
   Upload,
+  MoreVertical,
 } from "lucide-react"
 import { format, startOfDay, endOfDay } from "date-fns"
 import { es } from "date-fns/locale"
@@ -50,6 +47,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import React from "react" // Import React
@@ -817,155 +820,140 @@ export function HistorialVentas() {
     setExportando(false)
   }
 
-  const renderDetalleVenta = (venta: VentaConDetalles) => {
-    const isExpanded = expandedVentas.has(venta.id)
+  // Arma los renglones de producto (izquierda) a partir de detalle_venta,
+  // o de los campos legacy de la venta cuando no hay detalle_venta.
+  const getItemsVenta = (venta: VentaConDetalles) => {
+    type ItemDetalle = { nombre: string; lineaStr: string; subtotal: number }
+    const items: ItemDetalle[] = []
 
     if (venta.detalles && venta.detalles.length > 0) {
-      const rows: React.ReactNode[] = []
-
-      venta.detalles.forEach((detalle, idx) => {
+      venta.detalles.forEach((detalle) => {
         if (detalle.genetica_id) {
-          // Es una genética
           const pesoTotal = detalle.peso_enrolados || 0
           const cantEnrolados = detalle.cantidad_enrolados || 0
           const pesoPorEnrolado = cantEnrolados > 0 ? Math.round((pesoTotal / cantEnrolados) * 10) / 10 : 0
-          const precioGramo = detalle.precio_unitario || 0
-          const precioEnrolado = detalle.precio_enrolado || 0
-
-          rows.push(
-            <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-primary">
-              <TableCell></TableCell>
-              <TableCell></TableCell>
-              <TableCell className="font-medium text-foreground">{detalle.genetica?.nombre}</TableCell>
-              <TableCell>
-                <div className="flex flex-col gap-1">
-                  {detalle.gramos > 0 && (
-                    <div className="flex items-center gap-1 text-sm">
-                      <Scale className="h-3 w-3 text-primary" />
-                      <span>
-                        {formatGramos(detalle.gramos)} x {formatCurrency(precioGramo)}/g
-                      </span>
-                    </div>
-                  )}
-                  {cantEnrolados > 0 && (
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Cigarette className="h-3 w-3 text-accent" />
-                      <span>
-                        {cantEnrolados} enr. ({formatGramos(pesoPorEnrolado)} c/u) x {formatCurrency(precioEnrolado)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell></TableCell>
-              <TableCell className="text-right text-muted-foreground tabular-nums">
-                {formatCurrency(Number(detalle.subtotal || 0))}
-              </TableCell>
-              <TableCell></TableCell>
-            </TableRow>,
-          )
+          const partes: string[] = []
+          if (detalle.gramos > 0) partes.push(`${formatGramos(detalle.gramos)} x ${formatCurrency(detalle.precio_unitario || 0)}/g`)
+          if (cantEnrolados > 0)
+            partes.push(
+              `${cantEnrolados} enr. (${formatGramos(pesoPorEnrolado)} c/u) x ${formatCurrency(detalle.precio_enrolado || 0)}`,
+            )
+          items.push({
+            nombre: detalle.genetica?.nombre || "-",
+            lineaStr: partes.join(" + "),
+            subtotal: Number(detalle.subtotal || 0),
+          })
         } else if (detalle.producto_id) {
-          // Es un producto
-          const cantidadProducto = detalle.cantidad_enrolados || 0 // Reutilizamos este campo para cantidad
-          const precioProducto = detalle.precio_unitario || 0
-
-          rows.push(
-            <TableRow key={`${venta.id}-detail-${idx}`} className="bg-muted/30 border-l-4 border-l-accent">
-              <TableCell></TableCell>
-              <TableCell></TableCell>
-              <TableCell className="font-medium text-foreground">{detalle.producto?.nombre}</TableCell>
-              <TableCell>
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <ShoppingCart className="h-3 w-3 text-accent" />
-                  <span>
-                    {cantidadProducto} x {formatCurrency(precioProducto)}
-                  </span>
-                </div>
-              </TableCell>
-              <TableCell></TableCell>
-              <TableCell className="text-right text-muted-foreground tabular-nums">
-                {formatCurrency(Number(detalle.subtotal || 0))}
-              </TableCell>
-              <TableCell></TableCell>
-            </TableRow>,
-          )
+          const cantidadProducto = detalle.cantidad_enrolados || 0
+          items.push({
+            nombre: detalle.producto?.nombre || "-",
+            lineaStr: `${cantidadProducto} x ${formatCurrency(detalle.precio_unitario || 0)}`,
+            subtotal: Number(detalle.subtotal || 0),
+          })
         }
       })
-
-      if (venta.notas) {
-        rows.push(
-          <TableRow key={`${venta.id}-notas`} className="bg-muted/20 border-l-4 border-l-border">
-            <TableCell colSpan={7} className="py-2">
-              <div className="flex items-start gap-2 text-sm">
-                <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
-                <div>
-                  <span className="font-medium text-foreground">Nota:</span>{" "}
-                  <span className="text-muted-foreground">{venta.notas}</span>
-                </div>
-              </div>
-            </TableCell>
-          </TableRow>,
-        )
-      }
-
-      return rows
-    } else {
-      const gramos = Number(venta.gramos) || 0
-      const enrolados = venta.cantidad_enrolados || 0
-      const pesoTotal = Number(venta.peso_enrolados) || 0
-      const pesoPorEnrolado = enrolados > 0 ? Math.round((pesoTotal / enrolados) * 10) / 10 : 0
-      const precioGramo = venta.precio_unitario || 0
-      const precioEnrolado = venta.genetica?.precio_por_enrolado || 0
-
-      const rows: React.ReactNode[] = [
-        <TableRow key={`${venta.id}-legacy`} className="bg-muted/30 border-l-4 border-l-primary">
-          <TableCell></TableCell>
-          <TableCell></TableCell>
-          <TableCell className="font-medium text-foreground">{venta.genetica?.nombre}</TableCell>
-          <TableCell>
-            <div className="flex flex-col gap-1">
-              {gramos > 0 && (
-                <div className="flex items-center gap-1 text-sm">
-                  <Scale className="h-3 w-3 text-primary" />
-                  <span>
-                    {formatGramos(gramos)} x {formatCurrency(precioGramo)}/g
-                  </span>
-                </div>
-              )}
-              {enrolados > 0 && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Cigarette className="h-3 w-3 text-accent" />
-                  <span>
-                    {enrolados} enr. ({formatGramos(pesoPorEnrolado)} c/u) x {formatCurrency(precioEnrolado)}
-                  </span>
-                </div>
-              )}
-            </div>
-          </TableCell>
-          <TableCell></TableCell>
-          <TableCell></TableCell>
-          <TableCell></TableCell>
-        </TableRow>,
-      ]
-
-      if (venta.notas) {
-        rows.push(
-          <TableRow key={`${venta.id}-legacy-notas`} className="bg-muted/20 border-l-4 border-l-border">
-            <TableCell colSpan={7} className="py-2">
-              <div className="flex items-start gap-2 text-sm">
-                <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
-                <div>
-                  <span className="font-medium text-foreground">Nota:</span>{" "}
-                  <span className="text-muted-foreground">{venta.notas}</span>
-                </div>
-              </div>
-            </TableCell>
-          </TableRow>,
-        )
-      }
-
-      return rows
+      return items
     }
+
+    // Venta legacy sin detalle_venta
+    const gramos = Number(venta.gramos) || 0
+    const enrolados = venta.cantidad_enrolados || 0
+    const pesoTotal = Number(venta.peso_enrolados) || 0
+    const pesoPorEnrolado = enrolados > 0 ? Math.round((pesoTotal / enrolados) * 10) / 10 : 0
+    const partes: string[] = []
+    if (gramos > 0) partes.push(`${formatGramos(gramos)} x ${formatCurrency(venta.precio_unitario || 0)}/g`)
+    if (enrolados > 0)
+      partes.push(
+        `${enrolados} enr. (${formatGramos(pesoPorEnrolado)} c/u) x ${formatCurrency(venta.genetica?.precio_por_enrolado || 0)}`,
+      )
+    items.push({
+      nombre: venta.genetica?.nombre || "-",
+      lineaStr: partes.join(" + "),
+      subtotal: Number(venta.total),
+    })
+    return items
+  }
+
+  const renderDetalleVenta = (venta: VentaConDetalles) => {
+    const items = getItemsVenta(venta)
+    const pagos = venta.pagos || []
+    const saldoPendiente = Number(venta.saldo_pendiente || 0)
+
+    return (
+      <TableRow key={`${venta.id}-detalle`} className="hover:bg-primary/5">
+        <TableCell colSpan={7} className="bg-primary/5 p-0">
+          <div className="grid gap-6 p-4 md:grid-cols-2 md:p-6">
+            <div className="min-w-0 space-y-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Productos</h4>
+              <div className="space-y-2.5">
+                {items.map((item, idx) => (
+                  <div key={idx} className="flex items-start justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{item.nombre}</p>
+                      {item.lineaStr && <p className="text-xs text-muted-foreground">{item.lineaStr}</p>}
+                    </div>
+                    <span className="shrink-0 tabular-nums text-foreground">{formatCurrency(item.subtotal)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="min-w-0 space-y-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pagos</h4>
+              {pagos.length > 0 ? (
+                <div className="space-y-2.5">
+                  {pagos.map((pago) => (
+                    <div key={pago.id} className="flex items-center justify-between gap-3 text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        {pago.metodo_pago === "efectivo" ? (
+                          <Banknote className="h-3.5 w-3.5" />
+                        ) : (
+                          <CreditCard className="h-3.5 w-3.5" />
+                        )}
+                        <span>
+                          {new Date(pago.fecha).toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                      <span className="tabular-nums text-foreground">{formatCurrency(Number(pago.monto))}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sin pagos registrados.</p>
+              )}
+              <div className="space-y-1 border-t border-border/60 pt-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Total</span>
+                  <span className="font-medium tabular-nums text-foreground">{formatCurrency(Number(venta.total))}</span>
+                </div>
+                {saldoPendiente > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-700">Saldo pendiente</span>
+                    <span className="font-medium tabular-nums text-amber-700">{formatCurrency(saldoPendiente)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {venta.notas && (
+              <div className="rounded-md border border-border/60 bg-card p-3 md:col-span-2">
+                <div className="flex items-start gap-2 text-sm">
+                  <FileText className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <span className="font-medium text-foreground">Nota: </span>
+                    <span className="text-muted-foreground">{venta.notas}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
+    )
   }
 
   const ventasFiltradas = ventas.filter((v) => {
@@ -985,10 +973,10 @@ export function HistorialVentas() {
   }, 0)
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {/* Dialog para confirmar pago (existente) */}
       <Dialog open={!!editingVenta} onOpenChange={(open) => !open && setEditingVenta(null)}>
-        <DialogContent className="sm:max-w-md bg-card">
+        <DialogContent className="monarca-theme sm:max-w-md bg-card">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -1023,7 +1011,7 @@ export function HistorialVentas() {
                     <SelectTrigger className="bg-card">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="monarca-theme">
                       <SelectItem value="efectivo">
                         <div className="flex items-center gap-2">
                           <Banknote className="h-4 w-4" />
@@ -1058,7 +1046,7 @@ export function HistorialVentas() {
 
       {/* Dialog para corregir el método de un pago puntual (no toca la venta completa) */}
       <Dialog open={!!editingPagosVenta} onOpenChange={(open) => !open && cerrarCorreccionPagos()}>
-        <DialogContent className="sm:max-w-md bg-card">
+        <DialogContent className="monarca-theme sm:max-w-md bg-card">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -1112,7 +1100,7 @@ export function HistorialVentas() {
                         <SelectTrigger className="w-[160px] bg-card">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="monarca-theme">
                           <SelectItem value="efectivo">
                             <div className="flex items-center gap-2">
                               <Banknote className="h-4 w-4" />
@@ -1154,7 +1142,7 @@ export function HistorialVentas() {
       </Dialog>
 
       <Dialog open={!!editingFullVenta} onOpenChange={(open) => !open && setEditingFullVenta(null)}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-card">
+        <DialogContent className="monarca-theme sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-card">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -1184,7 +1172,7 @@ export function HistorialVentas() {
                     {format(editFormData.fecha, "dd 'de' MMMM, yyyy", { locale: es })}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="monarca-theme w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={editFormData.fecha}
@@ -1211,7 +1199,7 @@ export function HistorialVentas() {
                 <SelectTrigger className="bg-card">
                   <SelectValue placeholder="Seleccionar socio" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="monarca-theme">
                   {socios.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.apellido}, {s.nombre} - {s.dni}
@@ -1303,7 +1291,7 @@ export function HistorialVentas() {
                       <SelectTrigger className="bg-card">
                         <SelectValue placeholder="Seleccionar genética o producto" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="monarca-theme">
                         <div className="text-sm font-semibold text-muted-foreground px-2 py-1">Genéticas</div>
                         {geneticas.map((g) => (
                           <SelectItem key={g.id} value={g.id}>
@@ -1400,7 +1388,7 @@ export function HistorialVentas() {
       </Dialog>
 
       <AlertDialog open={!!ventaABorrar} onOpenChange={(open) => !open && setVentaABorrar(null)}>
-        <AlertDialogContent className="bg-card">
+        <AlertDialogContent className="monarca-theme bg-card">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
@@ -1464,77 +1452,34 @@ export function HistorialVentas() {
         </Button>
       </div>
 
-      {/* Filtros compactos */}
-      <Card className="bg-card border-border py-4">
-        <CardContent>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Desde</label>
-              <Popover open={popoverDesdeOpen} onOpenChange={setPopoverDesdeOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start bg-card text-left font-normal",
-                      !fechaDesde && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {fechaDesde ? format(fechaDesde, "dd/MM/yyyy") : <span>Seleccionar</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fechaDesde}
-                    onSelect={(date) => {
-                      setFechaDesde(date)
-                      setPopoverDesdeOpen(false)
-                    }}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+      {/* Resumen compacto: todos los indicadores conservan su cálculo actual */}
+      <section aria-label="Resumen de resultados" className="grid min-w-0 overflow-hidden rounded-xl border bg-card lg:grid-cols-[minmax(0,1.2fr)_minmax(0,3fr)]">
+        <div className="min-w-0 bg-primary p-5 text-primary-foreground">
+          <p className="text-sm text-primary-foreground/80">Total ventas</p>
+          <p className="mt-2 break-words text-2xl font-semibold tabular-nums">{formatCurrency(totalVentasFiltradas)}</p>
+          <p className="mt-1 text-xs text-primary-foreground/80">{ventasFiltradas.length} transacciones</p>
+        </div>
+        <dl className="grid min-w-0 grid-cols-2 xl:grid-cols-4">
+          <div className="min-w-0 border-b border-r p-4 xl:border-b-0"><dt className="text-xs text-muted-foreground">Gramos</dt><dd className="mt-3 break-words text-lg font-semibold tabular-nums">{formatGramos(totalGramosFiltradas)}</dd></div>
+          <div className="min-w-0 border-b p-4 xl:border-b-0 xl:border-r"><dt className="text-xs text-muted-foreground">Efectivo</dt><dd className="mt-3 break-words text-lg font-semibold tabular-nums">{formatCurrency(ventasEfectivo)}</dd></div>
+          <div className="min-w-0 border-r p-4"><dt className="text-xs text-muted-foreground">Transferencia</dt><dd className="mt-3 break-words text-lg font-semibold tabular-nums">{formatCurrency(ventasTransferencia)}</dd></div>
+          <div className="min-w-0 bg-amber-50 p-4"><dt className="text-xs text-amber-800">Pendiente</dt><dd className="mt-3 break-words text-lg font-semibold text-amber-900 tabular-nums">{formatCurrency(ventasPendientes)}</dd></div>
+        </dl>
+      </section>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Hasta</label>
-              <Popover open={popoverHastaOpen} onOpenChange={setPopoverHastaOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start bg-card text-left font-normal",
-                      !fechaHasta && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {fechaHasta ? format(fechaHasta, "dd/MM/yyyy") : <span>Seleccionar</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fechaHasta}
-                    onSelect={(date) => {
-                      setFechaHasta(date)
-                      setPopoverHastaOpen(false)
-                    }}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">Buscar Socio</Label>
+      {/* Filtros y resultados: una misma superficie blanca, separados por un borde discreto */}
+      <Card className="min-w-0 bg-card border-border gap-0 py-0 overflow-hidden">
+        <CardContent className="p-0">
+          <div className="grid min-w-0 grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor="historial-socio" className="text-sm font-medium text-foreground">Buscar socio</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Nombre, apellido o DNI..."
+                  id="historial-socio" placeholder="Nombre, apellido o DNI..."
                   value={filtroSocio}
                   onChange={(e) => setFiltroSocio(e.target.value)}
-                  className="pl-10 bg-card"
+                  className="pl-10 pr-9 bg-card"
                 />
                 {filtroSocio && (
                   <Button
@@ -1552,17 +1497,17 @@ export function HistorialVentas() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">Producto</Label>
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor="historial-producto" className="text-sm font-medium text-foreground">Producto</Label>
               <div className="flex gap-2">
                 <Select
                   value={filtroProducto || "todos"}
                   onValueChange={(value) => setFiltroProducto(value === "todos" ? "" : value)}
                 >
-                  <SelectTrigger className="bg-card">
+                  <SelectTrigger id="historial-producto" className="w-full min-w-0 bg-card">
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="monarca-theme">
                     <SelectItem value="todos">Todos los productos</SelectItem>
                     {Array.from(new Map(geneticas.map((g) => [normalizar(g.nombre), g.nombre])).values())
                       .sort((a, b) => a.localeCompare(b))
@@ -1596,13 +1541,73 @@ export function HistorialVentas() {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="min-w-0 space-y-1.5">
+              <label htmlFor="historial-desde" className="block text-sm font-medium text-foreground">Desde</label>
+              <Popover open={popoverDesdeOpen} onOpenChange={setPopoverDesdeOpen}>
+                <PopoverTrigger asChild>
+                  <Button id="historial-desde"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start bg-card text-left font-normal",
+                      !fechaDesde && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                    {fechaDesde ? format(fechaDesde, "dd/MM/yyyy") : <span>Seleccionar</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="monarca-theme w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={fechaDesde}
+                    onSelect={(date) => {
+                      setFechaDesde(date)
+                      setPopoverDesdeOpen(false)
+                    }}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="min-w-0 space-y-1.5">
+              <label htmlFor="historial-hasta" className="block text-sm font-medium text-foreground">Hasta</label>
+              <Popover open={popoverHastaOpen} onOpenChange={setPopoverHastaOpen}>
+                <PopoverTrigger asChild>
+                  <Button id="historial-hasta"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start bg-card text-left font-normal",
+                      !fechaHasta && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                    {fechaHasta ? format(fechaHasta, "dd/MM/yyyy") : <span>Seleccionar</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="monarca-theme w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={fechaHasta}
+                    onSelect={(date) => {
+                      setFechaHasta(date)
+                      setPopoverHastaOpen(false)
+                    }}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+          </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-primary/5 px-4 py-3">
               <Button
                 type="button"
+                aria-pressed={soloNoPagados}
                 onClick={() => setSoloNoPagados(!soloNoPagados)}
                 variant={soloNoPagados ? "default" : "outline"}
                 className={cn(
-                  "flex-1",
+                  "w-full sm:w-auto",
                   soloNoPagados
                     ? "bg-amber-600 hover:bg-amber-700 text-white border-amber-600"
                     : "bg-card border-amber-300 text-amber-700 hover:bg-amber-50",
@@ -1611,106 +1616,55 @@ export function HistorialVentas() {
                 <Filter className="h-4 w-4 mr-2" />
                 {soloNoPagados ? "Pendientes" : "Ver pendientes"}
               </Button>
-              <Button onClick={fetchVentas} disabled={loading} className="shrink-0">
+              <Button onClick={fetchVentas} disabled={loading} className="w-full sm:w-auto shrink-0">
                 <Search className="h-4 w-4 mr-2" />
                 {loading ? "..." : "Buscar"}
               </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Indicadores */}
-      <div className="grid gap-3 md:grid-cols-5">
-        <Card className="border-primary bg-primary text-primary-foreground shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-primary-foreground/70">Total ventas</CardTitle>
-            <DollarSign className="h-4 w-4 text-primary-foreground/70" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{formatCurrency(totalVentasFiltradas)}</div>
-            <p className="text-xs text-primary-foreground/70">{ventasFiltradas.length} transacciones</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border bg-card py-4 shadow-none">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Gramos</CardTitle>
-            <Package className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground tabular-nums">{formatGramos(totalGramosFiltradas)}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border bg-card py-4 shadow-none">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Efectivo</CardTitle>
-            <Banknote className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground tabular-nums">{formatCurrency(ventasEfectivo)}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border bg-card py-4 shadow-none">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Transferencia</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground tabular-nums">
-              {formatCurrency(ventasTransferencia)}
+          {/* Separador discreto entre filtros y resultados: mismo panel, sin tarjeta anidada */}
+          <div className="border-t border-border px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+              <Package className="h-4 w-4 text-primary" />
+              Resultados de la consulta
+              {soloNoPagados && (
+                <Badge variant="outline" className="ml-1 border-amber-300 text-amber-700">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Solo Pendientes
+                </Badge>
+              )}
+              {filtroSocio && (
+                <Badge variant="outline" className="ml-1 border-primary/30 text-primary">
+                  Filtrado por: {filtroSocio}
+                </Badge>
+              )}
+              {filtroProducto && (
+                <Badge variant="outline" className="ml-1 border-primary/30 text-primary">
+                  Producto: {filtroProducto.slice(filtroProducto.indexOf(":") + 1)}
+                </Badge>
+              )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card className="border-amber-200 bg-amber-50 py-4 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-amber-800/70">Pendiente</CardTitle>
-            <Clock className="h-4 w-4 text-amber-700" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-900 tabular-nums">{formatCurrency(ventasPendientes)}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="bg-card border-border gap-3">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <Package className="h-5 w-5 text-primary" />
-            Detalle de Ventas
-            {soloNoPagados && (
-              <Badge variant="outline" className="ml-2 border-amber-300 text-amber-700">
-                <Clock className="h-3 w-3 mr-1" />
-                Solo Pendientes
-              </Badge>
-            )}
-            {filtroSocio && (
-              <Badge variant="outline" className="ml-2 border-primary/30 text-primary">
-                Filtrado por: {filtroSocio}
-              </Badge>
-            )}
-            {filtroProducto && (
-              <Badge variant="outline" className="ml-2 border-primary/30 text-primary">
-                Producto: {filtroProducto.slice(filtroProducto.indexOf(":") + 1)}
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">Cargando ventas...</div>
+            <div className="py-8 text-center text-muted-foreground">Cargando ventas...</div>
           ) : ventasFiltradas.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="py-8 text-center text-muted-foreground">
               {soloNoPagados ? "No hay ventas pendientes de pago en este período" : "No hay ventas en este período"}
             </div>
           ) : (
-            <div className="rounded-md border border-border overflow-x-auto">
+            <div className="overflow-x-auto border-t border-border">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-primary/10 hover:bg-primary/10"><TableHead className="text-foreground">Fecha</TableHead><TableHead className="text-foreground">Socio</TableHead><TableHead className="text-foreground">Item</TableHead><TableHead className="text-foreground">Detalle</TableHead><TableHead className="text-foreground">Pago</TableHead><TableHead className="text-right text-foreground">Total</TableHead><TableHead className="text-center text-foreground w-20">Acciones</TableHead></TableRow>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fecha</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Socio</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Item</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Detalle</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pago</TableHead>
+                    <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total</TableHead>
+                    <TableHead className="w-16 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Acciones</TableHead>
+                  </TableRow>
                 </TableHeader>
                 <TableBody>
                   {ventasFiltradas.map((venta) => {
@@ -1719,7 +1673,7 @@ export function HistorialVentas() {
 
                     return (
                       <React.Fragment key={venta.id}>
-                        <TableRow className="hover:bg-muted/40 cursor-pointer" onClick={() => toggleExpand(venta.id)}>
+                        <TableRow className="hover:bg-primary/5 cursor-pointer" onClick={() => toggleExpand(venta.id)}>
                           <TableCell className="text-foreground">
                             <div className="flex flex-col">
                               <span>
@@ -1749,13 +1703,13 @@ export function HistorialVentas() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {info.esMultiple ? (
-                              <Badge variant="outline" className="border-primary/30 text-primary">
-                                {info.genetica}
-                              </Badge>
-                            ) : (
-                              <span className="text-foreground">{info.genetica}</span>
-                            )}
+                            <button type="button" aria-expanded={isExpanded}
+                              aria-label={`${isExpanded ? "Ocultar" : "Ver"} detalle de venta de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
+                              onClick={(event) => { event.stopPropagation(); toggleExpand(venta.id) }}
+                              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium text-primary hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary">
+                              <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
+                              {info.genetica}
+                            </button>
                           </TableCell>
                           <TableCell>
                             {/* Display aggregated detail string */}
@@ -1792,18 +1746,18 @@ export function HistorialVentas() {
 
                               return (
                                 <div className="flex flex-col gap-1.5">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     {tieneEfectivo && (
-                                      <Badge variant="outline" className="border-primary/30 text-primary text-xs">
-                                        <Banknote className="h-3 w-3 mr-1" />
+                                      <span className="flex items-center gap-1 text-sm text-foreground">
+                                        <Banknote className="h-3.5 w-3.5 text-primary" />
                                         Efectivo
-                                      </Badge>
+                                      </span>
                                     )}
                                     {tieneTransferencia && (
-                                      <Badge variant="outline" className="text-xs">
-                                        <CreditCard className="h-3 w-3 mr-1" />
+                                      <span className="flex items-center gap-1 text-sm text-foreground">
+                                        <CreditCard className="h-3.5 w-3.5 text-primary" />
                                         Transf.
-                                      </Badge>
+                                      </span>
                                     )}
                                     {tieneTransferencia &&
                                       (venta.pagos && venta.pagos.some(p => p.comprobante_url) ? (
@@ -1880,16 +1834,28 @@ export function HistorialVentas() {
                               >
                                 <Pencil className="h-4 w-4 text-primary" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setVentaABorrar(venta)}
-                                className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                title="Eliminar venta"
-                                aria-label="Eliminar venta"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-9 w-9 p-0 hover:bg-primary/10"
+                                    title="Más acciones"
+                                    aria-label={`Más acciones para la venta de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
+                                  >
+                                    <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="monarca-theme">
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => setVentaABorrar(venta)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Eliminar venta
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1906,7 +1872,7 @@ export function HistorialVentas() {
 
       {/* Dialog para ver comprobante */}
       <Dialog open={!!comprobanteUrl} onOpenChange={(open) => !open && setComprobanteUrl(null)}>
-        <DialogContent className="max-w-2xl bg-card">
+        <DialogContent className="monarca-theme max-w-2xl bg-card">
           <DialogHeader>
             <DialogTitle>Comprobante de Transferencia</DialogTitle>
           </DialogHeader>

@@ -226,7 +226,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
   return (
     <div className="flex flex-col gap-6">
       <Dialog open={dniDuplicadoDialogOpen} onOpenChange={setDniDuplicadoDialogOpen}>
-        <DialogContent className="bg-card border-border sm:max-w-md">
+        <DialogContent className="monarca-theme bg-card border-border sm:max-w-md">
           <DialogHeader>
             <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center">
               <AlertTriangle className="h-6 w-6 text-amber-600" />
@@ -247,7 +247,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       </Dialog>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="bg-card border-border sm:max-w-md">
+        <DialogContent className="monarca-theme bg-card border-border sm:max-w-md">
           <DialogHeader>
             <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
               <AlertTriangle className="h-6 w-6 text-destructive" />
@@ -302,7 +302,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
             </Button>
           </DialogTrigger>
           <DialogContent
-            className="w-[calc(100%-2rem)] sm:max-w-[960px] max-h-[90dvh] grid-rows-[auto_1fr_auto] gap-0 overflow-hidden bg-background p-0"
+            className="monarca-theme w-[calc(100%-2rem)] sm:max-w-[960px] max-h-[90dvh] grid-rows-[auto_1fr_auto] gap-0 overflow-hidden bg-background p-0"
           >
             <DialogHeader className="border-b border-border bg-card px-6 py-4 pr-12">
               <DialogTitle className="text-foreground">{editingSocio ? "Editar socio" : "Nuevo socio"}</DialogTitle>
@@ -394,7 +394,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                           <SelectTrigger className="w-full bg-card">
                             <SelectValue placeholder="Seleccionar estado" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="monarca-theme">
                             <SelectItem value="Activo">Activo</SelectItem>
                             <SelectItem value="Pendiente">Pendiente</SelectItem>
                           </SelectContent>
@@ -412,7 +412,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                           <SelectTrigger className="w-full bg-card">
                             <SelectValue placeholder="Seleccionar sucursal" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="monarca-theme">
                             {sucursales.map((s) => (
                               <SelectItem key={s.id} value={s.id}>
                                 {s.nombre}

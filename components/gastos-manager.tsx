@@ -476,6 +476,7 @@ export function GastosManager() {
           ) : gastosFiltrados.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No hay gastos en este período</div>
           ) : (
+            <div className="min-w-0 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-primary/10 hover:bg-primary/10">
@@ -522,6 +523,7 @@ export function GastosManager() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

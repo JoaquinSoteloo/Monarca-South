@@ -260,7 +260,7 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
           if (!open) resetForm()
         }}
       >
-        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[960px] max-h-[90dvh] grid-rows-[auto_1fr_auto] gap-0 overflow-hidden bg-background p-0">
+        <DialogContent className="monarca-theme w-[calc(100%-2rem)] sm:max-w-[960px] max-h-[90dvh] grid-rows-[auto_1fr_auto] gap-0 overflow-hidden bg-background p-0">
             <DialogHeader className="border-b border-border bg-card px-6 py-4 pr-12">
               <DialogTitle className="text-foreground">
                 {editingGenetica ? "Editar genética" : "Nueva genética"}

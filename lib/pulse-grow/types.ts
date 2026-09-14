@@ -30,7 +30,8 @@ export interface PulseRecentDataPoint {
   dpF: number
   dpC: number
   pluggedIn: boolean
-  batteryV: number
+  /** `null` cuando Pulse no informa el campo (no confundir con una batería real en 0V). */
+  batteryV: number | null
   signalStrength: number
 }
 
@@ -44,7 +45,8 @@ export interface PulseDeviceReading {
   airPressureHpa: number
   dewPointC: number
   dewPointF: number
-  batteryV: number
+  /** `null` cuando Pulse no informa el campo (no confundir con una batería real en 0V). */
+  batteryV: number | null
   signalStrength: number
   pluggedIn: boolean
   createdAt: string

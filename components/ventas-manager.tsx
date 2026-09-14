@@ -389,9 +389,9 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="monarca-theme max-h-[90dvh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
@@ -437,29 +437,70 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
         </DialogContent>
       </Dialog>
 
-      <h1 className="text-[26px] font-semibold leading-tight text-foreground">Registrar venta</h1>
+      <div>
+        <h1 className="text-[26px] font-semibold leading-tight text-foreground">Ventas</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Prepará la venta y revisá el cobro antes de registrarla.</p>
+      </div>
 
       <form
         onSubmit={handleSubmit}
-        className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start"
+        className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px] lg:items-start"
       >
         {/* Columna principal: fecha, socio, ítems */}
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6">
+          <section className="min-w-0 rounded-xl border bg-card p-5">
+            <h2 className="mb-4 flex items-center gap-2 text-base font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">1</span> Datos de la venta</h2>
+            <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,1fr)_240px]">
           <div className="space-y-2">
-            <Label htmlFor="fecha-venta">Fecha de Venta</Label>
+            <Label htmlFor="socio-select" className="font-semibold text-primary">
+              Socio <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={formData.socio_id}
+              onValueChange={(value) => setFormData({ ...formData, socio_id: value })}
+            >
+              <SelectTrigger id="socio-select" className="w-full bg-card">
+                <SelectValue placeholder="Seleccionar socio" />
+              </SelectTrigger>
+              <SelectContent className="monarca-theme">
+                {socios.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <div className="flex items-center gap-2">
+                      {s.apellido}, {s.nombre} - {s.dni}
+                      {s.es_miembro && (
+                        <Badge variant="outline" className="border-accent/50 bg-accent/10 text-accent-foreground text-xs ml-1">
+                          <Crown className="h-3 w-3 mr-1" />
+                          Miembro
+                        </Badge>
+                      )}
+                      {s.es_vip && (
+                        <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary text-xs ml-1">
+                          <Star className="h-3 w-3 mr-1" />
+                          VIP
+                        </Badge>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+          </div>
+          <div className="min-w-0 space-y-2">
+            <Label htmlFor="fecha-venta">Fecha de venta</Label>
             <Popover open={popoverFechaOpen} onOpenChange={setPopoverFechaOpen}>
               <PopoverTrigger asChild>
                 <Button
                   id="fecha-venta"
                   type="button"
                   variant="outline"
-                  className="w-full justify-start bg-card text-left font-normal sm:w-64"
+                  className="w-full justify-start bg-card text-left font-normal"
                 >
                   <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
                   {format(fechaVenta, "dd 'de' MMMM, yyyy", { locale: es })}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent className="monarca-theme w-auto p-0" align="start">
                 <Calendar
                   mode="single"
                   selected={fechaVenta}
@@ -484,42 +525,10 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="socio-select" className="font-semibold text-primary">
-              Socio <span className="text-destructive">*</span>
-            </Label>
-            <Select
-              value={formData.socio_id}
-              onValueChange={(value) => setFormData({ ...formData, socio_id: value })}
-            >
-              <SelectTrigger id="socio-select" className="w-full bg-card">
-                <SelectValue placeholder="Seleccionar socio" />
-              </SelectTrigger>
-              <SelectContent>
-                {socios.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <div className="flex items-center gap-2">
-                      {s.apellido}, {s.nombre} - {s.dni}
-                      {s.es_miembro && (
-                        <Badge variant="outline" className="border-accent/50 bg-accent/10 text-accent-foreground text-xs ml-1">
-                          <Crown className="h-3 w-3 mr-1" />
-                          Miembro
-                        </Badge>
-                      )}
-                      {s.es_vip && (
-                        <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary text-xs ml-1">
-                          <Star className="h-3 w-3 mr-1" />
-                          VIP
-                        </Badge>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
+            </div>
+            <div className="mt-3 space-y-2">
             {deudaSocio > 0 && (
-              <div className="mt-2 p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2">
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                 <div className="text-sm">
                   <span className="font-medium text-amber-700">Este socio tiene una deuda pendiente de </span>
@@ -529,7 +538,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             )}
 
             {esMiembro && (
-              <div className="mt-2 flex items-center gap-2 p-3 rounded-lg bg-accent/10 border border-accent/30">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-accent/10 border border-accent/30">
                 <Crown className="h-5 w-5 text-accent" />
                 <span className="text-sm text-accent-foreground font-medium">
                   Socio miembro del club - Se aplica el precio de miembro definido en cada genética
@@ -538,18 +547,19 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             )}
 
             {esVip && (
-              <div className="mt-2 flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/30">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/30">
                 <Star className="h-5 w-5 text-primary" />
                 <span className="text-sm text-primary font-medium">
                   Socio VIP - Se aplica el precio VIP definido en cada genética
                 </span>
               </div>
             )}
-          </div>
+            </div>
+          </section>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-semibold text-primary">Productos</Label>
+          <div className="space-y-3 rounded-xl border bg-card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-base font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">2</span> Ítems de la venta</h2>
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -578,7 +588,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
               const calc = calcularLinea(linea)
 
               return (
-                <div key={index} className="p-4 rounded-lg bg-[#EDF3EF] border border-border space-y-3">
+                <div key={index} className="min-w-0 p-4 rounded-lg bg-primary/5 border border-primary/15 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-foreground">
                       {linea.tipo === "genetica" ? "Genética" : "Producto"} {index + 1}
@@ -610,7 +620,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
                           <SelectTrigger id={`genetica-${index}`} className="w-full bg-card">
                             <SelectValue placeholder="Seleccionar genética" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="monarca-theme">
                             {geneticas.map((g) => {
                               const gPrecioGramo = esMiembro
                                 ? g.precio_gramo_miembro || 0
@@ -725,10 +735,10 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
                             value={linea.producto_id}
                             onValueChange={(value) => actualizarLinea(index, "producto_id", value)}
                           >
-                            <SelectTrigger className="flex-1 bg-card">
+                            <SelectTrigger id={`producto-${index}`} aria-label={`Producto ${index + 1}`} className="min-w-0 flex-1 bg-card">
                               <SelectValue placeholder="Seleccionar producto" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="monarca-theme">
                               {productos
                                 .filter((p) => p.activo)
                                 .map((p) => (
@@ -745,6 +755,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
                             onClick={() => openScanner(index)}
                             className="bg-card hover:bg-muted shrink-0"
                             title="Escanear código de barras"
+                            aria-label="Escanear código de barras"
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -800,30 +811,39 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             })}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notas">Notas (opcional)</Label>
+          <details className="rounded-xl border bg-card p-4">
+            <summary className="cursor-pointer text-sm font-medium text-primary">Notas de la venta (opcional)</summary>
+            <Label htmlFor="notas" className="sr-only">Notas</Label>
             <Textarea
               id="notas"
               value={formData.notas}
               onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
               placeholder="Observaciones..."
-              className="bg-card"
+              className="mt-3 bg-card"
             />
-          </div>
+          </details>
         </div>
 
         {/* Resumen lateral en escritorio, debajo del formulario en móvil */}
-        <Card className="border-border bg-card shadow-sm lg:sticky lg:top-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShoppingCart className="h-4 w-4 text-primary" />
-              Resumen
-            </CardTitle>
+        <Card className="min-w-0 gap-0 overflow-hidden border-border bg-card shadow-sm xl:sticky xl:top-6">
+          <CardHeader className="-mt-6 gap-3 bg-primary py-5 text-primary-foreground">
+            <CardTitle className="flex items-center gap-2 text-base"><ShoppingCart className="h-4 w-4" />3 · Resumen y cobro</CardTitle>
+            <div>
+              <p className="text-xs text-primary-foreground/80">Total de la venta</p>
+              <p className="mt-1 break-words text-3xl font-semibold tabular-nums">{formatCurrency(totalVenta)}</p>
+              <p className="mt-1 text-xs text-primary-foreground/80">{formatGramos(gramosTotalesVenta)} en esta venta</p>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Total ({formatGramos(gramosTotalesVenta)})</span>
-              <span className="text-2xl font-semibold text-foreground">{formatCurrency(totalVenta)}</span>
+          <CardContent className="space-y-4 pt-4">
+            <div className="space-y-2 text-sm">
+              {selectedSocio && <p className="font-medium">{selectedSocio.apellido}, {selectedSocio.nombre}</p>}
+              {lineas.filter((l) => l.tipo === "genetica" ? l.genetica_id && (l.gramos > 0 || l.cantidad_enrolados > 0) : l.producto_id && l.cantidad_producto > 0).map((linea, index) => {
+                const detalle = calcularLinea(linea)
+                return <div key={index} className="flex items-start justify-between gap-3">
+                  <span className="min-w-0 text-muted-foreground">{detalle.genetica?.nombre || detalle.producto?.nombre}</span>
+                  <span className="shrink-0 tabular-nums">{formatCurrency(detalle.subtotal)}</span>
+                </div>
+              })}
             </div>
 
             <div className="space-y-2 border-t border-border pt-3">
@@ -867,12 +887,14 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
                 const deuda = Math.max(0, totalVenta - totalPagado)
                 const excedente = Math.max(0, totalPagado - totalVenta)
                 return (
-                  <div className="flex justify-between items-center pt-2 border-t border-border">
+                  <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-border">
                     <div className="text-sm">
                       <span className="text-muted-foreground">Pagado: </span>
                       <span className="font-medium text-primary">{formatCurrency(totalPagado)}</span>
                     </div>
-                    {deuda > 0 ? (
+                    {!lineas.some((l) => l.tipo === "genetica" ? l.genetica_id && (l.gramos > 0 || (l.cantidad_enrolados > 0 && l.peso_por_enrolado > 0)) : l.producto_id && l.cantidad_producto > 0) ? (
+                      <p className="text-xs text-muted-foreground">Agregá ítems con cantidades válidas para calcular el total.</p>
+                    ) : deuda > 0 ? (
                       <div className="text-sm">
                         <span className="text-muted-foreground">Deuda: </span>
                         <span className="font-medium text-amber-700">{formatCurrency(deuda)}</span>
@@ -888,14 +910,14 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 text-destructive text-sm">
+              <div role="alert" className="flex items-start gap-2 rounded-lg bg-destructive/5 p-3 text-destructive text-sm">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                 {error}
               </div>
             )}
 
             <Button type="submit" className="w-full" size="lg" disabled={loading || !formData.socio_id}>
-              {loading ? "Registrando..." : "Registrar Venta"}
+              {loading ? "Registrando..." : "Registrar venta"}
             </Button>
           </CardContent>
         </Card>
@@ -914,7 +936,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <ShoppingCart className="h-4 w-4 text-primary" />
-            Últimas Ventas
+            Últimas ventas
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -924,7 +946,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-border">
+                  <TableRow className="border-border bg-primary/10">
                     <TableHead className="text-muted-foreground">Socio</TableHead>
                     <TableHead className="text-muted-foreground">Genética</TableHead>
                     <TableHead className="text-muted-foreground">Producto</TableHead>

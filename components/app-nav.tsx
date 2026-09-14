@@ -108,8 +108,12 @@ function useLogout() {
   return { logout, error }
 }
 
-function Brand({ variant }: { variant: "sidebar" | "topbar" }) {
-  const onDark = variant === "sidebar"
+// "dark" = sobre el verde bosque del sidebar/topbar; "light" = sobre
+// superficies claras (usado hoy solo dentro del panel desplegable si hiciera
+// falta más contraste puntual). Nombrado por tratamiento visual, no por
+// posición: el topbar móvil también usa "dark" para calzar con el sidebar.
+function Brand({ variant, subtitle }: { variant: "dark" | "light"; subtitle?: string }) {
+  const onDark = variant === "dark"
   return (
     <Link href="/" className="flex items-center gap-3 px-1">
       <Image
@@ -117,19 +121,19 @@ function Brand({ variant }: { variant: "sidebar" | "topbar" }) {
         alt="Monarca South"
         width={36}
         height={36}
-        className={cn("rounded-full ring-2", onDark ? "ring-accent/70" : "ring-accent/40")}
+        className={cn("rounded-full ring-2 shrink-0", onDark ? "ring-accent/70" : "ring-accent/40")}
       />
-      <div className="flex flex-col leading-tight">
-        <span className={cn("text-sm font-semibold", onDark ? "text-primary-foreground" : "text-foreground")}>
+      <div className="flex min-w-0 flex-col leading-tight">
+        <span className={cn("truncate text-sm font-semibold", onDark ? "text-primary-foreground" : "text-foreground")}>
           Monarca South
         </span>
         <span
           className={cn(
-            "text-[11px] uppercase tracking-wide",
+            "truncate text-[11px] uppercase tracking-wide",
             onDark ? "text-primary-foreground/60" : "text-muted-foreground",
           )}
         >
-          Gestión
+          {subtitle ?? "Gestión"}
         </span>
       </div>
     </Link>
@@ -142,10 +146,10 @@ function NavLinks({
   onNavigate,
 }: {
   pathname: string
-  variant: "sidebar" | "topbar"
+  variant: "dark" | "light"
   onNavigate?: () => void
 }) {
-  const onDark = variant === "sidebar"
+  const onDark = variant === "dark"
   return (
     <nav className="flex flex-col gap-5">
       {navGroups.map((group) => (
@@ -200,11 +204,11 @@ export function AppSidebar() {
   return (
     <aside className="hidden w-64 shrink-0 bg-primary px-4 py-5 lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:gap-5">
       <div className="flex shrink-0 items-center justify-between gap-2">
-        <Brand variant="sidebar" />
+        <Brand variant="dark" />
         <PushNotificationsBell variant="dark" />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <NavLinks pathname={pathname} variant="sidebar" />
+        <NavLinks pathname={pathname} variant="dark" />
       </div>
       <div className="shrink-0">
         <button
@@ -250,11 +254,13 @@ export function AppMobileNav() {
   }, [pathname])
 
   return (
-    <div className="border-b border-border bg-card lg:hidden">
+    <div className="bg-primary lg:hidden">
+      {/* Encabezado compacto: un solo renglón (marca + título de pantalla en
+          el subtítulo + acciones), sin una franja aparte dedicada al título. */}
       <div className="flex items-center justify-between gap-3 px-4 py-3">
-        <Brand variant="topbar" />
+        <Brand variant="dark" subtitle={title} />
         <div className="flex items-center gap-1">
-          <PushNotificationsBell />
+          <PushNotificationsBell variant="dark" />
           <button
             ref={buttonRef}
             type="button"
@@ -262,13 +268,12 @@ export function AppMobileNav() {
             aria-controls="app-mobile-nav-panel"
             aria-label={open ? "Cerrar menú" : "Abrir menú"}
             onClick={() => setOpen((v) => !v)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 text-primary-foreground hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </div>
-      <p className="px-4 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
 
       {open && (
         <div
@@ -276,18 +281,18 @@ export function AppMobileNav() {
           ref={panelRef}
           role="dialog"
           aria-label="Menú de navegación"
-          className="max-h-[70vh] overflow-y-auto border-t border-border bg-card px-4 py-4"
+          className="max-h-[70vh] overflow-y-auto border-t border-white/10 bg-primary px-4 py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          <NavLinks pathname={pathname} variant="topbar" onNavigate={() => setOpen(false)} />
+          <NavLinks pathname={pathname} variant="dark" onNavigate={() => setOpen(false)} />
           <button
             type="button"
             onClick={logout}
-            className="mt-4 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="mt-4 flex w-full items-center gap-2.5 rounded-lg border-l-2 border-transparent px-2.5 py-2 text-sm font-medium text-primary-foreground/70 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <LogOut className="h-4 w-4" />
             Cerrar sesión
           </button>
-          {error && <p className="mt-1 px-3 text-xs text-destructive">{error}</p>}
+          {error && <p className="mt-1 px-2.5 text-xs text-red-200">{error}</p>}
         </div>
       )}
     </div>

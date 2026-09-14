@@ -16,10 +16,13 @@ interface PulseHistoryChartProps {
 
 const MIN_PUNTOS_PARA_GRAFICAR = 2
 
+// Colores sobrios y fijos por variable — no representan estados de alarma,
+// solo distinguen las tres curvas entre sí. Evitar tonos saturados (rojo,
+// ámbar) que en el resto de la pantalla comunican error o aviso.
 const SERIES: { key: "temperatura_c" | "humedad_rh" | "vpd"; label: string; unidad: string; color: string }[] = [
-  { key: "temperatura_c", label: "Temperatura", unidad: "°C", color: "#ef4444" },
-  { key: "humedad_rh", label: "Humedad", unidad: "%", color: "#3b82f6" },
-  { key: "vpd", label: "VPD", unidad: "kPa", color: "#a855f7" },
+  { key: "temperatura_c", label: "Temperatura", unidad: "°C", color: "#3f6b52" },
+  { key: "humedad_rh", label: "Humedad", unidad: "%", color: "#4f7a96" },
+  { key: "vpd", label: "VPD", unidad: "kPa", color: "#9c7a4a" },
 ]
 
 function formatTick(iso: string, rango: RangoHistorial): string {
@@ -28,6 +31,16 @@ function formatTick(iso: string, rango: RangoHistorial): string {
     return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
   }
   return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
+}
+
+function formatTooltipLabel(iso: string): string {
+  return new Date(iso).toLocaleString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }
 
 export function PulseHistoryChart({ pulseDeviceId }: PulseHistoryChartProps) {
@@ -65,11 +78,11 @@ export function PulseHistoryChart({ pulseDeviceId }: PulseHistoryChartProps) {
   return (
     <div className="space-y-4">
       <Tabs value={rango} onValueChange={(v) => setRango(v as RangoHistorial)}>
-        <TabsList className="bg-emerald-100/50">
-          <TabsTrigger value="24h" className="data-[state=active]:bg-emerald-700 data-[state=active]:text-white">
+        <TabsList className="bg-primary/10">
+          <TabsTrigger value="24h" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             Últimas 24 horas
           </TabsTrigger>
-          <TabsTrigger value="7d" className="data-[state=active]:bg-emerald-700 data-[state=active]:text-white">
+          <TabsTrigger value="7d" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             Últimos 7 días
           </TabsTrigger>
         </TabsList>
@@ -89,7 +102,8 @@ export function PulseHistoryChart({ pulseDeviceId }: PulseHistoryChartProps) {
         <div className="space-y-5">
           {SERIES.map((serie) => (
             <div key={serie.key} className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: serie.color }} aria-hidden="true" />
                 {serie.label} ({serie.unidad})
               </p>
               <ResponsiveContainer width="100%" height={140}>
@@ -112,13 +126,18 @@ export function PulseHistoryChart({ pulseDeviceId }: PulseHistoryChartProps) {
                   />
                   <Tooltip
                     formatter={(value: number) => [`${Number(value).toFixed(2)} ${serie.unidad}`, serie.label]}
-                    labelFormatter={(label) => label}
+                    labelFormatter={(_label, payload) => {
+                      const bucketIso = payload?.[0]?.payload?.bucket
+                      return typeof bucketIso === "string" ? formatTooltipLabel(bucketIso) : _label
+                    }}
                     contentStyle={{
                       backgroundColor: "var(--card)",
                       borderColor: "var(--border)",
                       borderRadius: 8,
                       fontSize: 12,
+                      color: "var(--foreground)",
                     }}
+                    labelStyle={{ color: "var(--foreground)" }}
                   />
                   <Line
                     type="monotone"

@@ -156,8 +156,15 @@ export default async function Dashboard() {
       value: formatGramos(totalGramosDisponibles),
       highlight: true,
     },
-    { key: "ventas", label: "Ventas hoy", icon: ShoppingCart, value: formatCurrency(ventasHoyTotal), highlight: true },
-    { key: "gastos", label: "Gastos hoy", icon: Receipt, value: formatCurrency(gastosHoyTotal) },
+    {
+      key: "ventas",
+      label: "Ventas hoy",
+      icon: ShoppingCart,
+      value: formatCurrency(ventasHoyTotal),
+      highlight: true,
+      money: true,
+    },
+    { key: "gastos", label: "Gastos hoy", icon: Receipt, value: formatCurrency(gastosHoyTotal), money: true },
     {
       key: "stockBajo",
       label: "Stock bajo",
@@ -200,12 +207,13 @@ export default async function Dashboard() {
   ].filter((a): a is { key: string; texto: string; href: string } => a !== null)
 
   return (
-    <main className="container mx-auto flex flex-col gap-8 px-4 py-8">
-      {/* 1. Encabezado + acción principal */}
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <main className="container mx-auto flex flex-col gap-6 px-4 py-6 sm:gap-8 sm:py-8">
+      {/* 1. Encabezado + acción principal — título más chico en mobile para
+          que los indicadores aparezcan antes, sin cambiar el desktop. */}
+      <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div>
           <p className="text-sm text-muted-foreground">{formatFechaLargaArgentina()}</p>
-          <h1 className="text-[26px] font-semibold leading-tight text-foreground">
+          <h1 className="text-xl font-semibold leading-tight text-foreground sm:text-[26px]">
             Hola — así viene el día en Monarca
           </h1>
         </div>
@@ -230,12 +238,17 @@ export default async function Dashboard() {
         <h2 id="indicadores-heading" className="text-sm font-semibold text-foreground">
           Estado general
         </h2>
-        <div className="grid grid-cols-2 gap-3 max-[380px]:grid-cols-1 sm:gap-4 lg:grid-cols-4">
-          {indicadores.map(({ key, label, icon: Icon, value, note, highlight, alert }) => (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {indicadores.map(({ key, label, icon: Icon, value, note, highlight, alert, money }) => (
             <div
               key={key}
               className={cn(
-                "rounded-lg border p-4",
+                "min-w-0 rounded-lg border p-4",
+                // Los importes ($220.000,00 y similares) no entran cómodos en
+                // media columna de un teléfono chico: ocupan la fila completa
+                // para no quedar pegados al borde ni recortados. En lg (4
+                // columnas, referencia de escritorio) vuelven a su celda.
+                money && "col-span-2 lg:col-span-1",
                 alert
                   ? "border-amber-300 bg-amber-50"
                   : highlight
@@ -256,7 +269,8 @@ export default async function Dashboard() {
               </div>
               <p
                 className={cn(
-                  "text-2xl font-semibold leading-none sm:text-[28px]",
+                  "break-words font-semibold leading-tight",
+                  money ? "text-xl sm:text-2xl lg:text-[28px]" : "text-2xl leading-none sm:text-[28px]",
                   alert ? "text-amber-800" : "text-foreground",
                 )}
               >

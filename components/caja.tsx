@@ -160,7 +160,7 @@ export function Caja() {
                     {format(fechaDesde, "dd/MM/yyyy")}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="monarca-theme w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={fechaDesde}
@@ -180,7 +180,7 @@ export function Caja() {
                     {format(fechaHasta, "dd/MM/yyyy")}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="monarca-theme w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={fechaHasta}

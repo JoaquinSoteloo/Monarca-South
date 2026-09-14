@@ -139,7 +139,9 @@ export async function getDeviceRecentData(deviceId: number): Promise<PulseRecent
     dpF: d.dpF as number,
     dpC: d.dpC as number,
     pluggedIn: Boolean(d.pluggedIn),
-    batteryV: typeof d.batteryV === "number" ? d.batteryV : 0,
+    // Pulse a veces omite este campo; lo dejamos en null en vez de asumir 0V,
+    // que sería un valor de batería real y engañoso.
+    batteryV: typeof d.batteryV === "number" ? d.batteryV : null,
     signalStrength: typeof d.signalStrength === "number" ? d.signalStrength : 0,
   }
 }

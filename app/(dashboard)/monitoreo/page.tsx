@@ -22,9 +22,8 @@ export default async function MonitoreoPage() {
   }))
 
   return (
-          <main className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-emerald-900 mb-8">Monitoreo Ambiental</h1>
-        <MonitoreoManager initialDevices={devices} salas={(salasResult.data as Pick<SalaCultivo, "id" | "nombre">[]) || []} />
-      </main>
+    <main className="container mx-auto px-4 py-8">
+      <MonitoreoManager initialDevices={devices} salas={(salasResult.data as Pick<SalaCultivo, "id" | "nombre">[]) || []} />
+    </main>
   )
 }

@@ -430,7 +430,7 @@ export function DeudasManager() {
               <p className="text-sm text-muted-foreground">Ventas pendientes de este socio</p>
               <Button onClick={() => handleOpenPagoSocioDialog(grupo)}><DollarSign className="h-4 w-4" />Pagar deuda del socio</Button>
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-primary/10">

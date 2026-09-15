@@ -1,42 +1,24 @@
 "use client"
 
 import type React from "react"
-import { useMemo, useState } from "react"
-import type {
-  Automatizacion,
-  DispositivoControlable,
-  OperadorComparacion,
-  ProveedorDispositivo,
-  TipoDispositivoControlable,
-  VariableAmbiental,
-} from "@/lib/types"
+import { useMemo, useRef, useState } from "react"
+import type { Automatizacion, DispositivoControlable, ModoDispositivo } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { VARIABLE_CONFIG as variableConfig, formatComandoDispositivo, AC_MODO_OPTIONS, AC_FAN_OPTIONS } from "@/lib/automations/format"
 import { computeAlertasOperativas, type AlertaOperativa, type UltimaLecturaResumen } from "@/lib/automations/alerts"
-import { formatEjecucionHumana, type EjecucionConComando } from "@/lib/automations/history-format"
-import { tipoDispositivoConfig, comandoEstadoConfig, origenComandoLabels, formatMinutesAgo } from "@/lib/device-ui-config"
-import {
-  Plus,
-  Trash2,
-  Pencil,
-  History,
-  RefreshCw,
-  CheckCircle2,
-  CircleAlert,
-  Clock,
-  AlertTriangle,
-  Power,
-  PowerOff,
-} from "lucide-react"
+import type { EjecucionConComando } from "@/lib/automations/history-format"
+import { Plus, RefreshCw, CheckCircle2, AlertTriangle, Bell } from "lucide-react"
+
+import { SummaryStrip, AlertList } from "@/components/automatizaciones/overview"
+import { RoomTabs } from "@/components/automatizaciones/room-tabs"
+import { RuleCard } from "@/components/automatizaciones/rule-card"
+import { DeviceCard } from "@/components/automatizaciones/device-card"
+import { DeviceDialog } from "@/components/automatizaciones/device-dialog"
+import { RuleDialog } from "@/components/automatizaciones/rule-dialog"
+import { HistoryDialog } from "@/components/automatizaciones/history-dialog"
+import { NotificationsDialog } from "@/components/automatizaciones/notifications-dialog"
+import { initialDeviceForm, initialReglaForm, type DeviceFormState, type RuleFormState } from "@/components/automatizaciones/form-types"
 
 interface Sala {
   id: number
@@ -63,15 +45,7 @@ interface AutomatizacionesManagerProps {
 // a nuestro propio backend (/api/devices, /api/automations). Todo dato de
 // hardware real vive detrás de esos endpoints.
 
-const proveedorOpciones: { value: ProveedorDispositivo; label: string; disponible: boolean }[] = [
-  { value: "manual_noop", label: "Simulación (manual_noop) — sin hardware", disponible: true },
-  { value: "broadlink_ir", label: "BroadLink IR — próximamente", disponible: false },
-  { value: "shelly_local", label: "Shelly local — próximamente", disponible: false },
-  { value: "shelly_cloud", label: "Shelly Cloud — próximamente", disponible: false },
-  { value: "http_directo", label: "HTTP directo — próximamente", disponible: false },
-]
-
-const modoEjecucionPorProveedor: Record<ProveedorDispositivo, "servidor_directo" | "bridge_polling"> = {
+const modoEjecucionPorProveedor: Record<DeviceFormState["proveedor"], "servidor_directo" | "bridge_polling"> = {
   manual_noop: "servidor_directo",
   broadlink_ir: "bridge_polling",
   shelly_local: "bridge_polling",
@@ -79,47 +53,22 @@ const modoEjecucionPorProveedor: Record<ProveedorDispositivo, "servidor_directo"
   http_directo: "servidor_directo",
 }
 
-const tipoEjecucionConfig: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
-  encendido: { label: "Encendido", color: "border-emerald-300 text-emerald-700 bg-emerald-50", icon: CheckCircle2 },
-  apagado: { label: "Apagado", color: "border-gray-300 text-gray-700 bg-gray-50", icon: PowerOff },
-  fail_safe: { label: "Fail-safe", color: "border-amber-300 text-amber-700 bg-amber-50", icon: AlertTriangle },
-  error: { label: "Error", color: "border-red-300 text-red-700 bg-red-50", icon: CircleAlert },
-}
-
-function resumirCondicion(variable: VariableAmbiental, operador: OperadorComparacion, valor: number, minutos: number) {
-  const cfg = variableConfig[variable]
-  const sostenido = minutos > 0 ? ` por ${minutos} min` : ""
-  return `${cfg.label} ${operador} ${valor}${cfg.unidad}${sostenido}`
-}
-
-const initialDeviceForm = {
-  nombre: "",
-  tipo: "aire_acondicionado" as TipoDispositivoControlable,
-  proveedor: "manual_noop" as ProveedorDispositivo,
-  soporta_feedback: false,
-  simular_falla: false,
-  latencia_ms: "",
-  // "" = no es crítico para Modo Ausente (ver app/modo-ausente).
-  requisito_ausente: "" as "" | "encendido" | "apagado",
-}
-
-const initialReglaForm = {
-  nombre: "",
-  pulse_device_id: "",
-  variable: "temperatura_c" as VariableAmbiental,
-  operador: ">" as OperadorComparacion,
-  valor_objetivo: "",
-  duracion_minima_minutos: "3",
-  usar_histeresis: false,
-  operador_apagado: "<" as OperadorComparacion,
-  valor_apagado: "",
-  duracion_apagado_minutos: "3",
-  cooldown_minutos: "5",
-  dispositivo_id: "",
-  accion_modo: "frio",
-  accion_setpoint: "23",
-  accion_fan: "auto",
-  accion_fail_safe: "mantener" as "mantener" | "apagar",
+// A qué sala pertenece una alerta operativa, para el indicador del selector
+// y para poder cambiar de sala al navegar desde un aviso ajeno a la actual.
+function resolveSalaAlerta(
+  alerta: AlertaOperativa,
+  automatizaciones: Automatizacion[],
+  dispositivos: DispositivoControlable[],
+): number | null {
+  if (alerta.automatizacionId) {
+    const a = automatizaciones.find((x) => x.id === alerta.automatizacionId)
+    if (a) return a.sala_id
+  }
+  if (alerta.dispositivoId) {
+    const d = dispositivos.find((x) => x.id === alerta.dispositivoId)
+    if (d) return d.sala_id
+  }
+  return null
 }
 
 export function AutomatizacionesManager({
@@ -141,15 +90,19 @@ export function AutomatizacionesManager({
 
   const [isDeviceDialogOpen, setIsDeviceDialogOpen] = useState(false)
   const [editingDeviceId, setEditingDeviceId] = useState<number | null>(null)
-  const [deviceForm, setDeviceForm] = useState(initialDeviceForm)
+  const [deviceForm, setDeviceForm] = useState<DeviceFormState>(initialDeviceForm)
 
   const [isReglaDialogOpen, setIsReglaDialogOpen] = useState(false)
   const [editingReglaId, setEditingReglaId] = useState<number | null>(null)
-  const [reglaForm, setReglaForm] = useState(initialReglaForm)
+  const [reglaForm, setReglaForm] = useState<RuleFormState>(initialReglaForm)
 
   const [historialReglaId, setHistorialReglaId] = useState<number | null>(null)
   const [historial, setHistorial] = useState<EjecucionConComando[]>([])
   const [loadingHistorial, setLoadingHistorial] = useState(false)
+  const [historialError, setHistorialError] = useState<string | null>(null)
+  const historialRequestId = useRef(0)
+
+  const [isNotificacionesOpen, setIsNotificacionesOpen] = useState(false)
 
   const [loading, setLoading] = useState(false)
   const [evaluando, setEvaluando] = useState(false)
@@ -165,6 +118,40 @@ export function AutomatizacionesManager({
       ),
     [automatizaciones, dispositivos, alertasContext],
   )
+
+  const avisosPorSala = useMemo(() => {
+    const mapa: Record<number, number> = {}
+    for (const a of alertas) {
+      const salaId = resolveSalaAlerta(a, automatizaciones, dispositivos)
+      if (salaId !== null) mapa[salaId] = (mapa[salaId] ?? 0) + 1
+    }
+    return mapa
+  }, [alertas, automatizaciones, dispositivos])
+
+  const { alertasSala, alertasGenerales } = useMemo(() => {
+    const sala: AlertaOperativa[] = []
+    const generales: AlertaOperativa[] = []
+    for (const a of alertas) {
+      const salaId = resolveSalaAlerta(a, automatizaciones, dispositivos)
+      if (salaId === salaActivaId && salaId !== null) sala.push(a)
+      else if (salaId === null) generales.push(a)
+    }
+    return { alertasSala: sala, alertasGenerales: generales }
+  }, [alertas, automatizaciones, dispositivos, salaActivaId])
+
+  const handleNavigateAlerta = (alerta: AlertaOperativa) => {
+    const targetSalaId = resolveSalaAlerta(alerta, automatizaciones, dispositivos)
+    if (targetSalaId !== null && targetSalaId !== salaActivaId) setSalaActivaId(targetSalaId)
+    const targetId = alerta.automatizacionId
+      ? `regla-${alerta.automatizacionId}`
+      : alerta.dispositivoId
+        ? `dispositivo-${alerta.dispositivoId}`
+        : null
+    if (!targetId) return
+    requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+  }
 
   const refreshAlertasContext = async (automs: Automatizacion[]) => {
     const pulseIds = [...new Set(automs.map((a) => a.pulse_device_id))]
@@ -312,8 +299,8 @@ export function AutomatizacionesManager({
     if (res.ok) await recargarTodo()
   }
 
-  const handleToggleModoDispositivo = async (d: DispositivoControlable) => {
-    const nuevoModo = d.modo === "automatico" ? "manual" : "automatico"
+  const handleSetModoDispositivo = async (d: DispositivoControlable, nuevoModo: ModoDispositivo) => {
+    if (d.modo === nuevoModo) return
     const res = await fetch(`/api/devices/${d.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -434,36 +421,66 @@ export function AutomatizacionesManager({
   }
 
   const abrirHistorial = async (reglaId: number) => {
+    const requestId = ++historialRequestId.current
     setHistorialReglaId(reglaId)
+    setHistorial([])
+    setHistorialError(null)
     setLoadingHistorial(true)
     try {
       const res = await fetch(`/api/automations/${reglaId}/executions`, { cache: "no-store" })
+      if (requestId !== historialRequestId.current) return
       if (res.ok) {
         const data = await res.json()
         setHistorial(data.ejecuciones ?? [])
+      } else {
+        setHistorialError("No se pudo cargar el historial de esta regla.")
       }
+    } catch {
+      if (requestId === historialRequestId.current) setHistorialError("No se pudo cargar el historial de esta regla.")
     } finally {
-      setLoadingHistorial(false)
+      if (requestId === historialRequestId.current) setLoadingHistorial(false)
     }
   }
 
+  const reglasActivas = automatizaciones.filter((a) => a.activa).length
+  const dispositivosManual = dispositivos.filter((d) => d.modo === "manual").length
+
+  const salaActiva = salas.find((s) => s.id === salaActivaId)
+  const dispositivosSala = dispositivos.filter((d) => d.sala_id === salaActivaId)
+  const reglasSala = automatizaciones.filter((r) => r.sala_id === salaActivaId)
+  const historialAutomatizacion = automatizaciones.find((a) => a.id === historialReglaId) ?? null
+  const historialDispositivo = historialAutomatizacion
+    ? (dispositivos.find((d) => d.id === historialAutomatizacion.dispositivo_id) ?? null)
+    : null
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-emerald-900">Automatizaciones</h2>
-          <p className="text-muted-foreground">Reglas ambientales por sala, dispositivos abstractos y su historial de ejecución</p>
+          <h1 className="text-2xl font-bold text-foreground">Automatizaciones</h1>
+          <p className="text-muted-foreground">Configurá reglas y revisá los equipos de cada sala</p>
         </div>
-        <Button onClick={handleEvaluarAhora} disabled={evaluando} variant="outline">
-          <RefreshCw className={`h-4 w-4 mr-2 ${evaluando ? "animate-spin" : ""}`} />
-          {evaluando ? "Evaluando..." : "Evaluar ahora"}
-        </Button>
+        <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsNotificacionesOpen(true)}>
+              <Bell className="h-4 w-4" />
+              Notificaciones
+            </Button>
+            <Button onClick={handleEvaluarAhora} disabled={evaluando}>
+              <RefreshCw className={`h-4 w-4 ${evaluando ? "animate-spin" : ""}`} />
+              {evaluando ? "Evaluando..." : "Evaluar ahora"}
+            </Button>
+          </div>
+          <p className="max-w-xs text-xs text-muted-foreground sm:text-right">
+            Ejecuta el motor de reglas ahora mismo: puede generar comandos según las reglas activas de todas las salas.
+          </p>
+        </div>
       </div>
 
       {mensaje && (
         <Alert
           variant={mensaje.type === "error" ? "destructive" : "default"}
-          className={mensaje.type === "success" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : undefined}
+          className={mensaje.type === "success" ? "border-primary/30 bg-primary/5 text-primary" : undefined}
         >
           {mensaje.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
           <AlertTitle>{mensaje.type === "success" ? "Evaluación completa" : "Atención"}</AlertTitle>
@@ -471,630 +488,135 @@ export function AutomatizacionesManager({
         </Alert>
       )}
 
-      {alertas.length > 0 && (
-        <Card className="border-amber-300/70 bg-amber-50/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 text-amber-900">
-              <AlertTriangle className="h-4 w-4" />
-              Estado operativo ({alertas.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {alertas.map((a) => (
-              <div key={a.id} className="flex items-start gap-2 text-sm">
-                {a.nivel === "error" ? (
-                  <CircleAlert className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-                ) : (
-                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                )}
-                <span className={a.nivel === "error" ? "text-red-800" : "text-amber-800"}>{a.mensaje}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      <SummaryStrip reglasActivas={reglasActivas} dispositivosManual={dispositivosManual} avisos={alertas.length} />
+
+      {alertasGenerales.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Avisos generales</p>
+          <AlertList alertas={alertasGenerales} />
+        </div>
       )}
 
-      <Tabs value={salaActivaId?.toString()} onValueChange={(v) => setSalaActivaId(Number(v))} className="w-full">
-        <TabsList className="flex flex-wrap h-auto gap-2 bg-emerald-100/50">
-          {salas.map((sala) => (
-            <TabsTrigger key={sala.id} value={sala.id.toString()} className="data-[state=active]:bg-emerald-700 data-[state=active]:text-white">
-              {sala.nombre}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <RoomTabs salas={salas} salaActivaId={salaActivaId} avisosPorSala={avisosPorSala} onSelect={setSalaActivaId} />
 
-        {salas.map((sala) => {
-          const dispositivosSala = dispositivos.filter((d) => d.sala_id === sala.id)
-          const reglasSala = automatizaciones.filter((r) => r.sala_id === sala.id)
+      {salaActiva && (
+        <div className="space-y-8">
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold text-foreground">Avisos de {salaActiva.nombre}</h2>
+            <AlertList alertas={alertasSala} onNavigate={handleNavigateAlerta} />
+          </section>
 
-          return (
-            <TabsContent key={sala.id} value={sala.id.toString()} className="mt-6 space-y-8">
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-emerald-800">Dispositivos</h3>
-                  <Button size="sm" variant="outline" onClick={abrirNuevoDispositivo}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Nuevo dispositivo
-                  </Button>
-                </div>
-
-                {dispositivosSala.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-8 text-center text-muted-foreground">No hay dispositivos en esta sala todavía.</CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {dispositivosSala.map((d) => {
-                      const TipoIcon = tipoDispositivoConfig[d.tipo].icon
-                      const estadoCfg = d.ultimo_comando_estado ? comandoEstadoConfig[d.ultimo_comando_estado] : null
-                      const EstadoIcon = estadoCfg?.icon ?? Clock
-
-                      return (
-                        <Card key={d.id}>
-                          <CardHeader className="space-y-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <TipoIcon className="h-5 w-5 text-emerald-700" />
-                                <div>
-                                  <CardTitle className="text-base">{d.nombre}</CardTitle>
-                                  <p className="text-xs text-muted-foreground">{tipoDispositivoConfig[d.tipo].label}</p>
-                                </div>
-                              </div>
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => abrirEditarDispositivo(d)}>
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-600" onClick={() => handleDeleteDispositivo(d.id)}>
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-muted-foreground">{d.modo === "manual" ? "Manual" : "Automático"}</span>
-                              <Switch checked={d.modo === "manual"} onCheckedChange={() => handleToggleModoDispositivo(d)} />
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            {/* Estado esperado: lo que Monarca pidió por última vez (independiente de
-                                si el adapter pudo ejecutarlo). Último comando: metadata de esa
-                                ejecución. Estado real: SOLO si el proveedor puede confirmarlo — nunca
-                                se infiere "ejecutado" como "el equipo cambió de verdad". */}
-                            <div className="text-sm space-y-0.5">
-                              <p className="text-xs text-muted-foreground">Estado esperado</p>
-                              <p className="font-medium">
-                                {d.ultimo_comando_payload ? formatComandoDispositivo(d.tipo, d.ultimo_comando_payload) : "Sin comandos todavía"}
-                              </p>
-                            </div>
-
-                            <div className="text-sm space-y-1">
-                              <p className="text-xs text-muted-foreground">Último comando</p>
-                              {d.ultimo_comando_en ? (
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  {estadoCfg && (
-                                    <Badge variant="outline" className={estadoCfg.color}>
-                                      <EstadoIcon className="h-3 w-3" />
-                                      {estadoCfg.label}
-                                    </Badge>
-                                  )}
-                                  <span className="text-xs text-muted-foreground">
-                                    {formatMinutesAgo(d.ultimo_comando_en)}
-                                    {d.ultimo_comando_origen ? ` · ${origenComandoLabels[d.ultimo_comando_origen]}` : ""}
-                                  </span>
-                                </div>
-                              ) : (
-                                <p className="text-muted-foreground">Sin comandos todavía</p>
-                              )}
-                            </div>
-
-                            <div className="text-sm space-y-0.5">
-                              <p className="text-xs text-muted-foreground">Estado real</p>
-                              {!d.soporta_feedback ? (
-                                <p className="text-muted-foreground italic">No disponible — control unidireccional, sin confirmación del equipo.</p>
-                              ) : d.ultimo_estado_confirmado_payload ? (
-                                <p className="font-medium">
-                                  {formatComandoDispositivo(d.tipo, d.ultimo_estado_confirmado_payload)} ·{" "}
-                                  {formatMinutesAgo(d.ultimo_estado_confirmado_en)}
-                                </p>
-                              ) : (
-                                <p className="text-muted-foreground">Esperando confirmación del equipo</p>
-                              )}
-                            </div>
-
-                            {d.modo === "manual" && (
-                              <div className="flex gap-2 pt-2 border-t border-border">
-                                <Button size="sm" variant="outline" className="flex-1" onClick={() => handleComandoManual(d, "encender")}>
-                                  <Power className="h-3.5 w-3.5 mr-1" />
-                                  Encender
-                                </Button>
-                                <Button size="sm" variant="outline" className="flex-1" onClick={() => handleComandoManual(d, "apagar")}>
-                                  <PowerOff className="h-3.5 w-3.5 mr-1" />
-                                  Apagar
-                                </Button>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                  </div>
-                )}
-              </section>
-
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-emerald-800">Reglas</h3>
-                  <Button size="sm" variant="outline" onClick={abrirNuevaRegla} disabled={dispositivosSala.length === 0}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Nueva regla
-                  </Button>
-                </div>
-
-                {reglasSala.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-8 text-center text-muted-foreground">
-                      {dispositivosSala.length === 0
-                        ? "Creá primero un dispositivo en esta sala para poder armar reglas."
-                        : "No hay reglas en esta sala todavía."}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-3">
-                    {reglasSala.map((r) => {
-                      const dispositivo = dispositivos.find((d) => d.id === r.dispositivo_id)
-                      return (
-                        <Card key={r.id}>
-                          <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold">{r.nombre}</span>
-                                {!r.activa && (
-                                  <Badge variant="outline" className="border-gray-300 text-gray-500 bg-gray-50">
-                                    Inactiva
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                Encender: {resumirCondicion(r.variable, r.operador, r.valor_objetivo, Math.round(r.duracion_minima_segundos / 60))}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                Apagar:{" "}
-                                {r.operador_apagado
-                                  ? resumirCondicion(
-                                      r.variable,
-                                      r.operador_apagado,
-                                      r.valor_apagado ?? r.valor_objetivo,
-                                      Math.round((r.duracion_apagado_segundos ?? r.duracion_minima_segundos) / 60),
-                                    )
-                                  : "negación de la condición de encendido"}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {dispositivo?.nombre ?? "Dispositivo eliminado"} · cooldown {Math.round(r.cooldown_segundos / 60)} min · fail-safe:{" "}
-                                {r.accion_fail_safe}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Switch checked={r.activa} onCheckedChange={() => handleToggleActivaRegla(r)} />
-                              <Button variant="ghost" size="icon" onClick={() => abrirHistorial(r.id)}>
-                                <History className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => abrirEditarRegla(r)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleDeleteRegla(r.id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                  </div>
-                )}
-              </section>
-            </TabsContent>
-          )
-        })}
-      </Tabs>
-
-      {/* Dialog: nuevo/editar dispositivo */}
-      <Dialog open={isDeviceDialogOpen} onOpenChange={setIsDeviceDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingDeviceId ? "Editar dispositivo" : "Nuevo dispositivo"}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSaveDispositivo} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="dev_nombre">Nombre</Label>
-              <Input
-                id="dev_nombre"
-                value={deviceForm.nombre}
-                onChange={(e) => setDeviceForm({ ...deviceForm, nombre: e.target.value })}
-                placeholder="Ej: Aire acondicionado Sala 1"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo</Label>
-              <Select value={deviceForm.tipo} onValueChange={(v) => setDeviceForm({ ...deviceForm, tipo: v as TipoDispositivoControlable })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(tipoDispositivoConfig).map(([key, cfg]) => (
-                    <SelectItem key={key} value={key}>
-                      {cfg.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Proveedor</Label>
-              <Select value={deviceForm.proveedor} onValueChange={(v) => setDeviceForm({ ...deviceForm, proveedor: v as ProveedorDispositivo })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {proveedorOpciones.map((op) => (
-                    <SelectItem key={op.value} value={op.value} disabled={!op.disponible}>
-                      {op.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {deviceForm.proveedor === "manual_noop" && (
-              <div className="space-y-3 rounded-md border border-border p-3">
-                <p className="text-xs text-muted-foreground">
-                  Opciones de simulación — permiten probar los caminos de error de la cola de comandos sin hardware real.
-                </p>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="dev_fallar" className="text-sm">
-                    Simular falla siempre
-                  </Label>
-                  <Switch
-                    id="dev_fallar"
-                    checked={deviceForm.simular_falla}
-                    onCheckedChange={(checked) => setDeviceForm({ ...deviceForm, simular_falla: checked })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dev_latencia">Latencia simulada (ms, opcional)</Label>
-                  <Input
-                    id="dev_latencia"
-                    type="number"
-                    value={deviceForm.latencia_ms}
-                    onChange={(e) => setDeviceForm({ ...deviceForm, latencia_ms: e.target.value })}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-            )}
-
+          <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label htmlFor="dev_feedback" className="text-sm">
-                El proveedor puede confirmar estado real
-              </Label>
-              <Switch
-                id="dev_feedback"
-                checked={deviceForm.soporta_feedback}
-                onCheckedChange={(checked) => setDeviceForm({ ...deviceForm, soporta_feedback: checked })}
-              />
+              <h2 className="text-lg font-semibold text-foreground">
+                Reglas de la sala <span className="font-normal text-muted-foreground">({reglasSala.length})</span>
+              </h2>
+              <Button size="sm" variant="outline" onClick={abrirNuevaRegla} disabled={dispositivosSala.length === 0}>
+                <Plus className="h-4 w-4" />
+                Nueva regla
+              </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label>Modo Ausente</Label>
-              <Select
-                value={deviceForm.requisito_ausente || "ninguno"}
-                onValueChange={(v) => setDeviceForm({ ...deviceForm, requisito_ausente: v === "ninguno" ? "" : (v as "encendido" | "apagado") })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ninguno">No es crítico</SelectItem>
-                  <SelectItem value="encendido">Debe quedar encendido</SelectItem>
-                  <SelectItem value="apagado">Debe quedar apagado</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Si se marca, este dispositivo aparece en el checklist de /modo-ausente y se sigue vigilando mientras esté activo.
-              </p>
-            </div>
-
-            <Button type="submit" className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={loading}>
-              {loading ? "Guardando..." : "Guardar"}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog: nueva/editar regla */}
-      <Dialog open={isReglaDialogOpen} onOpenChange={setIsReglaDialogOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingReglaId ? "Editar regla" : "Nueva regla"}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSaveRegla} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="regla_nombre">Nombre</Label>
-              <Input
-                id="regla_nombre"
-                value={reglaForm.nombre}
-                onChange={(e) => setReglaForm({ ...reglaForm, nombre: e.target.value })}
-                placeholder="Ej: Enfriar Sala 1"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Sensor Pulse</Label>
-              <Select value={reglaForm.pulse_device_id} onValueChange={(v) => setReglaForm({ ...reglaForm, pulse_device_id: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar sensor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {pulseDevices
-                    .filter((pd) => pd.sala_id === salaActivaId)
-                    .map((pd) => (
-                      <SelectItem key={pd.id} value={String(pd.id)}>
-                        {pd.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <p className="text-sm font-medium text-emerald-800 pt-2">Condición de encendido</p>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-2 col-span-1">
-                <Label>Variable</Label>
-                <Select value={reglaForm.variable} onValueChange={(v) => setReglaForm({ ...reglaForm, variable: v as VariableAmbiental })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(variableConfig).map(([key, cfg]) => (
-                      <SelectItem key={key} value={key}>
-                        {cfg.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Operador</Label>
-                <Select value={reglaForm.operador} onValueChange={(v) => setReglaForm({ ...reglaForm, operador: v as OperadorComparacion })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[">", "<", ">=", "<="].map((op) => (
-                      <SelectItem key={op} value={op}>
-                        {op}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Valor</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={reglaForm.valor_objetivo}
-                  onChange={(e) => setReglaForm({ ...reglaForm, valor_objetivo: e.target.value })}
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Durante (minutos sostenido, 0 = instantáneo)</Label>
-              <Input
-                type="number"
-                min="0"
-                value={reglaForm.duracion_minima_minutos}
-                onChange={(e) => setReglaForm({ ...reglaForm, duracion_minima_minutos: e.target.value })}
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-2">
-              <Label htmlFor="regla_histeresis" className="text-sm font-medium text-emerald-800">
-                Condición de apagado distinta (histéresis)
-              </Label>
-              <Switch
-                id="regla_histeresis"
-                checked={reglaForm.usar_histeresis}
-                onCheckedChange={(checked) => setReglaForm({ ...reglaForm, usar_histeresis: checked })}
-              />
-            </div>
-            {reglaForm.usar_histeresis ? (
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-2">
-                  <Label>Operador</Label>
-                  <Select
-                    value={reglaForm.operador_apagado}
-                    onValueChange={(v) => setReglaForm({ ...reglaForm, operador_apagado: v as OperadorComparacion })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[">", "<", ">=", "<="].map((op) => (
-                        <SelectItem key={op} value={op}>
-                          {op}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Valor</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={reglaForm.valor_apagado}
-                    onChange={(e) => setReglaForm({ ...reglaForm, valor_apagado: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Minutos</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={reglaForm.duracion_apagado_minutos}
-                    onChange={(e) => setReglaForm({ ...reglaForm, duracion_apagado_minutos: e.target.value })}
-                  />
-                </div>
-              </div>
+            {reglasSala.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  {dispositivosSala.length === 0
+                    ? "Creá primero un dispositivo en esta sala para poder armar reglas."
+                    : "No hay reglas en esta sala todavía."}
+                </CardContent>
+              </Card>
             ) : (
-              <p className="text-xs text-muted-foreground">
-                Sin histéresis configurada: se apaga apenas deja de cumplirse la condición de encendido.
-              </p>
-            )}
-
-            <div className="space-y-2">
-              <Label>Cooldown (minutos mínimos entre disparos)</Label>
-              <Input
-                type="number"
-                min="0"
-                value={reglaForm.cooldown_minutos}
-                onChange={(e) => setReglaForm({ ...reglaForm, cooldown_minutos: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Dispositivo a controlar</Label>
-              <Select value={reglaForm.dispositivo_id} onValueChange={(v) => setReglaForm({ ...reglaForm, dispositivo_id: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar dispositivo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dispositivos
-                    .filter((d) => d.sala_id === salaActivaId)
-                    .map((d) => (
-                      <SelectItem key={d.id} value={String(d.id)}>
-                        {d.nombre}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {dispositivoSeleccionado?.tipo === "aire_acondicionado" && (
-              <div className="grid grid-cols-3 gap-2 rounded-md border border-border p-3">
-                <div className="space-y-2">
-                  <Label>Modo</Label>
-                  <Select value={reglaForm.accion_modo} onValueChange={(v) => setReglaForm({ ...reglaForm, accion_modo: v })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AC_MODO_OPTIONS.map((op) => (
-                        <SelectItem key={op.value} value={op.value}>
-                          {op.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Setpoint (°C)</Label>
-                  <Input
-                    type="number"
-                    value={reglaForm.accion_setpoint}
-                    onChange={(e) => setReglaForm({ ...reglaForm, accion_setpoint: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Fan</Label>
-                  <Select value={reglaForm.accion_fan} onValueChange={(v) => setReglaForm({ ...reglaForm, accion_fan: v })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AC_FAN_OPTIONS.map((op) => (
-                        <SelectItem key={op.value} value={op.value}>
-                          {op.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-3">
+                {reglasSala.map((r) => {
+                  const dispositivo = dispositivos.find((d) => d.id === r.dispositivo_id)
+                  const pulseDeviceName = pulseDevices.find((pd) => pd.id === r.pulse_device_id)?.name
+                  const alertaAsociada = alertas.find((a) => a.automatizacionId === r.id)
+                  return (
+                    <RuleCard
+                      key={r.id}
+                      regla={r}
+                      dispositivo={dispositivo}
+                      pulseDeviceName={pulseDeviceName}
+                      alertaAsociada={alertaAsociada}
+                      onToggleActiva={() => handleToggleActivaRegla(r)}
+                      onHistorial={() => abrirHistorial(r.id)}
+                      onEditar={() => abrirEditarRegla(r)}
+                      onEliminar={() => handleDeleteRegla(r.id)}
+                    />
+                  )
+                })}
               </div>
             )}
-            {dispositivoSeleccionado && dispositivoSeleccionado.tipo !== "aire_acondicionado" && (
-              <p className="text-xs text-muted-foreground">Este equipo se enciende/apaga sin parámetros adicionales.</p>
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">
+                Dispositivos <span className="font-normal text-muted-foreground">({dispositivosSala.length})</span>
+              </h2>
+              <Button size="sm" variant="outline" onClick={abrirNuevoDispositivo}>
+                <Plus className="h-4 w-4" />
+                Nuevo dispositivo
+              </Button>
+            </div>
+
+            {dispositivosSala.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">No hay dispositivos en esta sala todavía.</CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {dispositivosSala.map((d) => (
+                  <DeviceCard
+                    key={d.id}
+                    dispositivo={d}
+                    onEditar={() => abrirEditarDispositivo(d)}
+                    onEliminar={() => handleDeleteDispositivo(d.id)}
+                    onSetModo={(modo) => handleSetModoDispositivo(d, modo)}
+                    onComando={(accion) => handleComandoManual(d, accion)}
+                  />
+                ))}
+              </div>
             )}
+          </section>
+        </div>
+      )}
 
-            <div className="space-y-2">
-              <Label>Si Pulse deja de reportar (fail-safe)</Label>
-              <Select
-                value={reglaForm.accion_fail_safe}
-                onValueChange={(v) => setReglaForm({ ...reglaForm, accion_fail_safe: v as "mantener" | "apagar" })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mantener">Mantener último comando (recomendado)</SelectItem>
-                  <SelectItem value="apagar">Apagar automáticamente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      <DeviceDialog
+        open={isDeviceDialogOpen}
+        onOpenChange={setIsDeviceDialogOpen}
+        editingDeviceId={editingDeviceId}
+        salaNombre={salaActiva?.nombre}
+        form={deviceForm}
+        setForm={setDeviceForm}
+        loading={loading}
+        onSubmit={handleSaveDispositivo}
+      />
 
-            <Button type="submit" className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={loading}>
-              {loading ? "Guardando..." : "Guardar regla"}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <RuleDialog
+        open={isReglaDialogOpen}
+        onOpenChange={setIsReglaDialogOpen}
+        editingReglaId={editingReglaId}
+        form={reglaForm}
+        setForm={setReglaForm}
+        pulseDevices={pulseDevices.filter((pd) => pd.sala_id === salaActivaId)}
+        dispositivos={dispositivosSala}
+        loading={loading}
+        onSubmit={handleSaveRegla}
+      />
 
-      {/* Dialog: historial de ejecuciones */}
-      <Dialog open={historialReglaId !== null} onOpenChange={(open) => !open && setHistorialReglaId(null)}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Historial de ejecuciones</DialogTitle>
-          </DialogHeader>
-          {loadingHistorial ? (
-            <p className="text-center text-muted-foreground py-6">Cargando...</p>
-          ) : historial.length === 0 ? (
-            <p className="text-center text-muted-foreground py-6">Todavía no hay ejecuciones registradas para esta regla.</p>
-          ) : (
-            <div className="space-y-3">
-              {historial.map((h) => {
-                const cfg = tipoEjecucionConfig[h.tipo]
-                const Icon = cfg.icon
-                const automatizacionCtx = automatizaciones.find((a) => a.id === historialReglaId) ?? null
-                const dispositivoCtx = automatizacionCtx ? (dispositivos.find((d) => d.id === automatizacionCtx.dispositivo_id) ?? null) : null
-                const comandoRaw = h.comando as unknown
-                const comando = Array.isArray(comandoRaw) ? (comandoRaw[0] ?? null) : (comandoRaw ?? null)
-                const evento = formatEjecucionHumana({ ...h, comando }, automatizacionCtx, dispositivoCtx)
+      <HistoryDialog
+        reglaId={historialReglaId}
+        reglaNombre={historialAutomatizacion?.nombre}
+        onOpenChange={(open) => !open && setHistorialReglaId(null)}
+        loading={loadingHistorial}
+        error={historialError}
+        historial={historial}
+        automatizacion={historialAutomatizacion}
+        dispositivo={historialDispositivo}
+      />
 
-                return (
-                  <div key={h.id} className="border-b border-border pb-3 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <Badge variant="outline" className={cfg.color}>
-                        <Icon className="h-3 w-3" />
-                        {cfg.label}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">{new Date(h.creado_en).toLocaleString("es-AR")}</span>
-                    </div>
-                    <ul className="mt-1.5 space-y-0.5 text-foreground">
-                      {evento.lineas.map((linea, i) => (
-                        <li key={i}>{linea}</li>
-                      ))}
-                    </ul>
-                    {evento.tecnico && <p className="text-xs text-muted-foreground italic mt-1">Detalle técnico: {evento.tecnico}</p>}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <NotificationsDialog open={isNotificacionesOpen} onOpenChange={setIsNotificacionesOpen} />
     </div>
   )
 }

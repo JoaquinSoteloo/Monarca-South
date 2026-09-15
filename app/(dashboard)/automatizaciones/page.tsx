@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
 import { AutomatizacionesManager } from "@/components/automatizaciones-manager"
-import { PushNotificationsManager } from "@/components/push-notifications-manager"
 import { getAlertasContext } from "@/lib/automations/alerts-data"
 import type { Automatizacion, DispositivoControlable } from "@/lib/types"
 
@@ -45,7 +44,6 @@ export default async function AutomatizacionesPage() {
 
   return (
           <main className="container mx-auto px-4 py-8 space-y-6">
-        <PushNotificationsManager />
         <AutomatizacionesManager
           salas={salasResult.data || []}
           pulseDevices={pulseDevicesResult.data || []}

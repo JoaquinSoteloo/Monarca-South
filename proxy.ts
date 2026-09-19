@@ -15,7 +15,8 @@ export const config = {
      * - sw.js (service worker, debe quedar público para /reservar)
      * - manifest.webmanifest (manifest PWA, debe quedar público)
      * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
+     * - pdf (catálogo de productos público en /reservar)
      */
-    "/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|pdf)$).*)",
   ],
 }

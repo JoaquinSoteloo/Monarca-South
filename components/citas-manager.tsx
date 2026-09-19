@@ -389,9 +389,26 @@ export function CitasManager() {
             <div className="space-y-3">
               {HORARIOS.map((hora) => {
                 const citasHora = getCitasPorHorario(hora)
+                const cupoBadge = (
+                  <Badge variant="outline" className={`${
+                    citasHora.length >= MAX_POR_TURNO ? "border-red-300 text-red-600" :
+                    citasHora.length > 0 ? "border-amber-300 text-amber-600" :
+                    "border-emerald-300 text-emerald-600"
+                  }`}>
+                    {citasHora.length}/{MAX_POR_TURNO}
+                  </Badge>
+                )
                 return (
-                  <div key={hora} className="flex items-start gap-4 p-3 rounded-lg bg-muted/30 border">
-                    <div className="w-16 text-center">
+                  <div key={hora} className="rounded-lg border bg-muted/30 p-3">
+                    {/* Mobile (<sm): hora + cupo como encabezado compacto arriba, para
+                        que la tarjeta de cada persona abajo tenga todo el ancho y no
+                        truncar el nombre/DNI. Desktop: layout original en 3 columnas. */}
+                    <div className="mb-2 flex items-center justify-between gap-2 sm:hidden">
+                      <span className="text-lg font-bold text-emerald-600">{hora}</span>
+                      {cupoBadge}
+                    </div>
+                  <div className="flex items-start gap-4 sm:gap-4">
+                    <div className="hidden w-16 shrink-0 text-center sm:block">
                       <span className="text-lg font-bold text-emerald-600">{hora}</span>
                     </div>
                     <div className="min-w-0 flex-1">
@@ -465,15 +482,8 @@ export function CitasManager() {
                         </div>
                       )}
                     </div>
-                    <div className="w-16 text-center">
-                      <Badge variant="outline" className={`${
-                        citasHora.length >= MAX_POR_TURNO ? "border-red-300 text-red-600" : 
-                        citasHora.length > 0 ? "border-amber-300 text-amber-600" : 
-                        "border-emerald-300 text-emerald-600"
-                      }`}>
-                        {citasHora.length}/{MAX_POR_TURNO}
-                      </Badge>
-                    </div>
+                    <div className="hidden w-16 shrink-0 text-center sm:block">{cupoBadge}</div>
+                  </div>
                   </div>
                 )
               })}

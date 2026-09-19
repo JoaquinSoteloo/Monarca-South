@@ -22,9 +22,22 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import Image from "next/image"
+import dynamic from "next/dynamic"
 import { cn } from "@/lib/utils"
 import { generarHorarios, type ConfigCitas } from "@/lib/horarios"
 import { bigintComoNumero, mapReservaError, normalizarDni } from "@/lib/reservas"
+
+// pdfjs-dist toca `window`/`document` al evaluarse, así que el visor no
+// puede pasar por el render en el servidor (rompe con "window is not
+// defined"). ssr:false lo difiere al cliente, recién cuando se abre el modal.
+const PaginasCatalogo = dynamic(() => import("./paginas-catalogo"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex flex-1 items-center justify-center bg-[#EDEAE0] py-10">
+      <Loader2 className="h-6 w-6 animate-spin text-[#1F3D2B]" aria-hidden />
+    </div>
+  ),
+})
 
 // Fila devuelta por la RPC mi_cita_hoy (ver scripts/058_public_reservation_rpcs.sql).
 interface MiCita {
@@ -121,8 +134,6 @@ function EncabezadoMarca() {
   )
 }
 
-const RUTA_CATALOGO = "/catalogo/catalogo-socios-monarca-south.pdf"
-
 // Botón que abre el catálogo en el visor embebido (CatalogoModal). Vive
 // fuera de la tarjeta blanca, junto al encabezado, para que esté visible en
 // cualquier paso del flujo sin competir con el formulario. A propósito no es
@@ -141,9 +152,9 @@ function BotonCatalogo({ onAbrir }: { onAbrir: () => void }) {
   )
 }
 
-// Visor embebido del catálogo (iframe con el PDF) en un modal a pantalla
-// completa. Mantiene al socio dentro de /reservar en vez de navegar a la URL
-// del PDF, que es lo que dispara la descarga en los navegadores in-app.
+// Visor embebido del catálogo en un modal a pantalla completa. Mantiene al
+// socio dentro de /reservar en vez de navegar a la URL del PDF, que es lo
+// que dispara la descarga en los navegadores in-app (Instagram, WhatsApp).
 function CatalogoModal({ abierto, onCerrar }: { abierto: boolean; onCerrar: () => void }) {
   useEffect(() => {
     if (!abierto) return
@@ -195,7 +206,7 @@ function CatalogoModal({ abierto, onCerrar }: { abierto: boolean; onCerrar: () =
                 <X className="h-5 w-5" aria-hidden />
               </button>
             </div>
-            <iframe src={RUTA_CATALOGO} title="Catálogo de productos Monarca South" className="h-full w-full flex-1 bg-white" />
+            <PaginasCatalogo />
           </motion.div>
         </motion.div>
       )}

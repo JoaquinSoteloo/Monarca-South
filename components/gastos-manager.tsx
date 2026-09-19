@@ -476,34 +476,79 @@ export function GastosManager() {
           ) : gastosFiltrados.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No hay gastos en este período</div>
           ) : (
-            <div className="min-w-0 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-primary/10 hover:bg-primary/10">
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
-                  <TableHead>Método de Pago</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Desktop/tablet: tabla completa (sin cambios de comportamiento). */}
+              <div className="hidden sm:block min-w-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-primary/10 hover:bg-primary/10">
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead className="text-right">Monto</TableHead>
+                    <TableHead>Método de Pago</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {gastosFiltrados.map((gasto) => (
+                    <TableRow key={gasto.id} className="hover:bg-primary/5">
+                      <TableCell>{format(new Date(gasto.fecha + "T00:00:00"), "dd/MM/yyyy", { locale: es })}</TableCell>
+                      <TableCell className="min-w-48 max-w-sm whitespace-normal">
+                        <p className="font-medium">{gasto.descripcion}</p>
+                        <span className="mt-1 inline-block text-xs text-muted-foreground">{gasto.categoria || "Varios"}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(Number(gasto.monto))}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="gap-1.5 border-primary/20 bg-primary/5 font-normal text-primary">
+                          {gasto.metodo_pago === "efectivo" ? <Banknote className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
+                          {gasto.metodo_pago === "efectivo" ? "Efectivo" : "Transferencia"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button size="icon" variant="ghost" className="text-primary" title="Editar gasto" aria-label={`Editar gasto: ${gasto.descripcion}`} onClick={() => handleEdit(gasto)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700"
+                            title="Eliminar gasto"
+                            aria-label={`Eliminar gasto: ${gasto.descripcion}`}
+                            onClick={() => handleDelete(gasto.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              </div>
+
+              {/* Mobile (<sm): tarjetas apiladas en vez de la tabla, que en pantallas
+                  angostas escondía Monto y Acciones fuera de vista sin ninguna señal
+                  de que había más columnas. */}
+              <div className="sm:hidden space-y-3">
                 {gastosFiltrados.map((gasto) => (
-                  <TableRow key={gasto.id} className="hover:bg-primary/5">
-                    <TableCell>{format(new Date(gasto.fecha + "T00:00:00"), "dd/MM/yyyy", { locale: es })}</TableCell>
-                    <TableCell className="min-w-48 max-w-sm whitespace-normal">
-                      <p className="font-medium">{gasto.descripcion}</p>
-                      <span className="mt-1 inline-block text-xs text-muted-foreground">{gasto.categoria || "Varios"}</span>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(Number(gasto.monto))}</TableCell>
-                    <TableCell>
+                  <div key={gasto.id} className="rounded-lg border border-border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{gasto.descripcion}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(gasto.fecha + "T00:00:00"), "dd/MM/yyyy", { locale: es })} ·{" "}
+                          {gasto.categoria || "Varios"}
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-semibold tabular-nums">{formatCurrency(Number(gasto.monto))}</p>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
                       <Badge variant="outline" className="gap-1.5 border-primary/20 bg-primary/5 font-normal text-primary">
                         {gasto.metodo_pago === "efectivo" ? <Banknote className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
                         {gasto.metodo_pago === "efectivo" ? "Efectivo" : "Transferencia"}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex shrink-0 gap-1">
                         <Button size="icon" variant="ghost" className="text-primary" title="Editar gasto" aria-label={`Editar gasto: ${gasto.descripcion}`} onClick={() => handleEdit(gasto)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -518,12 +563,11 @@ export function GastosManager() {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
-            </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

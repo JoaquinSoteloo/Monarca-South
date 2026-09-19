@@ -874,87 +874,237 @@ export function HistorialVentas() {
     return items
   }
 
-  const renderDetalleVenta = (venta: VentaConDetalles) => {
+  // Contenido del detalle expandido (productos, pagos, nota). Son solo divs
+  // (no depende de estar dentro de una TableCell), así que se reutiliza igual
+  // en la fila expandida de la tabla (desktop) y en la tarjeta mobile.
+  const renderDetalleContenido = (venta: VentaConDetalles) => {
     const items = getItemsVenta(venta)
     const pagos = venta.pagos || []
     const saldoPendiente = Number(venta.saldo_pendiente || 0)
 
     return (
-      <TableRow key={`${venta.id}-detalle`} className="hover:bg-primary/5">
-        <TableCell colSpan={7} className="bg-primary/5 p-0">
-          <div className="grid gap-6 p-4 md:grid-cols-2 md:p-6">
-            <div className="min-w-0 space-y-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Productos</h4>
-              <div className="space-y-2.5">
-                {items.map((item, idx) => (
-                  <div key={idx} className="flex items-start justify-between gap-3 text-sm">
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground">{item.nombre}</p>
-                      {item.lineaStr && <p className="text-xs text-muted-foreground">{item.lineaStr}</p>}
-                    </div>
-                    <span className="shrink-0 tabular-nums text-foreground">{formatCurrency(item.subtotal)}</span>
-                  </div>
-                ))}
+      <div className="grid gap-6 p-4 md:grid-cols-2 md:p-6">
+        <div className="min-w-0 space-y-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Productos</h4>
+          <div className="space-y-2.5">
+            {items.map((item, idx) => (
+              <div key={idx} className="flex items-start justify-between gap-3 text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium text-foreground">{item.nombre}</p>
+                  {item.lineaStr && <p className="text-xs text-muted-foreground">{item.lineaStr}</p>}
+                </div>
+                <span className="shrink-0 tabular-nums text-foreground">{formatCurrency(item.subtotal)}</span>
               </div>
-            </div>
+            ))}
+          </div>
+        </div>
 
-            <div className="min-w-0 space-y-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pagos</h4>
-              {pagos.length > 0 ? (
-                <div className="space-y-2.5">
-                  {pagos.map((pago) => (
-                    <div key={pago.id} className="flex items-center justify-between gap-3 text-sm">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        {pago.metodo_pago === "efectivo" ? (
-                          <Banknote className="h-3.5 w-3.5" />
-                        ) : (
-                          <CreditCard className="h-3.5 w-3.5" />
-                        )}
-                        <span>
-                          {new Date(pago.fecha).toLocaleDateString("es-AR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })}
-                        </span>
-                      </div>
-                      <span className="tabular-nums text-foreground">{formatCurrency(Number(pago.monto))}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Sin pagos registrados.</p>
-              )}
-              <div className="space-y-1 border-t border-border/60 pt-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Total</span>
-                  <span className="font-medium tabular-nums text-foreground">{formatCurrency(Number(venta.total))}</span>
-                </div>
-                {saldoPendiente > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-amber-700">Saldo pendiente</span>
-                    <span className="font-medium tabular-nums text-amber-700">{formatCurrency(saldoPendiente)}</span>
+        <div className="min-w-0 space-y-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pagos</h4>
+          {pagos.length > 0 ? (
+            <div className="space-y-2.5">
+              {pagos.map((pago) => (
+                <div key={pago.id} className="flex items-center justify-between gap-3 text-sm">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    {pago.metodo_pago === "efectivo" ? (
+                      <Banknote className="h-3.5 w-3.5" />
+                    ) : (
+                      <CreditCard className="h-3.5 w-3.5" />
+                    )}
+                    <span>
+                      {new Date(pago.fecha).toLocaleDateString("es-AR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })}
+                    </span>
                   </div>
-                )}
-              </div>
+                  <span className="tabular-nums text-foreground">{formatCurrency(Number(pago.monto))}</span>
+                </div>
+              ))}
             </div>
-
-            {venta.notas && (
-              <div className="rounded-md border border-border/60 bg-card p-3 md:col-span-2">
-                <div className="flex items-start gap-2 text-sm">
-                  <FileText className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <span className="font-medium text-foreground">Nota: </span>
-                    <span className="text-muted-foreground">{venta.notas}</span>
-                  </div>
-                </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Sin pagos registrados.</p>
+          )}
+          <div className="space-y-1 border-t border-border/60 pt-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Total</span>
+              <span className="font-medium tabular-nums text-foreground">{formatCurrency(Number(venta.total))}</span>
+            </div>
+            {saldoPendiente > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-amber-700">Saldo pendiente</span>
+                <span className="font-medium tabular-nums text-amber-700">{formatCurrency(saldoPendiente)}</span>
               </div>
             )}
           </div>
-        </TableCell>
-      </TableRow>
+        </div>
+
+        {venta.notas && (
+          <div className="rounded-md border border-border/60 bg-card p-3 md:col-span-2">
+            <div className="flex items-start gap-2 text-sm">
+              <FileText className="h-4 w-4 mt-0.5 text-muted-foreground" />
+              <div className="min-w-0">
+                <span className="font-medium text-foreground">Nota: </span>
+                <span className="text-muted-foreground">{venta.notas}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     )
   }
+
+  const renderDetalleVenta = (venta: VentaConDetalles) => (
+    <TableRow key={`${venta.id}-detalle`} className="hover:bg-primary/5">
+      <TableCell colSpan={7} className="bg-primary/5 p-0">
+        {renderDetalleContenido(venta)}
+      </TableCell>
+    </TableRow>
+  )
+
+  // Estado de pago (efectivo/transferencia/pendiente + comprobante). Se
+  // reutiliza en la celda de la tabla (desktop) y en la tarjeta mobile.
+  const renderPago = (venta: VentaConDetalles) => {
+    const saldoPendiente = Number(venta.saldo_pendiente) || 0
+    const tieneDeuda = saldoPendiente > 0
+
+    const pagosEfectivo = venta.pagos?.filter((p) => p.metodo_pago === "efectivo") || []
+    const pagosTransferencia = venta.pagos?.filter((p) => p.metodo_pago === "transferencia") || []
+
+    const tieneEfectivo =
+      pagosEfectivo.length > 0 ||
+      ((!venta.pagos || venta.pagos.length === 0) && venta.metodo_pago === "efectivo" && !tieneDeuda)
+    const tieneTransferencia =
+      pagosTransferencia.length > 0 ||
+      ((!venta.pagos || venta.pagos.length === 0) && venta.metodo_pago === "transferencia" && !tieneDeuda)
+
+    if (venta.metodo_pago === "pendiente" && saldoPendiente >= Number(venta.total)) {
+      return (
+        <Badge
+          variant="outline"
+          className="border-amber-300 text-amber-700 cursor-pointer hover:bg-amber-50"
+          onClick={() => {
+            setEditingVenta(venta)
+            setNuevoMetodoPago("efectivo")
+          }}
+        >
+          <Clock className="h-3 w-3 mr-1" />
+          Pendiente
+        </Badge>
+      )
+    }
+
+    return (
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          {tieneEfectivo && (
+            <span className="flex items-center gap-1 text-sm text-foreground">
+              <Banknote className="h-3.5 w-3.5 text-primary" />
+              Efectivo
+            </span>
+          )}
+          {tieneTransferencia && (
+            <span className="flex items-center gap-1 text-sm text-foreground">
+              <CreditCard className="h-3.5 w-3.5 text-primary" />
+              Transf.
+            </span>
+          )}
+          {tieneTransferencia &&
+            (venta.pagos && venta.pagos.some((p) => p.comprobante_url) ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 hover:bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const pagoConComprobante = venta.pagos?.find((p) => p.comprobante_url)
+                  if (pagoConComprobante?.comprobante_url) {
+                    setComprobanteUrl(pagoConComprobante.comprobante_url)
+                  }
+                }}
+                title="Ver comprobante"
+                aria-label="Ver comprobante de transferencia"
+              >
+                <ImageIcon className="h-3 w-3 text-muted-foreground" />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 hover:bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setVentaParaComprobante(venta)
+                  document.getElementById("input-comprobante-historial")?.click()
+                }}
+                title="Cargar comprobante"
+                aria-label="Cargar comprobante de transferencia"
+              >
+                <Upload className="h-3 w-3 text-muted-foreground" />
+              </Button>
+            ))}
+          {venta.pagos && venta.pagos.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 hover:bg-muted"
+              onClick={(e) => {
+                e.stopPropagation()
+                abrirCorreccionPagos(venta)
+              }}
+              title="Corregir método de un pago"
+              aria-label="Corregir método de un pago"
+            >
+              <ArrowLeftRight className="h-3 w-3 text-muted-foreground" />
+            </Button>
+          )}
+        </div>
+        {tieneDeuda && (
+          <Badge variant="outline" className="w-fit border-amber-300 bg-amber-50 text-amber-700 text-xs">
+            <Clock className="h-3 w-3 mr-1" />
+            Debe {formatCurrency(saldoPendiente)}
+          </Badge>
+        )}
+      </div>
+    )
+  }
+
+  // Botones de acciones (editar + menú "más acciones"). Reutilizado en la
+  // celda de la tabla (desktop) y en la tarjeta mobile.
+  const renderAccionesVenta = (venta: VentaConDetalles) => (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => openEditVenta(venta)}
+        className="h-9 w-9 p-0 hover:bg-primary/10"
+        title="Editar venta"
+        aria-label="Editar venta"
+      >
+        <Pencil className="h-4 w-4 text-primary" />
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 p-0 hover:bg-primary/10"
+            title="Más acciones"
+            aria-label={`Más acciones para la venta de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
+          >
+            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="monarca-theme">
+          <DropdownMenuItem variant="destructive" onClick={() => setVentaABorrar(venta)}>
+            <Trash2 className="h-4 w-4" />
+            Eliminar venta
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  )
 
   const ventasFiltradas = ventas.filter((v) => {
     if (soloNoPagados && !(Number(v.saldo_pendiente || 0) > 0)) return false
@@ -1653,219 +1803,152 @@ export function HistorialVentas() {
               {soloNoPagados ? "No hay ventas pendientes de pago en este período" : "No hay ventas en este período"}
             </div>
           ) : (
-            <div className="overflow-x-auto border-t border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fecha</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Socio</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Item</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Detalle</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pago</TableHead>
-                    <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total</TableHead>
-                    <TableHead className="w-16 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ventasFiltradas.map((venta) => {
-                    const info = getVentaInfo(venta)
-                    const isExpanded = expandedVentas.has(venta.id)
+            <>
+              {/* Desktop/tablet: tabla completa (sin cambios de comportamiento). */}
+              <div className="hidden sm:block overflow-x-auto border-t border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fecha</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Socio</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Item</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Detalle</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pago</TableHead>
+                      <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total</TableHead>
+                      <TableHead className="w-16 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ventasFiltradas.map((venta) => {
+                      const info = getVentaInfo(venta)
+                      const isExpanded = expandedVentas.has(venta.id)
 
-                    return (
-                      <React.Fragment key={venta.id}>
-                        <TableRow className="hover:bg-primary/5 cursor-pointer" onClick={() => toggleExpand(venta.id)}>
-                          <TableCell className="text-foreground">
-                            <div className="flex flex-col">
-                              <span>
-                                {new Date(venta.created_at).toLocaleDateString("es-AR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  year: "numeric",
-                                })}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(venta.created_at).toLocaleTimeString("es-AR", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                  hourCycle: "h23",
-                                })}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-medium text-foreground">
-                                {venta.socio?.apellido}, {venta.socio?.nombre}
-                              </span>
-                              <span className="text-xs text-muted-foreground select-text">
-                                {venta.socio?.dni ? formatDni(venta.socio.dni) : "-"}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <button type="button" aria-expanded={isExpanded}
-                              aria-label={`${isExpanded ? "Ocultar" : "Ver"} detalle de venta de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
-                              onClick={(event) => { event.stopPropagation(); toggleExpand(venta.id) }}
-                              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium text-primary hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary">
-                              <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
-                              {info.genetica}
-                            </button>
-                          </TableCell>
-                          <TableCell>
-                            {/* Display aggregated detail string */}
-                            <span className="text-foreground">{info.detalleString}</span>
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            {(() => {
-                              const saldoPendiente = Number(venta.saldo_pendiente) || 0
-                              const tieneDeuda = saldoPendiente > 0
-                              
-                              // Verificar pagos registrados en la tabla pagos
-                              const pagosEfectivo = venta.pagos?.filter(p => p.metodo_pago === 'efectivo') || []
-                              const pagosTransferencia = venta.pagos?.filter(p => p.metodo_pago === 'transferencia') || []
-                              
-                              // Si no hay pagos registrados en la tabla, usar el metodo_pago de la venta (ventas antiguas)
-                              const tieneEfectivo = pagosEfectivo.length > 0 || ((!venta.pagos || venta.pagos.length === 0) && venta.metodo_pago === 'efectivo' && !tieneDeuda)
-                              const tieneTransferencia = pagosTransferencia.length > 0 || ((!venta.pagos || venta.pagos.length === 0) && venta.metodo_pago === 'transferencia' && !tieneDeuda)
+                      return (
+                        <React.Fragment key={venta.id}>
+                          <TableRow className="hover:bg-primary/5 cursor-pointer" onClick={() => toggleExpand(venta.id)}>
+                            <TableCell className="text-foreground">
+                              <div className="flex flex-col">
+                                <span>
+                                  {new Date(venta.created_at).toLocaleDateString("es-AR", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                  })}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(venta.created_at).toLocaleTimeString("es-AR", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    hourCycle: "h23",
+                                  })}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-foreground">
+                                  {venta.socio?.apellido}, {venta.socio?.nombre}
+                                </span>
+                                <span className="text-xs text-muted-foreground select-text">
+                                  {venta.socio?.dni ? formatDni(venta.socio.dni) : "-"}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <button type="button" aria-expanded={isExpanded}
+                                aria-label={`${isExpanded ? "Ocultar" : "Ver"} detalle de venta de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
+                                onClick={(event) => { event.stopPropagation(); toggleExpand(venta.id) }}
+                                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium text-primary hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary">
+                                <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
+                                {info.genetica}
+                              </button>
+                            </TableCell>
+                            <TableCell>
+                              {/* Display aggregated detail string */}
+                              <span className="text-foreground">{info.detalleString}</span>
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>{renderPago(venta)}</TableCell>
+                            <TableCell className="text-right font-bold text-foreground tabular-nums">
+                              {formatCurrency(Number(venta.total))}
+                            </TableCell>
+                            <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-1">{renderAccionesVenta(venta)}</div>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && renderDetalleVenta(venta)}
+                        </React.Fragment>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
 
-                              if (venta.metodo_pago === "pendiente" && saldoPendiente >= Number(venta.total)) {
-                                return (
-                                  <Badge
-                                    variant="outline"
-                                    className="border-amber-300 text-amber-700 cursor-pointer hover:bg-amber-50"
-                                    onClick={() => {
-                                      setEditingVenta(venta)
-                                      setNuevoMetodoPago("efectivo")
-                                    }}
-                                  >
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    Pendiente
-                                  </Badge>
-                                )
-                              }
+              {/* Mobile (<sm): tarjetas apiladas en vez de la tabla, que en pantallas
+                  angostas quedaba más ancha que el viewport y escondía Total, Pago y
+                  Acciones fuera de vista sin ninguna señal de que había más contenido. */}
+              <div className="sm:hidden space-y-3 border-t border-border p-3">
+                {ventasFiltradas.map((venta) => {
+                  const info = getVentaInfo(venta)
+                  const isExpanded = expandedVentas.has(venta.id)
 
-                              return (
-                                <div className="flex flex-col gap-1.5">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    {tieneEfectivo && (
-                                      <span className="flex items-center gap-1 text-sm text-foreground">
-                                        <Banknote className="h-3.5 w-3.5 text-primary" />
-                                        Efectivo
-                                      </span>
-                                    )}
-                                    {tieneTransferencia && (
-                                      <span className="flex items-center gap-1 text-sm text-foreground">
-                                        <CreditCard className="h-3.5 w-3.5 text-primary" />
-                                        Transf.
-                                      </span>
-                                    )}
-                                    {tieneTransferencia &&
-                                      (venta.pagos && venta.pagos.some(p => p.comprobante_url) ? (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-6 w-6 p-0 hover:bg-muted"
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            const pagoConComprobante = venta.pagos?.find(p => p.comprobante_url)
-                                            if (pagoConComprobante?.comprobante_url) {
-                                              setComprobanteUrl(pagoConComprobante.comprobante_url)
-                                            }
-                                          }}
-                                          title="Ver comprobante"
-                                          aria-label="Ver comprobante de transferencia"
-                                        >
-                                          <ImageIcon className="h-3 w-3 text-muted-foreground" />
-                                        </Button>
-                                      ) : (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-6 w-6 p-0 hover:bg-muted"
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            setVentaParaComprobante(venta)
-                                            document.getElementById('input-comprobante-historial')?.click()
-                                          }}
-                                          title="Cargar comprobante"
-                                          aria-label="Cargar comprobante de transferencia"
-                                        >
-                                          <Upload className="h-3 w-3 text-muted-foreground" />
-                                        </Button>
-                                      ))}
-                                    {venta.pagos && venta.pagos.length > 0 && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 hover:bg-muted"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          abrirCorreccionPagos(venta)
-                                        }}
-                                        title="Corregir método de un pago"
-                                        aria-label="Corregir método de un pago"
-                                      >
-                                        <ArrowLeftRight className="h-3 w-3 text-muted-foreground" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                  {tieneDeuda && (
-                                    <Badge variant="outline" className="w-fit border-amber-300 bg-amber-50 text-amber-700 text-xs">
-                                      <Clock className="h-3 w-3 mr-1" />
-                                      Debe {formatCurrency(saldoPendiente)}
-                                    </Badge>
-                                  )}
-                                </div>
-                              )
-                            })()}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-foreground tabular-nums">
-                            {formatCurrency(Number(venta.total))}
-                          </TableCell>
-                          <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openEditVenta(venta)}
-                                className="h-9 w-9 p-0 hover:bg-primary/10"
-                                title="Editar venta"
-                                aria-label="Editar venta"
-                              >
-                                <Pencil className="h-4 w-4 text-primary" />
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-9 w-9 p-0 hover:bg-primary/10"
-                                    title="Más acciones"
-                                    aria-label={`Más acciones para la venta de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
-                                  >
-                                    <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="monarca-theme">
-                                  <DropdownMenuItem
-                                    variant="destructive"
-                                    onClick={() => setVentaABorrar(venta)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    Eliminar venta
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                        {isExpanded && renderDetalleVenta(venta)}
-                      </React.Fragment>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                  return (
+                    <div key={venta.id} className="rounded-lg border border-border overflow-hidden">
+                      <div className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-foreground">
+                              {venta.socio?.apellido}, {venta.socio?.nombre}
+                            </p>
+                            <p className="text-xs text-muted-foreground select-text">
+                              {venta.socio?.dni ? formatDni(venta.socio.dni) : "-"}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="font-bold tabular-nums text-foreground">
+                              {formatCurrency(Number(venta.total))}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(venta.created_at).toLocaleDateString("es-AR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              })}{" "}
+                              ·{" "}
+                              {new Date(venta.created_at).toLocaleTimeString("es-AR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hourCycle: "h23",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          aria-label={`${isExpanded ? "Ocultar" : "Ver"} detalle de venta de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
+                          onClick={() => toggleExpand(venta.id)}
+                          className="mt-2 flex items-center gap-2 rounded-md px-2 py-1.5 -mx-2 text-left text-sm font-medium text-primary hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary"
+                        >
+                          <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
+                          {info.genetica}
+                        </button>
+                        <p className="px-2 text-sm text-foreground">{info.detalleString}</p>
+
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                          {renderPago(venta)}
+                          <div className="flex shrink-0 items-center gap-1">{renderAccionesVenta(venta)}</div>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="border-t border-border bg-primary/5">{renderDetalleContenido(venta)}</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

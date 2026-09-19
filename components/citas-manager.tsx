@@ -394,21 +394,21 @@ export function CitasManager() {
                     <div className="w-16 text-center">
                       <span className="text-lg font-bold text-emerald-600">{hora}</span>
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0 flex-1">
                       {citasHora.length === 0 ? (
                         <span className="text-muted-foreground text-sm">Sin turnos</span>
                       ) : (
                         <div className="space-y-2">
                           {citasHora.map((cita) => (
-                            <div 
-                              key={cita.id} 
-                              className={`flex items-center justify-between p-2 rounded-md ${
-                                cita.estado === "atendida" ? "bg-emerald-50" : 
+                            <div
+                              key={cita.id}
+                              className={`flex flex-wrap items-center justify-between gap-2 p-2 rounded-md ${
+                                cita.estado === "atendida" ? "bg-emerald-50" :
                                 cita.estado === "no_asistio" ? "bg-amber-50" : "bg-white"
                               } border`}
                             >
-                              <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              <div className="flex min-w-0 items-center gap-3">
+                                <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center ${
                                   cita.socio_id ? "bg-emerald-100" : "bg-gray-100"
                                 }`}>
                                   {cita.socio_id ? (
@@ -417,11 +417,11 @@ export function CitasManager() {
                                     <User className="h-4 w-4 text-gray-500" />
                                   )}
                                 </div>
-                                <div>
-                                  <p className="font-medium text-sm">
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium text-sm">
                                     {cita.apellido}, {cita.nombre}
                                   </p>
-                                  <p className="text-xs text-muted-foreground">
+                                  <p className="truncate text-xs text-muted-foreground">
                                     DNI: {cita.documento}
                                     {cita.socio_id && (
                                       <span className="ml-2 text-emerald-600 font-medium">Socio</span>
@@ -429,7 +429,7 @@ export function CitasManager() {
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex shrink-0 items-center gap-2">
                                 {getEstadoBadge(cita.estado)}
                                 {cita.estado === "confirmada" && (
                                   <>

@@ -430,7 +430,8 @@ export function DeudasManager() {
               <p className="text-sm text-muted-foreground">Ventas pendientes de este socio</p>
               <Button onClick={() => handleOpenPagoSocioDialog(grupo)}><DollarSign className="h-4 w-4" />Pagar deuda del socio</Button>
             </div>
-            <div className="min-w-0 overflow-x-auto">
+            {/* Desktop/tablet: tabla completa (sin cambios de comportamiento). */}
+            <div className="hidden sm:block min-w-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-primary/10">
@@ -490,6 +491,54 @@ export function DeudasManager() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* Mobile (<sm): tarjetas apiladas en vez de la tabla, que en pantallas
+                angostas escondía Pendiente y las acciones (Historial/Pagar) fuera de
+                vista sin ninguna señal de que había más columnas. */}
+            <div className="sm:hidden divide-y divide-border">
+              {deudasSocio.map((deuda) => (
+                <div key={deuda.id} className="space-y-2 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Calendar className="h-4 w-4 shrink-0" />
+                      {format(new Date(deuda.created_at), "dd/MM/yyyy", { locale: es })}
+                    </div>
+                    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900">
+                      {formatCurrency(Number(deuda.saldo_pendiente || 0))}
+                    </Badge>
+                  </div>
+                  {deuda.notas && <p className="text-xs italic text-muted-foreground">{deuda.notas}</p>}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                    <span className="text-muted-foreground">
+                      Total <span className="font-medium tabular-nums text-foreground">{formatCurrency(Number(deuda.total))}</span>
+                    </span>
+                    <span className="text-muted-foreground">
+                      Pagado <span className="tabular-nums text-primary">{formatCurrency(Number(deuda.monto_pagado || 0))}</span>
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleVerHistorial(deuda)}
+                    >
+                      <History className="h-4 w-4 mr-1" />
+                      Historial
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 border-primary/25 bg-white text-primary hover:bg-primary/10"
+                      onClick={() => handleOpenPagoDialog(deuda)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Pagar esta venta
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           </details>
           )

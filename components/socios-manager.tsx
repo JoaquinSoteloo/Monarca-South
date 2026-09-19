@@ -223,6 +223,105 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
     setFormData({ ...formData, dni: formatted })
   }
 
+  // Bloque de consumo mensual (barra + estado), compartido entre la fila de
+  // tabla (desktop) y la tarjeta apilada (mobile, <sm) para no duplicar el
+  // cálculo de excedido/cerca del límite en dos lugares.
+  const renderConsumo = (socio: Socio) => {
+    const limiteConfigurado = socio.gramos_mensuales !== null && socio.gramos_mensuales !== undefined
+    const limite = socio.gramos_mensuales ?? 0
+    const consumido = socio.gramos_consumidos_mes
+    const excedente = Math.max(0, consumido - limite)
+    const excedido = limiteConfigurado && excedente > 0
+    const porcentaje = !limiteConfigurado ? 0 : limite > 0 ? (consumido / limite) * 100 : consumido > 0 ? 100 : 0
+    const porcentajeBarra = Math.min(100, Math.max(0, porcentaje))
+    const cercaDelLimite = limiteConfigurado && !excedido && limite > 0 && porcentaje >= 80
+
+    if (!limiteConfigurado) {
+      return (
+        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+          {formatGramos(consumido)} consumidos
+          <span className="text-xs">(sin límite configurado)</span>
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex flex-col gap-1">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 text-sm tabular-nums",
+            excedido
+              ? "font-medium text-destructive"
+              : cercaDelLimite
+                ? "font-medium text-amber-700"
+                : "text-foreground",
+          )}
+        >
+          {(excedido || cercaDelLimite) && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+          {formatGramos(consumido)} de {formatGramos(limite)}
+        </span>
+        <div className="h-1.5 w-full max-w-32 overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn(
+              "h-full rounded-full",
+              excedido ? "bg-destructive" : cercaDelLimite ? "bg-amber-500" : "bg-primary",
+            )}
+            style={{ width: `${porcentajeBarra}%` }}
+          />
+        </div>
+        {excedido && (
+          <span className="text-xs font-medium text-destructive">Excedido por {formatGramos(excedente)}</span>
+        )}
+      </div>
+    )
+  }
+
+  const renderEstadoReprocan = (socio: Socio) =>
+    socio.estado_reprocan ? (
+      <Badge
+        variant="outline"
+        className={
+          socio.estado_reprocan === "Activo"
+            ? "border-primary/30 bg-primary/10 text-primary"
+            : "border-amber-300 bg-amber-50 text-amber-700"
+        }
+      >
+        {socio.estado_reprocan === "Activo" ? (
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+        ) : (
+          <Clock className="h-3 w-3 mr-1" />
+        )}
+        {socio.estado_reprocan}
+      </Badge>
+    ) : (
+      <span className="text-muted-foreground">-</span>
+    )
+
+  const renderAccionesSocio = (socio: Socio) => (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => handleEdit(socio)}
+        className="h-9 w-9 p-0 hover:bg-primary/10"
+        title="Editar socio"
+        aria-label={`Editar ${socio.nombre} ${socio.apellido}`}
+      >
+        <Pencil className="h-4 w-4 text-primary" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => openDeleteDialog(socio)}
+        className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+        title="Eliminar socio"
+        aria-label={`Eliminar ${socio.nombre} ${socio.apellido}`}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </>
+  )
+
   return (
     <div className="flex flex-col gap-6">
       <Dialog open={dniDuplicadoDialogOpen} onOpenChange={setDniDuplicadoDialogOpen}>
@@ -560,31 +659,21 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
               {search ? "No se encontraron socios" : "No hay socios registrados"}
             </p>
           ) : (
-            <div className="rounded-md border border-border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-primary/10 hover:bg-primary/10">
-                    <TableHead className="text-foreground">Socio</TableHead>
-                    <TableHead className="text-foreground">Estado Reprocan</TableHead>
-                    <TableHead className="text-foreground">Sucursal</TableHead>
-                    <TableHead className="text-foreground">Consumo mensual</TableHead>
-                    <TableHead className="text-center text-foreground w-24">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredSocios.map((socio) => {
-                    // gramos_mensuales null/undefined = sin límite configurado; 0 es un
-                    // límite real (no consumir nada), no se trata como "sin configurar".
-                    const limiteConfigurado = socio.gramos_mensuales !== null && socio.gramos_mensuales !== undefined
-                    const limite = socio.gramos_mensuales ?? 0
-                    const consumido = socio.gramos_consumidos_mes
-                    const excedente = Math.max(0, consumido - limite)
-                    const excedido = limiteConfigurado && excedente > 0
-                    const porcentaje = !limiteConfigurado ? 0 : limite > 0 ? (consumido / limite) * 100 : consumido > 0 ? 100 : 0
-                    const porcentajeBarra = Math.min(100, Math.max(0, porcentaje))
-                    const cercaDelLimite = limiteConfigurado && !excedido && limite > 0 && porcentaje >= 80
-
-                    return (
+            <>
+              {/* Desktop/tablet: tabla completa (sin cambios de comportamiento). */}
+              <div className="hidden sm:block rounded-md border border-border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-primary/10 hover:bg-primary/10">
+                      <TableHead className="text-foreground">Socio</TableHead>
+                      <TableHead className="text-foreground">Estado Reprocan</TableHead>
+                      <TableHead className="text-foreground">Sucursal</TableHead>
+                      <TableHead className="text-foreground">Consumo mensual</TableHead>
+                      <TableHead className="text-center text-foreground w-24">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredSocios.map((socio) => (
                       <TableRow key={socio.id} className="hover:bg-muted/40">
                         <TableCell>
                           <div className="flex flex-col gap-1">
@@ -608,27 +697,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                             <span className="text-xs text-muted-foreground select-text">{formatDni(socio.dni)}</span>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          {socio.estado_reprocan ? (
-                            <Badge
-                              variant="outline"
-                              className={
-                                socio.estado_reprocan === "Activo"
-                                  ? "border-primary/30 bg-primary/10 text-primary"
-                                  : "border-amber-300 bg-amber-50 text-amber-700"
-                              }
-                            >
-                              {socio.estado_reprocan === "Activo" ? (
-                                <CheckCircle2 className="h-3 w-3 mr-1" />
-                              ) : (
-                                <Clock className="h-3 w-3 mr-1" />
-                              )}
-                              {socio.estado_reprocan}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
+                        <TableCell>{renderEstadoReprocan(socio)}</TableCell>
                         <TableCell>
                           {socio.sucursal ? (
                             <span className="text-sm text-foreground">{socio.sucursal.nombre}</span>
@@ -636,74 +705,58 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell className="min-w-[11rem]">
-                          {!limiteConfigurado ? (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                              {formatGramos(consumido)} consumidos
-                              <span className="text-xs">(sin límite configurado)</span>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-1">
-                              <span
-                                className={cn(
-                                  "inline-flex items-center gap-1 text-sm tabular-nums",
-                                  excedido
-                                    ? "font-medium text-destructive"
-                                    : cercaDelLimite
-                                      ? "font-medium text-amber-700"
-                                      : "text-foreground",
-                                )}
-                              >
-                                {(excedido || cercaDelLimite) && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
-                                {formatGramos(consumido)} de {formatGramos(limite)}
-                              </span>
-                              <div className="h-1.5 w-full max-w-32 overflow-hidden rounded-full bg-muted">
-                                <div
-                                  className={cn(
-                                    "h-full rounded-full",
-                                    excedido ? "bg-destructive" : cercaDelLimite ? "bg-amber-500" : "bg-primary",
-                                  )}
-                                  style={{ width: `${porcentajeBarra}%` }}
-                                />
-                              </div>
-                              {excedido && (
-                                <span className="text-xs font-medium text-destructive">
-                                  Excedido por {formatGramos(excedente)}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
+                        <TableCell className="min-w-[11rem]">{renderConsumo(socio)}</TableCell>
                         <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(socio)}
-                              className="h-9 w-9 p-0 hover:bg-primary/10"
-                              title="Editar socio"
-                              aria-label={`Editar ${socio.nombre} ${socio.apellido}`}
-                            >
-                              <Pencil className="h-4 w-4 text-primary" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openDeleteDialog(socio)}
-                              className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              title="Eliminar socio"
-                              aria-label={`Eliminar ${socio.nombre} ${socio.apellido}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <div className="flex items-center justify-center gap-1">{renderAccionesSocio(socio)}</div>
                         </TableCell>
                       </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile (<sm): tarjetas apiladas en vez de la tabla, que en pantallas
+                  angostas quedaba más ancha que el viewport y escondía columnas
+                  (Acciones) fuera de vista sin ninguna señal de que había más contenido. */}
+              <div className="sm:hidden space-y-3">
+                {filteredSocios.map((socio) => (
+                  <div key={socio.id} className="rounded-lg border border-border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="truncate font-medium text-foreground">
+                            {socio.apellido}, {socio.nombre}
+                          </span>
+                          {socio.es_miembro && (
+                            <Badge variant="outline" className="border-accent/50 bg-accent/10 text-accent-foreground">
+                              <Crown className="h-3 w-3 mr-1" />
+                              Miembro
+                            </Badge>
+                          )}
+                          {socio.es_vip && (
+                            <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
+                              <Star className="h-3 w-3 mr-1" />
+                              VIP
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground select-text">{formatDni(socio.dni)}</span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">{renderAccionesSocio(socio)}</div>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {renderEstadoReprocan(socio)}
+                      {socio.sucursal && (
+                        <span className="text-sm text-muted-foreground">{socio.sucursal.nombre}</span>
+                      )}
+                    </div>
+
+                    <div className="mt-2">{renderConsumo(socio)}</div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

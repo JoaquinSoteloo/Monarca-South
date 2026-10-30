@@ -21,8 +21,15 @@ import { Badge } from "@/components/ui/badge"
 import { DatoSensible, OcultarDatosProvider, OcultarDatosToggle } from "@/components/ocultar-datos"
 import { OCULTAR_DATOS_COOKIE } from "@/lib/ocultar-datos"
 import { formatCurrency, formatGramos, formatNumero } from "@/lib/format"
-import { formatFechaLargaArgentina, formatHoraArgentina, getArgentinaDateString, getArgentinaDayRangeUTC } from "@/lib/timezone"
+import {
+  formatFechaLargaArgentina,
+  formatHoraArgentina,
+  getArgentinaDateString,
+  getArgentinaDayRangeUTC,
+  getArgentinaMonthStartUTC,
+} from "@/lib/timezone"
 import { cn } from "@/lib/utils"
+import { resumirMes, type VentaParaConsumo } from "@/lib/consumo"
 
 interface VentaHoy {
   id: string
@@ -88,7 +95,7 @@ export default async function Dashboard() {
       ventasPromedioResult,
       deudaResult,
       sociosLimiteResult,
-      ventasMesResult,
+      resumenMesResult,
     ] = await Promise.all([
       supabase.from("socios").select("*", { count: "exact", head: true }).eq("activo", true),
       supabase.from("geneticas").select("*", { count: "exact", head: true }).eq("activo", true),
@@ -109,10 +116,19 @@ export default async function Dashboard() {
       // Deuda pendiente real: misma definición que ya usa ventas-manager.tsx
       // (saldo_pendiente > 0 en ventas), agregada para todo el club.
       supabase.from("ventas").select("socio_id, saldo_pendiente").gt("saldo_pendiente", 0),
-      // Límite mensual: mismos datos que ya usa app/ventas/page.tsx para
-      // calcular el consumo del mes por socio.
-      supabase.from("socios").select("id, gramos_mensuales").eq("activo", true).gt("gramos_mensuales", 0),
-      supabase.from("ventas").select("socio_id, gramos").gte("created_at", inicioMesActual.toISOString()),
+      // Límite mensual: misma definición que el listado de socios y las
+      // reglas de entrega (lib/consumo.ts) — gramos sueltos del mes contra
+      // cualquier límite cargado, incluido 0 g.
+      supabase
+        .from("socios")
+        .select("id, gramos_mensuales")
+        .eq("activo", true)
+        .eq("tipo", "socio")
+        .not("gramos_mensuales", "is", null),
+      supabase
+        .from("ventas")
+        .select("socio_id, gramos, detalles:detalle_venta(gramos, genetica_id)")
+        .gte("created_at", getArgentinaMonthStartUTC()),
     ])
 
     totalSocios = sociosResult.count || 0
@@ -140,10 +156,7 @@ export default async function Dashboard() {
       }, 0) || 0
     deudaSociosCount = deudaPorSocio.size
 
-    const consumoPorSocio: Record<string, number> = {}
-    ventasMesResult.data?.forEach((v) => {
-      if (v.socio_id) consumoPorSocio[v.socio_id] = (consumoPorSocio[v.socio_id] || 0) + (Number(v.gramos) || 0)
-    })
+    const { sueltosPorSocio: consumoPorSocio } = resumirMes((resumenMesResult.data as VentaParaConsumo[] | null) ?? [])
     sociosLimiteExcedidoCount =
       sociosLimiteResult.data?.filter((s) => (consumoPorSocio[s.id] || 0) > Number(s.gramos_mensuales)).length || 0
   } catch (error) {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { Venta, DetalleVenta, Socio, Genetica, LineaVenta, Producto } from "@/lib/types"
+import { AutorizacionEntregaDialog, motivosDeError, type UsuarioActual } from "@/components/autorizacion-entrega-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -73,7 +74,7 @@ interface VentaConDetalles extends Venta {
   socio?: Socio // Asegúrate de que Socio tenga es_miembro
 }
 
-export function HistorialVentas() {
+export function HistorialVentas({ usuarioActual }: { usuarioActual: UsuarioActual }) {
   const [ventas, setVentas] = useState<VentaConDetalles[]>([])
   const [loading, setLoading] = useState(false)
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined)
@@ -102,6 +103,8 @@ export function HistorialVentas() {
   const [guardandoMetodoPagoId, setGuardandoMetodoPagoId] = useState<string | null>(null)
   const [editLineas, setEditLineas] = useState<LineaVenta[]>([])
   const [savingEdit, setSavingEdit] = useState(false)
+  // Reglas de entrega que la edición no cumple (VB001): pedido de excepción.
+  const [motivosBloqueoEdicion, setMotivosBloqueoEdicion] = useState<string[] | null>(null)
   const [popoverEditFechaOpen, setPopoverEditFechaOpen] = useState(false)
   const router = useRouter()
 
@@ -488,7 +491,7 @@ export function HistorialVentas() {
     }
   }
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async (autorizacionId: string | null = null) => {
     if (!editingFullVenta) return
 
     const lineasValidas = editLineas.filter(
@@ -508,7 +511,7 @@ export function HistorialVentas() {
     const supabase = createClient()
 
     const { error } = await supabase
-      .rpc("editar_venta", {
+      .rpc("editar_entrega", {
         p_venta_id: editingFullVenta.id,
         p_socio_id: editFormData.socio_id,
         p_lineas: lineasValidas.map((l) => ({
@@ -523,15 +526,23 @@ export function HistorialVentas() {
         })),
         p_notas: editFormData.notas || null,
         p_fecha: editFormData.fecha.toISOString(),
+        p_autorizacion_id: autorizacionId,
       })
       .single()
+
+    if (error?.code === "VB001") {
+      setMotivosBloqueoEdicion(motivosDeError(error.message))
+      setSavingEdit(false)
+      return
+    }
+    setMotivosBloqueoEdicion(null)
 
     if (!error) {
       setEditingFullVenta(null)
       await fetchVentas()
       await fetchGeneticasAndProductos()
       router.refresh()
-    } else if (/^VE0\d{2}$/.test(error.code || "")) {
+    } else if (/^(VE0\d{2}|VB00\d)$/.test(error.code || "")) {
       alert(error.message)
     } else {
       console.error("Error inesperado al editar la venta:", error)
@@ -1530,12 +1541,23 @@ export function HistorialVentas() {
             <Button variant="outline" onClick={() => setEditingFullVenta(null)} className="bg-card">
               Cancelar
             </Button>
-            <Button onClick={handleSaveEdit} disabled={savingEdit} >
+            <Button onClick={() => handleSaveEdit()} disabled={savingEdit} >
               {savingEdit ? "Guardando..." : "Guardar Cambios"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {editingFullVenta && motivosBloqueoEdicion && (
+        <AutorizacionEntregaDialog
+          open
+          onOpenChange={(open) => !open && setMotivosBloqueoEdicion(null)}
+          socioId={editFormData.socio_id}
+          motivos={motivosBloqueoEdicion}
+          usuarioActual={usuarioActual}
+          onAutorizado={(autorizacionId) => handleSaveEdit(autorizacionId)}
+        />
+      )}
 
       <AlertDialog open={!!ventaABorrar} onOpenChange={(open) => !open && setVentaABorrar(null)}>
         <AlertDialogContent className="monarca-theme bg-card">

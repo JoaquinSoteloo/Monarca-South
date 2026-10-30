@@ -22,9 +22,9 @@
 -- stock y pagos sigue en un solo lugar.
 --
 -- registrar_venta/editar_venta dejan de poder llamarse directamente desde la
--- app (REVOKE a anon/authenticated), para que nadie se saltee las reglas.
--- OJO: si en el futuro se re-corre 062 o 065, vuelven a otorgar EXECUTE a
--- authenticated; después de eso hay que re-correr este script.
+-- app en 067 (a correr DESPUÉS de publicar el frontend nuevo), para que nadie
+-- se saltee las reglas. OJO: si en el futuro se re-corre 062 o 065, vuelven
+-- a otorgar EXECUTE a authenticated; después de eso hay que re-correr 067.
 --
 -- Autorizaciones: un usuario de la comisión crea una autorización de un solo
 -- uso, atada al socio y con vencimiento (crear_autorizacion_entrega). La
@@ -274,6 +274,8 @@ DECLARE
   v_cantidad integer;
   v_mas_vieja timestamptz;
   v_deuda numeric;
+  v_sueltos_previos numeric;
+  v_saldo_previo numeric;
 BEGIN
   SELECT * INTO v_venta FROM public.ventas WHERE id = p_venta_id;
   SELECT * INTO v_socio FROM public.socios WHERE id = v_venta.socio_id;
@@ -285,10 +287,20 @@ BEGIN
   v_mismo_socio := p_es_edicion AND p_socio_antes = v_venta.socio_id;
   v_mismo_mes := p_es_edicion AND public.inicio_mes_argentina(p_fecha_antes) = v_inicio;
   v_sueltos := public.gramos_sueltos_venta(p_venta_id);
+  -- Lo que ya había antes de la edición y cuenta para el mismo socio/mes.
+  -- (Calculado acá y no con CASE dentro del IF: PL/pgSQL corta la condición
+  -- en el primer THEN que encuentra.)
+  v_sueltos_previos := 0;
+  IF v_mismo_socio AND v_mismo_mes THEN
+    v_sueltos_previos := p_sueltos_antes;
+  END IF;
+  v_saldo_previo := 0;
+  IF v_mismo_socio THEN
+    v_saldo_previo := p_saldo_antes;
+  END IF;
 
   -- 1) Límite mensual de gramos sueltos (sólo socios con límite cargado).
-  IF v_socio.tipo = 'socio' AND v_socio.gramos_mensuales IS NOT NULL
-     AND v_sueltos > CASE WHEN v_mismo_socio AND v_mismo_mes THEN p_sueltos_antes ELSE 0 END THEN
+  IF v_socio.tipo = 'socio' AND v_socio.gramos_mensuales IS NOT NULL AND v_sueltos > v_sueltos_previos THEN
     SELECT COALESCE(sum(public.gramos_sueltos_venta(v.id)), 0) INTO v_consumo
     FROM public.ventas v
     WHERE v.socio_id = v_socio.id AND v.created_at >= v_inicio AND v.created_at < v_fin;
@@ -340,7 +352,7 @@ BEGIN
   END IF;
 
   -- 4) Tope de deuda total, sólo si esta entrega suma saldo pendiente.
-  IF v_venta.saldo_pendiente > CASE WHEN v_mismo_socio THEN p_saldo_antes ELSE 0 END THEN
+  IF v_venta.saldo_pendiente > v_saldo_previo THEN
     SELECT COALESCE(sum(v.saldo_pendiente), 0) INTO v_deuda
     FROM public.ventas v
     WHERE v.socio_id = v_socio.id AND v.saldo_pendiente > 0;
@@ -494,9 +506,9 @@ GRANT EXECUTE ON FUNCTION public.registrar_entrega(uuid, jsonb, numeric, numeric
 REVOKE ALL ON FUNCTION public.editar_entrega(uuid, uuid, jsonb, text, timestamptz, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.editar_entrega(uuid, uuid, jsonb, text, timestamptz, uuid) TO authenticated;
 
--- Las funciones viejas quedan sólo como piezas internas.
-REVOKE EXECUTE ON FUNCTION public.registrar_venta(uuid, jsonb, numeric, numeric, text, timestamptz) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.editar_venta(uuid, uuid, jsonb, text, timestamptz) FROM PUBLIC, anon, authenticated;
+-- El acceso directo a registrar_venta/editar_venta se cierra en 067, recién
+-- después de publicar el frontend que usa registrar_entrega/editar_entrega:
+-- hasta entonces la app publicada sigue llamando a las funciones viejas.
 
 COMMIT;
 

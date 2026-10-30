@@ -357,7 +357,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
     // Validar que el pago no exceda el total
     const totalPagado = pagoCombinado.efectivo + pagoCombinado.transferencia
     if (totalPagado > totalVenta) {
-      setError(`El pago (${formatCurrency(totalPagado)}) excede el total de la venta (${formatCurrency(totalVenta)})`)
+      setError(`El pago (${formatCurrency(totalPagado)}) excede el aporte total de la entrega (${formatCurrency(totalVenta)})`)
       return
     }
 
@@ -417,29 +417,29 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
                 Consumido este mes: <strong>{formatGramos(consumidoMes)}</strong>
               </p>
               <p className="text-sm text-amber-800">
-                Intentando comprar: <strong>{formatGramos(gramosTotalesVenta)}</strong>
+                Intentando retirar: <strong>{formatGramos(gramosTotalesVenta)}</strong>
               </p>
               <p className="text-sm text-amber-800">
                 Nuevo total: <strong>{formatGramos(consumidoMes + gramosTotalesVenta)}</strong> (
                 {formatGramos(consumidoMes + gramosTotalesVenta - limiteMensual)} sobre el límite)
               </p>
             </div>
-            <p className="text-sm text-muted-foreground mt-3">¿Deseas continuar con la venta de todas formas?</p>
+            <p className="text-sm text-muted-foreground mt-3">¿Deseas continuar con la entrega de todas formas?</p>
           </div>
           <DialogFooter className="flex gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setShowLimitDialog(false)}>
               Cancelar
             </Button>
             <Button onClick={() => procesarVenta(lineasParaEnviar)} disabled={loading}>
-              {loading ? "Registrando..." : "Sí, continuar con la venta"}
+              {loading ? "Registrando..." : "Sí, continuar con la entrega"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <div>
-        <h1 className="text-[26px] font-semibold leading-tight text-foreground">Ventas</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Prepará la venta y revisá el cobro antes de registrarla.</p>
+        <h1 className="text-[26px] font-semibold leading-tight text-foreground">Entregas</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Prepará la entrega y revisá el aporte antes de registrarla.</p>
       </div>
 
       <form
@@ -449,7 +449,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
         {/* Columna principal: fecha, socio, ítems */}
         <div className="flex min-w-0 flex-col gap-6">
           <section className="min-w-0 rounded-xl border bg-card p-5">
-            <h2 className="mb-4 flex items-center gap-2 text-base font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">1</span> Datos de la venta</h2>
+            <h2 className="mb-4 flex items-center gap-2 text-base font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">1</span> Datos de la entrega</h2>
             <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,1fr)_240px]">
           <div className="space-y-2">
             <Label htmlFor="socio-select" className="font-semibold text-primary">
@@ -487,7 +487,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
 
           </div>
           <div className="min-w-0 space-y-2">
-            <Label htmlFor="fecha-venta">Fecha de venta</Label>
+            <Label htmlFor="fecha-venta">Fecha de entrega</Label>
             <Popover open={popoverFechaOpen} onOpenChange={setPopoverFechaOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -520,7 +520,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             {fechaVenta.toDateString() !== new Date().toDateString() && (
               <p className="text-xs text-amber-600 flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                Registrando venta de fecha anterior
+                Registrando entrega de fecha anterior
               </p>
             )}
           </div>
@@ -559,7 +559,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
 
           <div className="space-y-3 rounded-xl border bg-card p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-base font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">2</span> Ítems de la venta</h2>
+              <h2 className="flex items-center gap-2 text-base font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">2</span> Ítems de la entrega</h2>
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -812,7 +812,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
           </div>
 
           <details className="rounded-xl border bg-card p-4">
-            <summary className="cursor-pointer text-sm font-medium text-primary">Notas de la venta (opcional)</summary>
+            <summary className="cursor-pointer text-sm font-medium text-primary">Notas de la entrega (opcional)</summary>
             <Label htmlFor="notas" className="sr-only">Notas</Label>
             <Textarea
               id="notas"
@@ -829,9 +829,9 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
           <CardHeader className="-mt-6 gap-3 bg-primary py-5 text-primary-foreground">
             <CardTitle className="flex items-center gap-2 text-base"><ShoppingCart className="h-4 w-4" />3 · Resumen y cobro</CardTitle>
             <div>
-              <p className="text-xs text-primary-foreground/80">Total de la venta</p>
+              <p className="text-xs text-primary-foreground/80">Aporte total</p>
               <p className="mt-1 break-words text-3xl font-semibold tabular-nums">{formatCurrency(totalVenta)}</p>
-              <p className="mt-1 text-xs text-primary-foreground/80">{formatGramos(gramosTotalesVenta)} en esta venta</p>
+              <p className="mt-1 text-xs text-primary-foreground/80">{formatGramos(gramosTotalesVenta)} en esta entrega</p>
             </div>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
@@ -917,7 +917,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             )}
 
             <Button type="submit" className="w-full" size="lg" disabled={loading || !formData.socio_id}>
-              {loading ? "Registrando..." : "Registrar venta"}
+              {loading ? "Registrando..." : "Registrar entrega"}
             </Button>
           </CardContent>
         </Card>
@@ -936,12 +936,12 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <ShoppingCart className="h-4 w-4 text-primary" />
-            Últimas ventas
+            Últimas entregas
           </CardTitle>
         </CardHeader>
         <CardContent>
           {ventas.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No hay ventas registradas hoy</p>
+            <p className="text-center text-muted-foreground py-8">No hay entregas registradas hoy</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>

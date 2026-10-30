@@ -1,4 +1,6 @@
 import Link from "next/link"
+import type { ReactNode } from "react"
+import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import {
   Package,
@@ -16,6 +18,8 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { DatoSensible, OcultarDatosProvider, OcultarDatosToggle } from "@/components/ocultar-datos"
+import { OCULTAR_DATOS_COOKIE } from "@/lib/ocultar-datos"
 import { formatCurrency, formatGramos, formatNumero } from "@/lib/format"
 import { formatFechaLargaArgentina, formatHoraArgentina, getArgentinaDateString, getArgentinaDayRangeUTC } from "@/lib/timezone"
 import { cn } from "@/lib/utils"
@@ -45,6 +49,7 @@ function socioNombre(socio: VentaHoy["socio"]) {
 
 export default async function Dashboard() {
   const supabase = await createClient()
+  const datosOcultos = (await cookies()).get(OCULTAR_DATOS_COOKIE)?.value === "1"
 
   let totalSocios = 0
   let totalGeneticas = 0
@@ -158,7 +163,7 @@ export default async function Dashboard() {
     },
     {
       key: "ventas",
-      label: "Ventas hoy",
+      label: "Aportes hoy",
       icon: ShoppingCart,
       value: formatCurrency(ventasHoyTotal),
       highlight: true,
@@ -182,11 +187,16 @@ export default async function Dashboard() {
     },
   ]
 
-  const alertas = [
+  const alertas = ([
     deudaSociosCount > 0
       ? {
           key: "deuda",
-          texto: `${formatNumero(deudaSociosCount)} socio${deudaSociosCount === 1 ? "" : "s"} con saldo pendiente por un total de ${formatCurrency(deudaTotal)}`,
+          texto: (
+            <>
+              {formatNumero(deudaSociosCount)} socio{deudaSociosCount === 1 ? "" : "s"} con saldo pendiente por un total de{" "}
+              <DatoSensible>{formatCurrency(deudaTotal)}</DatoSensible>
+            </>
+          ),
           href: "/deudas",
         }
       : null,
@@ -204,10 +214,15 @@ export default async function Dashboard() {
           href: "/socios",
         }
       : null,
-  ].filter((a): a is { key: string; texto: string; href: string } => a !== null)
+  ] as ({ key: string; texto: ReactNode; href: string } | null)[]).filter(
+    (a): a is { key: string; texto: ReactNode; href: string } => a !== null,
+  )
 
   return (
-    <main className="container mx-auto flex flex-col gap-6 px-4 py-6 sm:gap-8 sm:py-8">
+    <OcultarDatosProvider
+      inicialOculto={datosOcultos}
+      className="container mx-auto flex flex-col gap-6 px-4 py-6 sm:gap-8 sm:py-8"
+    >
       {/* 1. Encabezado + acción principal — título más chico en mobile para
           que los indicadores aparezcan antes, sin cambiar el desktop. */}
       <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
@@ -217,13 +232,16 @@ export default async function Dashboard() {
             Hola — así viene el día en Monarca
           </h1>
         </div>
-        <Link
-          href="/ventas"
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <ShoppingCart className="h-4 w-4" />
-          Registrar venta
-        </Link>
+        <div className="flex items-center gap-2">
+          <OcultarDatosToggle />
+          <Link
+            href="/ventas"
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:flex-none"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            Registrar entrega
+          </Link>
+        </div>
       </section>
 
       {dashboardError && (
@@ -274,7 +292,7 @@ export default async function Dashboard() {
                   alert ? "text-amber-800" : "text-foreground",
                 )}
               >
-                {value}
+                <DatoSensible>{value}</DatoSensible>
               </p>
               {note && <p className="mt-1.5 text-xs text-muted-foreground">{note}</p>}
             </div>
@@ -317,13 +335,16 @@ export default async function Dashboard() {
               Actividad de hoy
             </h2>
             <span className="text-sm text-muted-foreground">
-              Total: <span className="font-semibold text-foreground">{formatCurrency(ventasHoyTotal)}</span>
+              Total:{" "}
+              <span className="font-semibold text-foreground">
+                <DatoSensible>{formatCurrency(ventasHoyTotal)}</DatoSensible>
+              </span>
             </span>
           </div>
           <Card className="border-border bg-card shadow-sm">
             <CardContent className="p-0">
               {ventasHoy.length === 0 ? (
-                <p className="px-4 py-8 text-center text-sm text-muted-foreground">No hay ventas registradas hoy</p>
+                <p className="px-4 py-8 text-center text-sm text-muted-foreground">No hay entregas registradas hoy</p>
               ) : (
                 <ul className="divide-y divide-border">
                   {ventasHoy.slice(0, 8).map((v) => {
@@ -341,7 +362,9 @@ export default async function Dashboard() {
                             </p>
                           </div>
                         </div>
-                        <span className="text-sm font-semibold text-foreground">{formatCurrency(Number(v.total))}</span>
+                        <span className="text-sm font-semibold text-foreground">
+                          <DatoSensible>{formatCurrency(Number(v.total))}</DatoSensible>
+                        </span>
                       </li>
                     )
                   })}
@@ -370,6 +393,6 @@ export default async function Dashboard() {
           ))}
         </div>
       </section>
-    </main>
+    </OcultarDatosProvider>
   )
 }

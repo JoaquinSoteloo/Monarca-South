@@ -37,7 +37,7 @@ const navGroups = [
     label: "Principal",
     items: [
       { href: "/", label: "Inicio", icon: Home },
-      { href: "/ventas", label: "Ventas", icon: ShoppingCart },
+      { href: "/ventas", label: "Entregas", icon: ShoppingCart },
       { href: "/historial", label: "Historial", icon: History },
     ],
   },

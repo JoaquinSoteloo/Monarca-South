@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { AlertTriangle, ChevronDown, ChevronUp, MessageSquare, Send } from "lucide-react"
+import { AlertTriangle, ChevronDown, ChevronUp, ClipboardList, MessageSquare, Send } from "lucide-react"
 import { horaCorta, type Mensaje, type Perfil, type Tarea } from "@/lib/equipo"
 import { useToast } from "@/hooks/use-toast"
+import { PasoDialog } from "@/components/procesos/paso-dialog"
 
 interface Props {
   tarea: Tarea
@@ -27,6 +28,8 @@ export function TareaItem({ tarea, yo, perfiles, supabase, abierta, onToggleAbie
   const [guardando, setGuardando] = useState(false)
   const [comentarios, setComentarios] = useState<Mensaje[] | null>(null)
   const [nuevo, setNuevo] = useState("")
+  const [formAbierto, setFormAbierto] = useState(false)
+  const esPaso = Boolean(tarea.proceso_paso_id)
 
   const nombre = (id: string | null) => perfiles.find((p) => p.id === id)?.nombre ?? "—"
   const responsable = perfiles.find((p) => p.id === tarea.responsable_id)
@@ -46,6 +49,12 @@ export function TareaItem({ tarea, yo, perfiles, supabase, abierta, onToggleAbie
     }
     setModoProblema(false)
     onCambio(data as Tarea)
+  }
+
+  async function recargar() {
+    setFormAbierto(false)
+    const { data } = await supabase.from("tareas").select("*").eq("id", tarea.id).single()
+    if (data) onCambio(data as Tarea)
   }
 
   async function cargarComentarios() {
@@ -87,8 +96,8 @@ export function TareaItem({ tarea, yo, perfiles, supabase, abierta, onToggleAbie
         <Checkbox
           className="mt-1"
           checked={tarea.estado === "hecha"}
-          disabled={!puedeEditar || guardando}
-          onCheckedChange={(v) => cambiarEstado(v ? "hecha" : "pendiente", v ? tarea.nota : null)}
+          disabled={!puedeEditar || guardando || (esPaso && tarea.estado === "hecha")}
+          onCheckedChange={(v) => (esPaso ? setFormAbierto(true) : cambiarEstado(v ? "hecha" : "pendiente", v ? tarea.nota : null))}
           aria-label="Marcar como hecha"
         />
         <div className="min-w-0 flex-1">
@@ -112,7 +121,12 @@ export function TareaItem({ tarea, yo, perfiles, supabase, abierta, onToggleAbie
           </button>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {puedeEditar && tarea.estado !== "problema" && (
+          {esPaso && puedeEditar && tarea.estado !== "hecha" && (
+            <Button size="sm" onClick={() => setFormAbierto(true)} title="Completar el formulario">
+              <ClipboardList className="mr-1 h-4 w-4" /> Completar
+            </Button>
+          )}
+          {!esPaso && puedeEditar && tarea.estado !== "problema" && (
             <Button variant="ghost" size="sm" onClick={() => setModoProblema((v) => !v)} title="Marcar un problema">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
             </Button>
@@ -151,7 +165,7 @@ export function TareaItem({ tarea, yo, perfiles, supabase, abierta, onToggleAbie
       {abierta && (
         <div className="mt-3 space-y-3 border-t pt-3 text-sm">
           {tarea.detalle && <p className="whitespace-pre-line text-muted-foreground">{tarea.detalle}</p>}
-          {tarea.estado === "problema" && puedeEditar && (
+          {tarea.estado === "problema" && puedeEditar && !esPaso && (
             <Button size="sm" variant="outline" onClick={() => cambiarEstado("hecha", tarea.nota)}>
               Marcar como resuelto
             </Button>
@@ -184,6 +198,16 @@ export function TareaItem({ tarea, yo, perfiles, supabase, abierta, onToggleAbie
             </Button>
           </div>
         </div>
+      )}
+      {esPaso && (
+        <PasoDialog
+          pasoId={formAbierto ? (tarea.proceso_paso_id ?? null) : null}
+          onClose={() => setFormAbierto(false)}
+          onListo={recargar}
+          yo={yo}
+          perfiles={perfiles}
+          supabase={supabase}
+        />
       )}
     </div>
   )

@@ -17,7 +17,7 @@ export default async function VentasPage() {
         .eq("activo", true)
         .eq("es_generico", false)
         .order("apellido"),
-      supabase.from("geneticas").select("*").eq("activo", true).gt("gramos_disponibles", 0).order("nombre"),
+      supabase.from("geneticas").select("*").eq("activo", true).or("gramos_disponibles.gt.0,gramos_enrolados.gt.0").order("nombre"),
       supabase.from("productos").select("*").eq("activo", true).order("nombre"),
       supabase
         .from("ventas")

@@ -245,9 +245,14 @@ export function VentasManager({
     // todo contra el stock y los precios vigentes al momento de la llamada).
     for (const linea of lineasValidas) {
       if (linea.tipo === "genetica" && linea.genetica_id) {
-        const { gramosTotales, genetica } = calcularLinea(linea)
-        if (genetica && gramosTotales > genetica.gramos_disponibles) {
-          setError(`Stock insuficiente de ${genetica.nombre}. Disponible: ${formatGramos(genetica.gramos_disponibles)}`)
+        const { pesoEnrolados, genetica } = calcularLinea(linea)
+        if (genetica && linea.gramos > genetica.gramos_disponibles) {
+          setError(`Stock insuficiente de ${genetica.nombre} para sueltos. Disponible: ${formatGramos(genetica.gramos_disponibles)}`)
+          setLoading(false)
+          return
+        }
+        if (genetica && pesoEnrolados > genetica.gramos_enrolados) {
+          setError(`Stock insuficiente de ${genetica.nombre} para enrolados. Disponible: ${formatGramos(genetica.gramos_enrolados)}`)
           setLoading(false)
           return
         }
@@ -655,7 +660,7 @@ export function VentasManager({
                                   : g.precio_por_enrolado || 0
                               return (
                                 <SelectItem key={g.id} value={g.id}>
-                                  {g.nombre} - {formatGramos(g.gramos_disponibles)} ({formatCurrency(gPrecioGramo)}/g
+                                  {g.nombre} - {formatGramos(g.gramos_disponibles)} sueltos · {formatGramos(g.gramos_enrolados)} enr ({formatCurrency(gPrecioGramo)}/g
                                   {gPrecioEnrolado ? ` | ${formatCurrency(gPrecioEnrolado)}/enr` : ""})
                                 </SelectItem>
                               )

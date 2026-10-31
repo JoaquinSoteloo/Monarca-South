@@ -556,7 +556,7 @@ export function HistorialVentas({ usuarioActual }: { usuarioActual: UsuarioActua
     setBorrando(true)
     const supabase = createClient()
 
-    const { error } = await supabase.rpc("eliminar_venta", { p_venta_id: ventaABorrar.id })
+    const { error } = await supabase.rpc("eliminar_entrega", { p_venta_id: ventaABorrar.id })
 
     if (!error) {
       setVentaABorrar(null)

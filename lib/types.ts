@@ -62,7 +62,10 @@ export interface Genetica {
   id: string
   nombre: string
   descripcion: string | null
+  /** Stock para entregar sueltos. */
   gramos_disponibles: number
+  /** Stock reservado para enrolados (scripts/068). */
+  gramos_enrolados: number
   precio_por_gramo: number
   precio_por_enrolado: number
   precio_gramo_miembro: number

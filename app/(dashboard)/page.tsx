@@ -106,7 +106,7 @@ export default async function Dashboard() {
         .lt("created_at", finHoyUTC)
         .order("created_at", { ascending: false }),
       supabase.from("geneticas").select("nombre, gramos_disponibles").eq("activo", true).lt("gramos_disponibles", 100),
-      supabase.from("geneticas").select("gramos_disponibles").eq("activo", true),
+      supabase.from("geneticas").select("gramos_disponibles, gramos_enrolados").eq("activo", true),
       supabase.from("gastos").select("monto").eq("fecha", hoyArgentina),
       supabase
         .from("ventas")
@@ -136,7 +136,7 @@ export default async function Dashboard() {
     ventasHoy = ventasHoyResult.data || []
     ventasHoyTotal = ventasHoy.reduce((sum, v) => sum + Number(v.total), 0)
     stockBajo = stockBajoResult.data || []
-    totalGramosDisponibles = geneticasGramosResult.data?.reduce((sum, g) => sum + Number(g.gramos_disponibles), 0) || 0
+    totalGramosDisponibles = geneticasGramosResult.data?.reduce((sum, g) => sum + Number(g.gramos_disponibles) + Number(g.gramos_enrolados), 0) || 0
     gastosHoyTotal = gastosResult.data?.reduce((sum, g) => sum + Number(g.monto), 0) || 0
 
     const totalGramos6Meses =

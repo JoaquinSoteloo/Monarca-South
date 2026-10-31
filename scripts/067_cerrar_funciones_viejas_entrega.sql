@@ -19,10 +19,13 @@
 -- Rollback (si hubiera que volver al frontend anterior):
 --   GRANT EXECUTE ON FUNCTION public.registrar_venta(uuid, jsonb, numeric, numeric, text, timestamptz) TO authenticated;
 --   GRANT EXECUTE ON FUNCTION public.editar_venta(uuid, uuid, jsonb, text, timestamptz) TO authenticated;
+--   GRANT EXECUTE ON FUNCTION public.eliminar_venta(uuid) TO authenticated;
 
 BEGIN;
 
 REVOKE EXECUTE ON FUNCTION public.registrar_venta(uuid, jsonb, numeric, numeric, text, timestamptz) FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.editar_venta(uuid, uuid, jsonb, text, timestamptz) FROM PUBLIC, anon, authenticated;
+-- Desde 068 la app elimina con eliminar_entrega, que separa los dos stocks.
+REVOKE EXECUTE ON FUNCTION public.eliminar_venta(uuid) FROM PUBLIC, anon, authenticated;
 
 COMMIT;

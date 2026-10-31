@@ -17,6 +17,7 @@ import {
   CalendarClock,
   Sprout,
   Droplets,
+  ListChecks,
   Thermometer,
   Zap,
   Sliders,
@@ -38,6 +39,7 @@ const navGroups = [
     label: "Principal",
     items: [
       { href: "/", label: "Inicio", icon: Home },
+      { href: "/equipo", label: "Equipo", icon: ListChecks },
       { href: "/ventas", label: "Ventas", icon: ShoppingCart },
       { href: "/historial", label: "Historial", icon: History },
     ],

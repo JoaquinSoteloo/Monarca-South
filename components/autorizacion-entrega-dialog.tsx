@@ -107,7 +107,7 @@ export function AutorizacionEntregaDialog({ open, onOpenChange, socioId, motivos
               <ShieldAlert className="h-6 w-6 text-amber-600" />
             </div>
             <div>
-              <DialogTitle className="text-foreground">No se puede registrar la entrega</DialogTitle>
+              <DialogTitle className="text-foreground">No se puede guardar la entrega</DialogTitle>
               <DialogDescription className="text-muted-foreground">
                 Sólo con autorización de la comisión directiva.
               </DialogDescription>

@@ -18,6 +18,7 @@ import {
   Sprout,
   Droplets,
   ListChecks,
+  CalendarRange,
   Thermometer,
   Zap,
   Sliders,
@@ -48,6 +49,7 @@ const navGroups = [
     label: "Operación",
     items: [
       { href: "/stock", label: "Stock", icon: Package },
+      { href: "/ciclos", label: "Ciclos", icon: CalendarRange },
       { href: "/cultivo", label: "Cultivo", icon: Sprout },
       { href: "/riego", label: "Riego", icon: Droplets },
       { href: "/monitoreo", label: "Monitoreo", icon: Thermometer },

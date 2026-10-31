@@ -16,6 +16,7 @@ import {
   AlertCircle,
   CalendarClock,
   Sprout,
+  Droplets,
   Thermometer,
   Zap,
   Sliders,
@@ -46,6 +47,7 @@ const navGroups = [
     items: [
       { href: "/stock", label: "Stock", icon: Package },
       { href: "/cultivo", label: "Cultivo", icon: Sprout },
+      { href: "/riego", label: "Riego", icon: Droplets },
       { href: "/monitoreo", label: "Monitoreo", icon: Thermometer },
       { href: "/citas", label: "Citas", icon: CalendarClock },
     ],

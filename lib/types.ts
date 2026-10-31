@@ -171,6 +171,23 @@ export interface CamaCultivo {
   fecha_cosecha?: string | null
 }
 
+export interface RegistroRiego {
+  id: number
+  fecha: string
+  sala_id: number
+  etapa: "esqueje" | "vegetativo" | "floracion" | "lavado"
+  semana: number | null
+  responsable: string
+  ec_entrada: number | null
+  ph_entrada: number | null
+  litros_por_maceta: number | null
+  ec_runoff: number | null
+  ph_runoff: number | null
+  drenaje_pct: number | null
+  notas: string | null
+  created_at: string
+}
+
 export interface MacetaCultivo {
   fila: number
   columna: number

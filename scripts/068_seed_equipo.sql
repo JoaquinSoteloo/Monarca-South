@@ -40,7 +40,10 @@ CREATE TEMP TABLE rutina (
 ) ON COMMIT DROP;
 
 INSERT INTO rutina VALUES
-  -- Vilela (desde las 10 h)
+  -- Vilela (desde las 10 h). Encargada de la limpieza de apertura.
+  ('Vilela', 5, 'Atención al socio: limpiar y dejar todo listo para Demian',
+   'Mostrador, balanza, frascos, piso y basura. Que a la tarde Demian encuentre todo en orden para atender.',
+   '{Demian}', 'semanal', '{1,2,3,4,5,6}', NULL),
   ('Vilela', 10, 'Revisar el monitoreo de la noche en las 5 salas',
    'Temperatura, humedad y VPD. Si algo estuvo fuera de rango (Manual 2, rangos de referencia), marcar "Problema" y explicar.',
    '{Lucho}', 'semanal', '{1,2,3,4,5,6}', NULL),
@@ -49,8 +52,8 @@ INSERT INTO rutina VALUES
    '{Lucho}', 'semanal', '{1,2,3,4,5,6}', NULL),
   ('Vilela', 30, 'Controlar aires, deshumidificadores, ventiladores y extractores', NULL,
    '{Lucho}', 'semanal', '{1,2,3,4,5,6}', NULL),
-  ('Vilela', 40, 'Limpieza de salas',
-   'Hojas caídas, sustrato derramado, pisos y bandejas. Sacar la basura.', '{}', 'semanal', '{1,2,3,4,5,6}', NULL),
+  ('Vilela', 40, 'Limpieza de salas al iniciar el día',
+   'Hojas caídas, sustrato derramado, pisos y bandejas. Sacar la basura. Las salas limpias son tarea de todos; Vilela (apertura) y Pato (cierre) son los encargados.', '{Lucho}', 'semanal', '{1,2,3,4,5,6}', NULL),
   ('Vilela', 50, 'Si es día de riego: llenar el tanque con agua de ósmosis y dejarlo tapado',
    'Para que Lucho lo prepare a la tarde. Si no es día de riego, marcar como hecha.', '{Lucho}', 'semanal', '{1,2,3,4,5,6}', NULL),
   ('Vilela', 60, 'Relevamiento de insumos (procedimiento B)',
@@ -64,13 +67,26 @@ INSERT INTO rutina VALUES
    '{}', 'semanal', '{1,2,3,4,5,6}', NULL),
   ('Lucho', 40, 'Revisar el registro de riego con Facundo', 'Unos 30 minutos: EC y pH de runoff, problemas y ajustes.',
    '{Facundo}', 'semanal', '{5}', NULL),
-  -- Demian (atención lunes, miércoles y viernes)
+  -- Demian: stock y elaborados (todos los días) y atención (lunes, miércoles y viernes)
+  ('Demian', 2, 'Control de stock del día',
+   'Contar flor, enrolados, hash y rosin y compararlo con el sistema. Cada movimiento tiene que quedar cargado.',
+   '{Facundo}', 'semanal', '{1,2,3,4,5}', NULL),
+  ('Demian', 4, 'Stock bajo: avisar y mirar los próximos cortes',
+   'Si algo alcanza para menos de 2 semanas, marcar "Problema". Si además no hay un corte cercano en Ciclos, avisar a Facundo para comprar material.',
+   '{Facundo,Lucho}', 'semanal', '{1,2,3,4,5}', NULL),
+  ('Demian', 6, 'Empaquetado de flor', 'Bolsas, peso y sticker con genética y lote. Si faltan bolsas o stickers, avisar con "Falta algo".',
+   '{}', 'semanal', '{1,2,3,4,5}', NULL),
+  ('Demian', 7, 'Armado de enrolados', 'Con los cocos chicos. Cargar en el sistema cuántos se armaron.', '{}', 'semanal', '{1,2,3,4,5}', NULL),
+  ('Demian', 8, 'Rosin y hash: preparar la manicura y registrar lo que entra', 'Si no hay manicura o elaborado ese día, marcar como hecha.',
+   '{Facundo}', 'semanal', '{1,2,3,4,5}', NULL),
+  ('Demian', 9, 'Frasco de exhibición: armarlo y rotar genéticas', 'Que muestre lo que hay disponible ese día.', '{}', 'semanal', '{1,3,5}', NULL),
   ('Demian', 10, 'Apertura de caja (procedimiento C)',
    'Contar el efectivo y compararlo con el fondo fijo. Si no coincide, marcar "Problema" antes de atender.', '{Facundo}', 'semanal', '{1,3,5}', NULL),
   ('Demian', 20, 'Revisar los turnos del día en Citas', NULL, '{}', 'semanal', '{1,3,5}', NULL),
-  ('Demian', 30, 'Atender socios y registrar cada entrega (procedimiento D)',
+  ('Demian', 30, 'Atender socios y anotar cada movimiento en el sistema (procedimiento D)',
    'REPROCANN activo, límite disponible y sin fiado vencido. Si algo no se cumple, no se entrega.', '{}', 'semanal', '{1,3,5}', NULL),
   ('Demian', 40, 'Responder los mensajes de socios pendientes', NULL, '{}', 'semanal', '{1,3,5}', NULL),
+  ('Demian', 45, 'Control de stock de cierre: todo cargado en el sistema', NULL, '{Facundo}', 'semanal', '{1,3,5}', NULL),
   ('Demian', 50, 'Cierre de caja (procedimiento E)',
    'Si no coincide con el sistema, marcar "Problema" con la diferencia y el motivo.', '{Facundo}', 'semanal', '{1,3,5}', NULL),
   ('Demian', 60, 'Socios con REPROCANN por vencer (próximos 90 días) y pendientes de más de 60 días',
@@ -82,7 +98,10 @@ INSERT INTO rutina VALUES
   ('Facundo', 40, 'Revisar fiados vencidos (más de 30 días) y avisar a cada socio', NULL, '{Demian}', 'semanal', '{1}', NULL),
   ('Facundo', 50, 'Hacer el pedido de insumos con la lista de Vilela (procedimiento H)', NULL, '{Vilela,Lucho}', 'semanal', '{2}', NULL),
   ('Facundo', 60, 'Pagar retribuciones y cancelar en el sistema lo que cada uno retiró', NULL, '{}', 'mensual_dia', '{1}', 5),
-  ('Facundo', 70, 'Reunión de comisión directiva con los números del mes', NULL, '{}', 'mensual_primer', '{2}', NULL);
+  ('Facundo', 70, 'Reunión de comisión directiva con los números del mes', NULL, '{}', 'mensual_primer', '{2}', NULL),
+  -- Pato (desde las 17 h). Encargado de la limpieza de cierre.
+  ('Pato', 10, 'Limpieza de salas al cerrar el día',
+   'Pisos, hojas, bandejas y basura. Dejar todo listo para que Vilela arranque a la mañana.', '{Lucho,Vilela}', 'semanal', '{1,2,3,4,5,6}', NULL);
 
 INSERT INTO public.tareas_plantilla (titulo, detalle, responsable_id, afecta_a, frecuencia, dias_semana, dia_mes, orden)
 SELECT r.titulo, r.detalle, p.id,
@@ -93,7 +112,7 @@ WHERE NOT EXISTS (
   SELECT 1 FROM public.tareas_plantilla t WHERE t.responsable_id = p.id AND t.titulo = r.titulo
 );
 
--- Pato cubre a Vilela desde las 17 h: sin rutina propia por ahora; se le
+-- Pato cubre a Vilela desde las 17 h; además de su rutina de cierre, se le
 -- asignan tareas extra desde la pantalla.
 
 COMMIT;

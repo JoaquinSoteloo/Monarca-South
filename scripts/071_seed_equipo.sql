@@ -114,7 +114,20 @@ INSERT INTO rutina VALUES
   ('Facundo', 50, 'Hacer el pedido de insumos con la lista de Vilela (procedimiento H)', NULL, '{Vilela,Lucho}', 'semanal', '{2}', NULL),
   ('Facundo', 60, 'Pagar retribuciones y cancelar en el sistema lo que cada uno retiró', NULL, '{}', 'mensual_dia', '{1}', 5),
   ('Facundo', 70, 'Reunión de comisión directiva con los números del mes', NULL, '{}', 'mensual_primer', '{2}', NULL),
+  -- Consumo del equipo: prioridad máxima (Facundo, 01/11). Nadie se sirve solo:
+  -- todo lo que retira cada uno se registra como entrega y se descuenta el día 5.
+  ('Facundo', 1, 'Lo que retiré hoy quedó registrado como entrega', 'Prioridad máxima. Si no retiré nada, marcar como hecha.', '{Demian}', 'semanal', '{1,2,3,4,5,6}', NULL),
+  ('Lucho',   1, 'Lo que retiré hoy quedó registrado como entrega', 'Prioridad máxima. Incluye las muestras de calidad (registrarlas como muestra, con su peso). Si no retiré nada, marcar como hecha.', '{Demian}', 'semanal', '{1,2,3,4,5,6}', NULL),
+  ('Vilela',  1, 'Lo que retiré hoy quedó registrado como entrega', 'Prioridad máxima. Si no retiré nada, marcar como hecha.', '{Demian}', 'semanal', '{1,2,3,4,5,6}', NULL),
+  ('Demian',  1, 'Lo que retiré hoy quedó registrado como entrega', 'Prioridad máxima. Si no retiré nada, marcar como hecha.', '{Facundo}', 'semanal', '{1,2,3,4,5,6}', NULL),
+  ('Demian',  3, 'Consumo del equipo: entregado y registrado por mí',
+   'Nadie se sirve de un frasco ni de una sala. Lo que retira cada uno pasa por el stock y queda en el sistema con su aporte. Si alguien se sirvió sin registrar, marcar «Problema».', '{Facundo}', 'semanal', '{1,2,3,4,5,6}', NULL),
+  ('Demian', 70, 'Resumen del consumo del equipo de la semana',
+   'Cuánto retiró cada uno, para que Facundo lo descuente el día 5. Incluye los 5 g semanales de Pato.', '{Facundo}', 'semanal', '{5}', NULL),
+  ('Lucho',  50, 'Cierre de cosecha: peso seco = entregas + stock + muestras',
+   'Con Demian, al terminar de entregar cada cosecha. La diferencia es merma: se revisa en la reunión del viernes.', '{Facundo,Demian}', 'mensual_primer', '{5}', NULL),
   -- Pato (desde las 17 h). Encargado de la limpieza de cierre.
+  ('Pato', 1, 'Lo que retiré hoy quedó registrado como entrega', 'Prioridad máxima. Los 5 g semanales también se registran. Si no retiré nada, marcar como hecha.', '{Demian}', 'semanal', '{1,2,3,4,5,6}', NULL),
   ('Pato', 10, 'Limpieza de salas al cerrar el día',
    'Pisos, hojas, bandejas y basura. Dejar todo listo para que Vilela arranque a la mañana.', '{Lucho,Vilela}', 'semanal', '{1,2,3,4,5,6}', NULL);
 

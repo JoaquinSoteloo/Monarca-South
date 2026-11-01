@@ -54,7 +54,9 @@ export function PasoDialog({ pasoId, onClose, onListo, yo, perfiles, supabase }:
   const [nota, setNota] = useState("")
   const [guardando, setGuardando] = useState(false)
   const cerrar = useRef(onClose)
-  cerrar.current = onClose
+  useEffect(() => {
+    cerrar.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (pasoId === null) return

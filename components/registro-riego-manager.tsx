@@ -201,7 +201,7 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
           <CardTitle>Registro de riego</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Falta crear la tabla en la base de datos. Correr <code>scripts/066_create_registros_riego.sql</code> en el SQL
+          Falta crear la tabla en la base de datos. Correr <code>scripts/069_create_registros_riego.sql</code> en el SQL
           Editor de Supabase.
         </CardContent>
       </Card>

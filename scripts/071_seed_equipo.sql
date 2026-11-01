@@ -1,13 +1,14 @@
--- Equipo: perfiles y rutinas del Manual 2 (Rutina diaria del equipo).
+-- Equipo: áreas, supervisión y rutinas del Manual 2 (Rutina diaria del equipo).
 --
 -- NO SE EJECUTÓ TODAVÍA. Antes de correrlo:
---   1. En Supabase → Authentication → Users → "Add user", crear un usuario por
---      persona (email + contraseña; marcar "Auto Confirm User").
---   2. Reemplazar los emails de la tabla `equipo` de abajo por los reales.
---      Las personas sin usuario creado se saltean (por ejemplo, Pato).
---   3. Correr este script. Se puede volver a correr: actualiza perfiles y no
+--   1. Crear a cada persona en la pantalla Usuarios del sistema (Facundo,
+--      Lucho, Vilela, Demian, Pato), con ese nombre. Las que todavía no
+--      tengan usuario se saltean (se puede volver a correr después).
+--   2. Correr este script. Se puede volver a correr: actualiza el equipo y no
 --      duplica rutinas.
 --
+-- Se busca a cada persona por nombre en public.perfiles (sin importar
+-- mayúsculas; también sirve "Lucho Pérez" para "Lucho").
 -- Supervisión pedida por Facundo: Vilela → Lucho, Demian → Facundo.
 -- Facundo y Lucho ven las tareas de todos. Pato reporta a Lucho (cubre a Vilela).
 -- Días: 1 = lunes … 7 = domingo. Todo se puede cambiar después desde la
@@ -15,23 +16,37 @@
 
 BEGIN;
 
-CREATE TEMP TABLE equipo (email TEXT, nombre TEXT, rol TEXT, ve_todas BOOLEAN, supervisor TEXT) ON COMMIT DROP;
-INSERT INTO equipo VALUES
-  ('facundo@CAMBIAR.com', 'Facundo', 'direccion',     true,  NULL),
-  ('lucho@CAMBIAR.com',   'Lucho',   'cultivo',       true,  NULL),
-  ('vilela@CAMBIAR.com',  'Vilela',  'mantenimiento', false, 'Lucho'),
-  ('demian@CAMBIAR.com',  'Demian',  'atencion',      false, 'Facundo'),
-  ('pato@CAMBIAR.com',    'Pato',    'ayudante',      false, 'Lucho');
+CREATE TEMP TABLE miembro (nombre TEXT, area TEXT, ve_todas BOOLEAN, supervisor TEXT, user_id UUID) ON COMMIT DROP;
+INSERT INTO miembro (nombre, area, ve_todas, supervisor) VALUES
+  ('Facundo', 'direccion',     true,  NULL),
+  ('Lucho',   'cultivo',       true,  NULL),
+  ('Vilela',  'mantenimiento', false, 'Lucho'),
+  ('Demian',  'atencion',      false, 'Facundo'),
+  ('Pato',    'ayudante',      false, 'Lucho');
 
-INSERT INTO public.perfiles (id, nombre, rol, ve_todas_las_tareas)
-SELECT u.id, e.nombre, e.rol, e.ve_todas
-FROM equipo e JOIN auth.users u ON lower(u.email) = lower(e.email)
-ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, rol = EXCLUDED.rol,
-  ve_todas_las_tareas = EXCLUDED.ve_todas_las_tareas, activo = true;
+UPDATE miembro m SET user_id = (
+  SELECT p.user_id FROM public.perfiles p
+  WHERE lower(btrim(p.nombre)) = lower(m.nombre) OR lower(btrim(p.nombre)) LIKE lower(m.nombre) || ' %'
+  ORDER BY (lower(btrim(p.nombre)) = lower(m.nombre)) DESC LIMIT 1
+);
 
-UPDATE public.perfiles p SET supervisor_id = s.id
-FROM equipo e LEFT JOIN public.perfiles s ON s.nombre = e.supervisor
-WHERE p.nombre = e.nombre;
+INSERT INTO public.equipo (id, area, ve_todas_las_tareas)
+SELECT user_id, area, ve_todas FROM miembro WHERE user_id IS NOT NULL
+ON CONFLICT (id) DO UPDATE SET area = EXCLUDED.area, ve_todas_las_tareas = EXCLUDED.ve_todas_las_tareas, activo = true;
+
+UPDATE public.equipo e SET supervisor_id = s.user_id
+FROM miembro m LEFT JOIN miembro s ON s.nombre = m.supervisor
+WHERE e.id = m.user_id;
+
+-- Quiénes quedaron afuera por no tener usuario todavía.
+DO $$
+DECLARE faltan TEXT;
+BEGIN
+  SELECT string_agg(nombre, ', ') INTO faltan FROM miembro WHERE user_id IS NULL;
+  IF faltan IS NOT NULL THEN
+    RAISE NOTICE 'Sin usuario todavía (crear en Usuarios y volver a correr): %', faltan;
+  END IF;
+END $$;
 
 -- Rutinas ---------------------------------------------------------------
 CREATE TEMP TABLE rutina (
@@ -105,9 +120,9 @@ INSERT INTO rutina VALUES
 
 INSERT INTO public.tareas_plantilla (titulo, detalle, responsable_id, afecta_a, frecuencia, dias_semana, dia_mes, orden)
 SELECT r.titulo, r.detalle, p.id,
-  coalesce((SELECT array_agg(a.id) FROM public.perfiles a WHERE a.nombre = ANY (r.afecta)), '{}'),
+  coalesce((SELECT array_agg(a.user_id) FROM miembro a WHERE a.nombre = ANY (r.afecta) AND a.user_id IS NOT NULL), '{}'),
   r.frecuencia, r.dias, r.dia_mes, r.orden
-FROM rutina r JOIN public.perfiles p ON p.nombre = r.responsable
+FROM rutina r JOIN miembro m ON m.nombre = r.responsable AND m.user_id IS NOT NULL JOIN public.equipo_perfiles p ON p.id = m.user_id
 WHERE NOT EXISTS (
   SELECT 1 FROM public.tareas_plantilla t WHERE t.responsable_id = p.id AND t.titulo = r.titulo
 );

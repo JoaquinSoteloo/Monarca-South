@@ -16,14 +16,13 @@ export default async function EquipoPage() {
           <h1 className="mb-2 text-lg font-semibold">Equipo</h1>
           {tablaFaltante ? (
             <p>
-              Falta crear las tablas del equipo. Correr <code>scripts/067_create_equipo_tareas.sql</code> y después{" "}
-              <code>scripts/068_seed_equipo.sql</code> en el SQL Editor de Supabase.
+              Falta crear las tablas del equipo. Correr <code>scripts/070_create_equipo_tareas.sql</code> y después{" "}
+              <code>scripts/071_seed_equipo.sql</code> en el SQL Editor de Supabase.
             </p>
           ) : (
             <p>
-              Entraste con una cuenta que no tiene perfil de equipo (por ejemplo, la cuenta admin compartida). Cada persona
-              tiene que entrar con su propio usuario. Para crearlos, ver los pasos en{" "}
-              <code>scripts/068_seed_equipo.sql</code>.
+              Tu usuario todavía no está en el equipo. Cada persona se crea en la pantalla Usuarios y después se suma al
+              equipo (área y quién supervisa) corriendo <code>scripts/071_seed_equipo.sql</code>.
             </p>
           )}
         </div>
@@ -36,7 +35,7 @@ export default async function EquipoPage() {
   await supabase.rpc("generar_tareas_del_dia", { p_fecha: hoy })
 
   const [perfiles, tareas, plantillas, avisos, chat] = await Promise.all([
-    supabase.from("perfiles").select("*").order("nombre"),
+    supabase.from("equipo_perfiles").select("*").order("nombre"),
     supabase.from("tareas").select("*").eq("fecha", hoy),
     supabase.from("tareas_plantilla").select("*").order("orden"),
     supabase.from("notificaciones").select("*").order("created_at", { ascending: false }).limit(60),

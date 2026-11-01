@@ -26,22 +26,33 @@ import {
   Menu,
   X,
   LogOut,
+  UserRoundPlus,
+  KeyRound,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PushNotificationsBell } from "@/components/push-notifications-bell"
+import type { RolUsuario } from "@/lib/types"
+
+export interface UsuarioNav {
+  nombre: string
+  rol: RolUsuario
+}
 
 /**
  * Menú lateral aprobado en /preview/monarca, aplicado a las pantallas
  * internas reales. Mismas rutas y permisos que el header anterior
  * (components/header.tsx) — sólo cambia la presentación de la navegación.
  */
-const navGroups = [
+const navGroups: {
+  label: string
+  items: { href: string; label: string; icon: typeof Home; soloComision?: boolean }[]
+}[] = [
   {
     label: "Principal",
     items: [
       { href: "/", label: "Inicio", icon: Home },
       { href: "/equipo", label: "Equipo", icon: ListChecks },
-      { href: "/ventas", label: "Ventas", icon: ShoppingCart },
+      { href: "/ventas", label: "Entregas", icon: ShoppingCart },
       { href: "/historial", label: "Historial", icon: History },
     ],
   },
@@ -60,6 +71,7 @@ const navGroups = [
     label: "Personas",
     items: [
       { href: "/socios", label: "Socios", icon: Users },
+      { href: "/externos", label: "Externos", icon: UserRoundPlus },
       { href: "/sucursales", label: "Sucursales", icon: MapPin },
     ],
   },
@@ -77,6 +89,7 @@ const navGroups = [
       { href: "/automatizaciones", label: "Automatizaciones", icon: Zap },
       { href: "/control-manual", label: "Control manual", icon: Sliders },
       { href: "/modo-ausente", label: "Modo Ausente", icon: DoorClosed },
+      { href: "/usuarios", label: "Usuarios", icon: KeyRound, soloComision: true },
     ],
   },
 ]
@@ -149,16 +162,22 @@ function Brand({ variant, subtitle }: { variant: "dark" | "light"; subtitle?: st
 function NavLinks({
   pathname,
   variant,
+  usuario,
   onNavigate,
 }: {
   pathname: string
   variant: "dark" | "light"
+  usuario: UsuarioNav | null
   onNavigate?: () => void
 }) {
   const onDark = variant === "dark"
+  const grupos = navGroups.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => !item.soloComision || usuario?.rol === "comision"),
+  }))
   return (
     <nav className="flex flex-col gap-5">
-      {navGroups.map((group) => (
+      {grupos.map((group) => (
         <div key={group.label} className="flex flex-col gap-1">
           <span
             className={cn(
@@ -204,7 +223,19 @@ function NavLinks({
   )
 }
 
-export function AppSidebar() {
+function UsuarioConectado({ usuario }: { usuario: UsuarioNav | null }) {
+  if (!usuario) return null
+  return (
+    <div className="px-2.5 pb-1">
+      <p className="truncate text-sm font-medium text-white">{usuario.nombre}</p>
+      <p className="text-[11px] uppercase tracking-wide text-primary-foreground/60">
+        {usuario.rol === "comision" ? "Comisión directiva" : "Operador"}
+      </p>
+    </div>
+  )
+}
+
+export function AppSidebar({ usuario }: { usuario: UsuarioNav | null }) {
   const pathname = usePathname()
   const { logout, error } = useLogout()
   return (
@@ -214,9 +245,10 @@ export function AppSidebar() {
         <PushNotificationsBell variant="dark" />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <NavLinks pathname={pathname} variant="dark" />
+        <NavLinks pathname={pathname} variant="dark" usuario={usuario} />
       </div>
       <div className="shrink-0">
+        <UsuarioConectado usuario={usuario} />
         <button
           type="button"
           onClick={logout}
@@ -231,7 +263,7 @@ export function AppSidebar() {
   )
 }
 
-export function AppMobileNav() {
+export function AppMobileNav({ usuario }: { usuario: UsuarioNav | null }) {
   const pathname = usePathname()
   const { logout, error } = useLogout()
   const title = getTituloPorRuta(pathname)
@@ -289,7 +321,10 @@ export function AppMobileNav() {
           aria-label="Menú de navegación"
           className="max-h-[70vh] overflow-y-auto border-t border-white/10 bg-primary px-4 py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          <NavLinks pathname={pathname} variant="dark" onNavigate={() => setOpen(false)} />
+          <NavLinks pathname={pathname} variant="dark" usuario={usuario} onNavigate={() => setOpen(false)} />
+          <div className="mt-4">
+            <UsuarioConectado usuario={usuario} />
+          </div>
           <button
             type="button"
             onClick={logout}

@@ -1,4 +1,6 @@
 import Link from "next/link"
+import type { ReactNode } from "react"
+import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import {
   Package,
@@ -16,9 +18,18 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { DatoSensible, OcultarDatosProvider, OcultarDatosToggle } from "@/components/ocultar-datos"
+import { OCULTAR_DATOS_COOKIE } from "@/lib/ocultar-datos"
 import { formatCurrency, formatGramos, formatNumero } from "@/lib/format"
-import { formatFechaLargaArgentina, formatHoraArgentina, getArgentinaDateString, getArgentinaDayRangeUTC } from "@/lib/timezone"
+import {
+  formatFechaLargaArgentina,
+  formatHoraArgentina,
+  getArgentinaDateString,
+  getArgentinaDayRangeUTC,
+  getArgentinaMonthStartUTC,
+} from "@/lib/timezone"
 import { cn } from "@/lib/utils"
+import { resumirMes, type VentaParaConsumo } from "@/lib/consumo"
 
 interface VentaHoy {
   id: string
@@ -45,6 +56,7 @@ function socioNombre(socio: VentaHoy["socio"]) {
 
 export default async function Dashboard() {
   const supabase = await createClient()
+  const datosOcultos = (await cookies()).get(OCULTAR_DATOS_COOKIE)?.value === "1"
 
   let totalSocios = 0
   let totalGeneticas = 0
@@ -83,7 +95,7 @@ export default async function Dashboard() {
       ventasPromedioResult,
       deudaResult,
       sociosLimiteResult,
-      ventasMesResult,
+      resumenMesResult,
     ] = await Promise.all([
       supabase.from("socios").select("*", { count: "exact", head: true }).eq("activo", true),
       supabase.from("geneticas").select("*", { count: "exact", head: true }).eq("activo", true),
@@ -94,7 +106,7 @@ export default async function Dashboard() {
         .lt("created_at", finHoyUTC)
         .order("created_at", { ascending: false }),
       supabase.from("geneticas").select("nombre, gramos_disponibles").eq("activo", true).lt("gramos_disponibles", 100),
-      supabase.from("geneticas").select("gramos_disponibles").eq("activo", true),
+      supabase.from("geneticas").select("gramos_disponibles, gramos_enrolados").eq("activo", true),
       supabase.from("gastos").select("monto").eq("fecha", hoyArgentina),
       supabase
         .from("ventas")
@@ -104,10 +116,19 @@ export default async function Dashboard() {
       // Deuda pendiente real: misma definición que ya usa ventas-manager.tsx
       // (saldo_pendiente > 0 en ventas), agregada para todo el club.
       supabase.from("ventas").select("socio_id, saldo_pendiente").gt("saldo_pendiente", 0),
-      // Límite mensual: mismos datos que ya usa app/ventas/page.tsx para
-      // calcular el consumo del mes por socio.
-      supabase.from("socios").select("id, gramos_mensuales").eq("activo", true).gt("gramos_mensuales", 0),
-      supabase.from("ventas").select("socio_id, gramos").gte("created_at", inicioMesActual.toISOString()),
+      // Límite mensual: misma definición que el listado de socios y las
+      // reglas de entrega (lib/consumo.ts) — gramos sueltos del mes contra
+      // cualquier límite cargado, incluido 0 g.
+      supabase
+        .from("socios")
+        .select("id, gramos_mensuales")
+        .eq("activo", true)
+        .eq("tipo", "socio")
+        .not("gramos_mensuales", "is", null),
+      supabase
+        .from("ventas")
+        .select("socio_id, gramos, detalles:detalle_venta(gramos, genetica_id)")
+        .gte("created_at", getArgentinaMonthStartUTC()),
     ])
 
     totalSocios = sociosResult.count || 0
@@ -115,7 +136,7 @@ export default async function Dashboard() {
     ventasHoy = ventasHoyResult.data || []
     ventasHoyTotal = ventasHoy.reduce((sum, v) => sum + Number(v.total), 0)
     stockBajo = stockBajoResult.data || []
-    totalGramosDisponibles = geneticasGramosResult.data?.reduce((sum, g) => sum + Number(g.gramos_disponibles), 0) || 0
+    totalGramosDisponibles = geneticasGramosResult.data?.reduce((sum, g) => sum + Number(g.gramos_disponibles) + Number(g.gramos_enrolados), 0) || 0
     gastosHoyTotal = gastosResult.data?.reduce((sum, g) => sum + Number(g.monto), 0) || 0
 
     const totalGramos6Meses =
@@ -135,10 +156,7 @@ export default async function Dashboard() {
       }, 0) || 0
     deudaSociosCount = deudaPorSocio.size
 
-    const consumoPorSocio: Record<string, number> = {}
-    ventasMesResult.data?.forEach((v) => {
-      if (v.socio_id) consumoPorSocio[v.socio_id] = (consumoPorSocio[v.socio_id] || 0) + (Number(v.gramos) || 0)
-    })
+    const { sueltosPorSocio: consumoPorSocio } = resumirMes((resumenMesResult.data as VentaParaConsumo[] | null) ?? [])
     sociosLimiteExcedidoCount =
       sociosLimiteResult.data?.filter((s) => (consumoPorSocio[s.id] || 0) > Number(s.gramos_mensuales)).length || 0
   } catch (error) {
@@ -158,7 +176,7 @@ export default async function Dashboard() {
     },
     {
       key: "ventas",
-      label: "Ventas hoy",
+      label: "Aportes hoy",
       icon: ShoppingCart,
       value: formatCurrency(ventasHoyTotal),
       highlight: true,
@@ -182,11 +200,16 @@ export default async function Dashboard() {
     },
   ]
 
-  const alertas = [
+  const alertas = ([
     deudaSociosCount > 0
       ? {
           key: "deuda",
-          texto: `${formatNumero(deudaSociosCount)} socio${deudaSociosCount === 1 ? "" : "s"} con saldo pendiente por un total de ${formatCurrency(deudaTotal)}`,
+          texto: (
+            <>
+              {formatNumero(deudaSociosCount)} socio{deudaSociosCount === 1 ? "" : "s"} con saldo pendiente por un total de{" "}
+              <DatoSensible>{formatCurrency(deudaTotal)}</DatoSensible>
+            </>
+          ),
           href: "/deudas",
         }
       : null,
@@ -204,10 +227,15 @@ export default async function Dashboard() {
           href: "/socios",
         }
       : null,
-  ].filter((a): a is { key: string; texto: string; href: string } => a !== null)
+  ] as ({ key: string; texto: ReactNode; href: string } | null)[]).filter(
+    (a): a is { key: string; texto: ReactNode; href: string } => a !== null,
+  )
 
   return (
-    <main className="container mx-auto flex flex-col gap-6 px-4 py-6 sm:gap-8 sm:py-8">
+    <OcultarDatosProvider
+      inicialOculto={datosOcultos}
+      className="container mx-auto flex flex-col gap-6 px-4 py-6 sm:gap-8 sm:py-8"
+    >
       {/* 1. Encabezado + acción principal — título más chico en mobile para
           que los indicadores aparezcan antes, sin cambiar el desktop. */}
       <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
@@ -217,13 +245,16 @@ export default async function Dashboard() {
             Hola — así viene el día en Monarca
           </h1>
         </div>
-        <Link
-          href="/ventas"
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <ShoppingCart className="h-4 w-4" />
-          Registrar venta
-        </Link>
+        <div className="flex items-center gap-2">
+          <OcultarDatosToggle />
+          <Link
+            href="/ventas"
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:flex-none"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            Registrar entrega
+          </Link>
+        </div>
       </section>
 
       {dashboardError && (
@@ -274,7 +305,7 @@ export default async function Dashboard() {
                   alert ? "text-amber-800" : "text-foreground",
                 )}
               >
-                {value}
+                <DatoSensible>{value}</DatoSensible>
               </p>
               {note && <p className="mt-1.5 text-xs text-muted-foreground">{note}</p>}
             </div>
@@ -317,13 +348,16 @@ export default async function Dashboard() {
               Actividad de hoy
             </h2>
             <span className="text-sm text-muted-foreground">
-              Total: <span className="font-semibold text-foreground">{formatCurrency(ventasHoyTotal)}</span>
+              Total:{" "}
+              <span className="font-semibold text-foreground">
+                <DatoSensible>{formatCurrency(ventasHoyTotal)}</DatoSensible>
+              </span>
             </span>
           </div>
           <Card className="border-border bg-card shadow-sm">
             <CardContent className="p-0">
               {ventasHoy.length === 0 ? (
-                <p className="px-4 py-8 text-center text-sm text-muted-foreground">No hay ventas registradas hoy</p>
+                <p className="px-4 py-8 text-center text-sm text-muted-foreground">No hay entregas registradas hoy</p>
               ) : (
                 <ul className="divide-y divide-border">
                   {ventasHoy.slice(0, 8).map((v) => {
@@ -341,7 +375,9 @@ export default async function Dashboard() {
                             </p>
                           </div>
                         </div>
-                        <span className="text-sm font-semibold text-foreground">{formatCurrency(Number(v.total))}</span>
+                        <span className="text-sm font-semibold text-foreground">
+                          <DatoSensible>{formatCurrency(Number(v.total))}</DatoSensible>
+                        </span>
                       </li>
                     )
                   })}
@@ -370,6 +406,6 @@ export default async function Dashboard() {
           ))}
         </div>
       </section>
-    </main>
+    </OcultarDatosProvider>
   )
 }

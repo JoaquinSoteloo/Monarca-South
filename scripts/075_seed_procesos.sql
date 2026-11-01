@@ -12,7 +12,7 @@ INSERT INTO public.procesos_plantilla (clave, nombre, descripcion, usa_salas, or
   ('riego',    'Riego',                 'Vilela deja los tanques listos → Lucho prepara la mezcla → Lucho riega cada sala y mide el runoff de las macetas testigo.', true, 10),
   ('cosecha',  'Cosecha',               'Corte → manicura y colgado → pesaje de fin de secado → carga en stock.', true, 20),
   ('esquejes', 'Esquejes',              'Vilela prepara los materiales → Lucho corta → control de enraizado.', true, 30),
-  ('sanidad',  'Aplicación sanitaria',  'Solo en esquejes, madres y vege. Nunca en floración. La hace Demian bajo la supervisión de Lucho. Registro de producto, dosis y carencia, y revisión a los 3 días.', true, 40)
+  ('sanidad',  'Aplicación sanitaria',  'Solo en esquejes, madres y vege. Nunca en floración. La aplica Vilela con la indicación y supervisión de Lucho. Registro de producto, dosis y carencia, y revisión a los 3 días.', true, 40)
 ON CONFLICT (clave) DO UPDATE SET nombre = EXCLUDED.nombre, descripcion = EXCLUDED.descripcion,
   usa_salas = EXCLUDED.usa_salas, orden = EXCLUDED.orden;
 
@@ -70,18 +70,18 @@ INSERT INTO paso (proceso, clave, orden, titulo, detalle, responsable, por_sala,
      {"clave":"notas","etiqueta":"Observaciones","tipo":"texto_largo"}]'),
   -- Sanidad -----------------------------------------------------------------
   ('sanidad', 'aplicacion', 10, 'Aplicación',
-   'Nunca en floración. La indica y supervisa Lucho. Respetar la carencia y rotar productos (Manual 4, Sanidad).', 'Demian', true,
+   'Nunca en floración. La indica y supervisa Lucho. Respetar la carencia y rotar productos (Manual 4, Sanidad).', 'Vilela', true,
    '[{"clave":"producto","etiqueta":"Producto","tipo":"opciones","opciones":["Mamboretá ABA","Foli-H","Oil 85","Adama","Otro"],"requerido":true},
      {"clave":"dosis","etiqueta":"Dosis","tipo":"texto","requerido":true,"ayuda":"Ej.: 1 ml/L"},
      {"clave":"litros","etiqueta":"Litros aplicados","tipo":"numero","unidad":"L","min":0,"max":200},
      {"clave":"motivo","etiqueta":"Motivo","tipo":"opciones","opciones":["Preventivo","Curativo"],"requerido":true},
      {"clave":"plaga","etiqueta":"Plaga o síntoma","tipo":"texto"},
      {"clave":"carencia","etiqueta":"Días de carencia","tipo":"numero","unidad":"días","min":0,"max":120}]'),
-  ('sanidad', 'revision', 20, 'Revisar el resultado de la aplicación', NULL, 'Vilela', true,
+  ('sanidad', 'revision', 20, 'Revisar el resultado de la aplicación', NULL, 'Lucho', true,
    '[{"clave":"resultado","etiqueta":"¿Cómo está?","tipo":"opciones","opciones":["Bien","Sigue igual","Peor"],"requerido":true},
      {"clave":"notas","etiqueta":"Observaciones","tipo":"texto_largo"}]');
 
--- La aplicación sanitaria la hace Demian bajo la supervisión de Lucho: a Lucho le llega el aviso.
+-- La aplicación sanitaria la hace Vilela bajo la supervisión de Lucho: a Lucho le llega el aviso.
 UPDATE paso SET afecta = '{Lucho}' WHERE proceso = 'sanidad' AND clave = 'aplicacion';
 
 INSERT INTO public.procesos_pasos_plantilla (proceso_clave, clave, orden, titulo, detalle, responsable_nombre, por_sala, campos, afecta_nombres)

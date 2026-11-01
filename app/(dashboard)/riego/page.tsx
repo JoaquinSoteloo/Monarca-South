@@ -19,7 +19,7 @@ export default async function RiegoPage() {
       .gte("fecha", desde)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false }),
-    perfil ? supabase.from("perfiles").select("*") : Promise.resolve({ data: [] as Perfil[] }),
+    perfil ? supabase.from("equipo_perfiles").select("*") : Promise.resolve({ data: [] as Perfil[] }),
   ])
 
   return (

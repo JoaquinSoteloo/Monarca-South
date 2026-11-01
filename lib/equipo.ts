@@ -31,7 +31,7 @@ export interface Tarea {
   completada_por: string | null
   orden: number
   created_at: string
-  /** Paso de un procedimiento (script 071): se completa con su formulario. */
+  /** Paso de un procedimiento (script 074): se completa con su formulario. */
   proceso_paso_id?: number | null
 }
 

@@ -1,6 +1,6 @@
 -- Procedimientos paso a paso con formularios (riego, cosecha, esquejes, sanidad).
 --
--- NO SE EJECUTÓ TODAVÍA. Correr después de 070_seed_ciclos_actuales.sql.
+-- NO SE EJECUTÓ TODAVÍA. Correr después de 073_seed_ciclos_actuales.sql.
 --
 -- Pedido de Facundo (31/10/2026): que cada procedimiento sea una cadena de
 -- pasos entre personas. Ejemplo del riego:
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS public.procesos (
   fecha DATE NOT NULL DEFAULT (now() AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,
   estado VARCHAR(12) NOT NULL DEFAULT 'en_curso' CHECK (estado IN ('en_curso', 'terminado', 'cancelado')),
   nota TEXT,
-  iniciado_por UUID REFERENCES public.perfiles(id) ON DELETE SET NULL,
+  iniciado_por UUID REFERENCES public.equipo(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   terminado_at TIMESTAMPTZ
 );
@@ -74,12 +74,12 @@ CREATE TABLE IF NOT EXISTS public.procesos_pasos (
   titulo VARCHAR(160) NOT NULL,
   detalle TEXT,
   sala_id INTEGER REFERENCES public.salas_cultivo(id) ON DELETE SET NULL,
-  responsable_id UUID REFERENCES public.perfiles(id) ON DELETE SET NULL,
+  responsable_id UUID REFERENCES public.equipo(id) ON DELETE SET NULL,
   campos JSONB NOT NULL DEFAULT '[]',
   valores JSONB NOT NULL DEFAULT '{}',
   estado VARCHAR(10) NOT NULL DEFAULT 'espera' CHECK (estado IN ('espera', 'pendiente', 'hecho', 'problema')),
   nota TEXT,
-  hecho_por UUID REFERENCES public.perfiles(id) ON DELETE SET NULL,
+  hecho_por UUID REFERENCES public.equipo(id) ON DELETE SET NULL,
   hecho_at TIMESTAMPTZ,
   tarea_id BIGINT REFERENCES public.tareas(id) ON DELETE SET NULL
 );
@@ -107,7 +107,7 @@ DECLARE
   hoy DATE := (now() AT TIME ZONE 'America/Argentina/Buenos_Aires')::date;
   nombre_actor TEXT;
 BEGIN
-  SELECT nombre INTO nombre_actor FROM perfiles WHERE id = p_actor;
+  SELECT nombre INTO nombre_actor FROM equipo_perfiles WHERE id = p_actor;
   FOR ps IN SELECT * FROM procesos_pasos WHERE proceso_id = p_proceso AND orden = p_orden AND estado = 'espera' ORDER BY id LOOP
     INSERT INTO tareas (fecha, titulo, detalle, responsable_id, proceso_paso_id, orden)
     VALUES (hoy, left(ps.titulo, 160), ps.detalle, ps.responsable_id, ps.id, 5)
@@ -137,7 +137,7 @@ DECLARE
   primero SMALLINT;
   salas_ok INTEGER[];
 BEGIN
-  IF actor IS NULL OR NOT EXISTS (SELECT 1 FROM perfiles WHERE id = actor AND activo) THEN
+  IF actor IS NULL OR NOT EXISTS (SELECT 1 FROM equipo_perfiles WHERE id = actor AND activo) THEN
     RAISE EXCEPTION 'Requiere un usuario del equipo';
   END IF;
   SELECT * INTO pl FROM procesos_plantilla WHERE clave = p_clave AND activo;
@@ -157,7 +157,10 @@ BEGIN
   RETURNING id INTO nuevo;
 
   FOR pp IN SELECT * FROM procesos_pasos_plantilla WHERE proceso_clave = pl.clave ORDER BY orden, id LOOP
-    SELECT id INTO resp FROM perfiles WHERE nombre = pp.responsable_nombre AND activo;
+    -- Por nombre, sin importar mayúsculas («Lucho Pérez» sirve para «Lucho»).
+    SELECT id INTO resp FROM equipo_perfiles
+    WHERE activo AND (lower(btrim(nombre)) = lower(pp.responsable_nombre) OR lower(btrim(nombre)) LIKE lower(pp.responsable_nombre) || ' %')
+    ORDER BY (lower(btrim(nombre)) = lower(pp.responsable_nombre)) DESC LIMIT 1;
     resp := coalesce(resp, actor);
     IF pp.por_sala THEN
       FOR s IN SELECT id, nombre FROM salas_cultivo WHERE id = ANY (salas_ok) ORDER BY nombre LOOP
@@ -189,7 +192,7 @@ CREATE OR REPLACE FUNCTION public.completar_paso(p_paso BIGINT, p_valores JSONB,
 RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   actor UUID := auth.uid();
-  yo perfiles%ROWTYPE;
+  yo equipo_perfiles%ROWTYPE;
   ps procesos_pasos%ROWTYPE;
   pr procesos%ROWTYPE;
   mezcla JSONB;
@@ -198,7 +201,7 @@ DECLARE
   nombre_actor TEXT;
   ciclo BIGINT;
 BEGIN
-  SELECT * INTO yo FROM perfiles WHERE id = actor AND activo;
+  SELECT * INTO yo FROM equipo_perfiles WHERE id = actor AND activo;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Requiere un usuario del equipo';
   END IF;
@@ -210,7 +213,7 @@ BEGIN
     RAISE EXCEPTION 'Este paso no está para completar';
   END IF;
   IF NOT (ps.responsable_id = actor OR yo.ve_todas_las_tareas
-          OR EXISTS (SELECT 1 FROM perfiles WHERE id = ps.responsable_id AND supervisor_id = actor)) THEN
+          OR EXISTS (SELECT 1 FROM equipo_perfiles WHERE id = ps.responsable_id AND supervisor_id = actor)) THEN
     RAISE EXCEPTION 'Este paso le toca a otra persona';
   END IF;
   IF p_estado = 'problema' AND nullif(btrim(coalesce(p_nota, '')), '') IS NULL THEN
@@ -280,9 +283,9 @@ BEGIN
         CASE WHEN ps.sala_id IS NULL THEN ps.titulo ELSE regexp_replace(ps.titulo, ' · [^·]*$', '') END);
     ELSE
       UPDATE procesos SET estado = 'terminado', terminado_at = now() WHERE id = pr.id;
-      SELECT nombre INTO nombre_actor FROM perfiles WHERE id = actor;
+      SELECT nombre INTO nombre_actor FROM equipo_perfiles WHERE id = actor;
       PERFORM notificar_destinatarios(
-        (SELECT array_agg(id) FROM perfiles WHERE activo AND (ve_todas_las_tareas OR id = pr.iniciado_por)),
+        (SELECT array_agg(id) FROM equipo_perfiles WHERE activo AND (ve_todas_las_tareas OR id = pr.iniciado_por)),
         actor, 'proceso', 'Procedimiento terminado: ' || pr.titulo, NULL, ps.tarea_id);
     END IF;
   END IF;
@@ -297,11 +300,11 @@ RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   actor UUID := auth.uid();
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM perfiles WHERE id = actor AND activo) THEN
+  IF NOT EXISTS (SELECT 1 FROM equipo_perfiles WHERE id = actor AND activo) THEN
     RAISE EXCEPTION 'Requiere un usuario del equipo';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM procesos WHERE id = p_proceso AND estado = 'en_curso'
-                 AND (iniciado_por = actor OR EXISTS (SELECT 1 FROM perfiles WHERE id = actor AND ve_todas_las_tareas))) THEN
+                 AND (iniciado_por = actor OR EXISTS (SELECT 1 FROM equipo_perfiles WHERE id = actor AND ve_todas_las_tareas))) THEN
     RAISE EXCEPTION 'Solo lo cancela quien lo inició, Facundo o Lucho';
   END IF;
   UPDATE procesos SET estado = 'cancelado', terminado_at = now() WHERE id = p_proceso;

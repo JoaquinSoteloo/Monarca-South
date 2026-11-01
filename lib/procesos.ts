@@ -1,5 +1,5 @@
 /**
- * Procedimientos paso a paso (scripts 071 y 072): riego, cosecha, esquejes,
+ * Procedimientos paso a paso (scripts 074 y 075): riego, cosecha, esquejes,
  * sanidad. Cada paso tiene un formulario; al completarlo se activa el paso
  * siguiente y le llega el aviso a quien le toca.
  * Lógica pura, sin Supabase, para poder testearla.

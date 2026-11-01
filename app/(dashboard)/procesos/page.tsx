@@ -16,7 +16,7 @@ export default async function ProcesosPage() {
     supabase.from("procesos").select("*").eq("estado", "en_curso").order("created_at", { ascending: false }),
     supabase.from("procesos").select("*").neq("estado", "en_curso").order("created_at", { ascending: false }).limit(15),
     supabase.from("salas_cultivo").select("*").eq("activo", true).order("id"),
-    supabase.from("perfiles").select("*").order("nombre"),
+    supabase.from("equipo_perfiles").select("*").order("nombre"),
   ])
 
   if (tablaFaltante || plantillasR.error || !perfil) {
@@ -26,8 +26,8 @@ export default async function ProcesosPage() {
           <h1 className="mb-2 text-lg font-semibold">Procedimientos</h1>
           {plantillasR.error || tablaFaltante ? (
             <p>
-              Falta crear las tablas. Correr en Supabase, en orden, los scripts <code>066</code> a <code>070</code> y después{" "}
-              <code>071_create_procesos.sql</code> y <code>072_seed_procesos.sql</code>.
+              Falta crear las tablas. Correr en Supabase, en orden, los scripts <code>069</code> a <code>073</code> y después{" "}
+              <code>074_create_procesos.sql</code> y <code>075_seed_procesos.sql</code>.
             </p>
           ) : (
             <p>Cada persona tiene que entrar con su propio usuario para iniciar y completar procedimientos.</p>

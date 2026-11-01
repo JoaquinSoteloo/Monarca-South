@@ -12,13 +12,13 @@ INSERT INTO public.procesos_plantilla (clave, nombre, descripcion, usa_salas, or
   ('riego',    'Riego',                 'Vilela deja los tanques listos → Lucho prepara la mezcla → Lucho riega cada sala y mide el runoff de las macetas testigo.', true, 10),
   ('cosecha',  'Cosecha',               'Corte → manicura y colgado → pesaje de fin de secado → carga en stock.', true, 20),
   ('esquejes', 'Esquejes',              'Vilela prepara los materiales → Lucho corta → control de enraizado.', true, 30),
-  ('sanidad',  'Aplicación sanitaria',  'Solo en esquejes, madres y vege. Nunca en floración. Registro de producto, dosis y carencia, y revisión a los 3 días.', true, 40)
+  ('sanidad',  'Aplicación sanitaria',  'Solo en esquejes, madres y vege. Nunca en floración. La hace Demian bajo la supervisión de Lucho. Registro de producto, dosis y carencia, y revisión a los 3 días.', true, 40)
 ON CONFLICT (clave) DO UPDATE SET nombre = EXCLUDED.nombre, descripcion = EXCLUDED.descripcion,
   usa_salas = EXCLUDED.usa_salas, orden = EXCLUDED.orden;
 
-CREATE TEMP TABLE paso (proceso TEXT, clave TEXT, orden SMALLINT, titulo TEXT, detalle TEXT, responsable TEXT, por_sala BOOLEAN, campos JSONB) ON COMMIT DROP;
+CREATE TEMP TABLE paso (proceso TEXT, clave TEXT, orden SMALLINT, titulo TEXT, detalle TEXT, responsable TEXT, por_sala BOOLEAN, campos JSONB, afecta TEXT[] DEFAULT '{}') ON COMMIT DROP;
 
-INSERT INTO paso VALUES
+INSERT INTO paso (proceso, clave, orden, titulo, detalle, responsable, por_sala, campos) VALUES
   -- Riego -------------------------------------------------------------------
   ('riego', 'tanques', 10, 'Tanques listos con agua de ósmosis',
    'Llenar y tapar. Al marcarlo le llega el aviso a Lucho para preparar la mezcla.', 'Vilela', false,
@@ -70,7 +70,7 @@ INSERT INTO paso VALUES
      {"clave":"notas","etiqueta":"Observaciones","tipo":"texto_largo"}]'),
   -- Sanidad -----------------------------------------------------------------
   ('sanidad', 'aplicacion', 10, 'Aplicación',
-   'Nunca en floración. Respetar la carencia y rotar productos (Manual 4, Sanidad).', 'Lucho', true,
+   'Nunca en floración. La indica y supervisa Lucho. Respetar la carencia y rotar productos (Manual 4, Sanidad).', 'Demian', true,
    '[{"clave":"producto","etiqueta":"Producto","tipo":"opciones","opciones":["Mamboretá ABA","Foli-H","Oil 85","Adama","Otro"],"requerido":true},
      {"clave":"dosis","etiqueta":"Dosis","tipo":"texto","requerido":true,"ayuda":"Ej.: 1 ml/L"},
      {"clave":"litros","etiqueta":"Litros aplicados","tipo":"numero","unidad":"L","min":0,"max":200},
@@ -81,11 +81,14 @@ INSERT INTO paso VALUES
    '[{"clave":"resultado","etiqueta":"¿Cómo está?","tipo":"opciones","opciones":["Bien","Sigue igual","Peor"],"requerido":true},
      {"clave":"notas","etiqueta":"Observaciones","tipo":"texto_largo"}]');
 
-INSERT INTO public.procesos_pasos_plantilla (proceso_clave, clave, orden, titulo, detalle, responsable_nombre, por_sala, campos)
-SELECT proceso, clave, orden, titulo, detalle, responsable, por_sala, campos FROM paso
+-- La aplicación sanitaria la hace Demian bajo la supervisión de Lucho: a Lucho le llega el aviso.
+UPDATE paso SET afecta = '{Lucho}' WHERE proceso = 'sanidad' AND clave = 'aplicacion';
+
+INSERT INTO public.procesos_pasos_plantilla (proceso_clave, clave, orden, titulo, detalle, responsable_nombre, por_sala, campos, afecta_nombres)
+SELECT proceso, clave, orden, titulo, detalle, responsable, por_sala, campos, afecta FROM paso
 ON CONFLICT (proceso_clave, clave) DO UPDATE SET orden = EXCLUDED.orden, titulo = EXCLUDED.titulo,
   detalle = EXCLUDED.detalle, responsable_nombre = EXCLUDED.responsable_nombre,
-  por_sala = EXCLUDED.por_sala, campos = EXCLUDED.campos;
+  por_sala = EXCLUDED.por_sala, campos = EXCLUDED.campos, afecta_nombres = EXCLUDED.afecta_nombres;
 
 -- La rutina de Vilela ahora apunta al procedimiento.
 UPDATE public.tareas_plantilla

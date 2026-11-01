@@ -48,8 +48,11 @@ CREATE TABLE IF NOT EXISTS public.procesos_pasos_plantilla (
   responsable_nombre VARCHAR(40),
   por_sala BOOLEAN NOT NULL DEFAULT false,
   campos JSONB NOT NULL DEFAULT '[]',
+  -- Quiénes reciben también el aviso (ej.: Lucho supervisa la prevención de Demian).
+  afecta_nombres TEXT[] NOT NULL DEFAULT '{}',
   UNIQUE (proceso_clave, clave)
 );
+ALTER TABLE public.procesos_pasos_plantilla ADD COLUMN IF NOT EXISTS afecta_nombres TEXT[] NOT NULL DEFAULT '{}';
 
 -- 2. Procedimientos en curso ----------------------------------------------
 CREATE TABLE IF NOT EXISTS public.procesos (
@@ -81,8 +84,10 @@ CREATE TABLE IF NOT EXISTS public.procesos_pasos (
   nota TEXT,
   hecho_por UUID REFERENCES public.equipo(id) ON DELETE SET NULL,
   hecho_at TIMESTAMPTZ,
-  tarea_id BIGINT REFERENCES public.tareas(id) ON DELETE SET NULL
+  tarea_id BIGINT REFERENCES public.tareas(id) ON DELETE SET NULL,
+  afecta_a UUID[] NOT NULL DEFAULT '{}'
 );
+ALTER TABLE public.procesos_pasos ADD COLUMN IF NOT EXISTS afecta_a UUID[] NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS procesos_pasos_proceso_idx ON public.procesos_pasos (proceso_id, orden);
 
 ALTER TABLE public.tareas
@@ -109,8 +114,8 @@ DECLARE
 BEGIN
   SELECT nombre INTO nombre_actor FROM equipo_perfiles WHERE id = p_actor;
   FOR ps IN SELECT * FROM procesos_pasos WHERE proceso_id = p_proceso AND orden = p_orden AND estado = 'espera' ORDER BY id LOOP
-    INSERT INTO tareas (fecha, titulo, detalle, responsable_id, proceso_paso_id, orden)
-    VALUES (hoy, left(ps.titulo, 160), ps.detalle, ps.responsable_id, ps.id, 5)
+    INSERT INTO tareas (fecha, titulo, detalle, responsable_id, proceso_paso_id, orden, afecta_a)
+    VALUES (hoy, left(ps.titulo, 160), ps.detalle, ps.responsable_id, ps.id, 5, ps.afecta_a)
     RETURNING id INTO nueva;
     UPDATE procesos_pasos SET estado = 'pendiente', tarea_id = nueva WHERE id = ps.id;
     PERFORM notificar_destinatarios(
@@ -134,6 +139,7 @@ DECLARE
   nuevo BIGINT;
   s RECORD;
   resp UUID;
+  afecta UUID[];
   primero SMALLINT;
   salas_ok INTEGER[];
 BEGIN
@@ -162,14 +168,16 @@ BEGIN
     WHERE activo AND (lower(btrim(nombre)) = lower(pp.responsable_nombre) OR lower(btrim(nombre)) LIKE lower(pp.responsable_nombre) || ' %')
     ORDER BY (lower(btrim(nombre)) = lower(pp.responsable_nombre)) DESC LIMIT 1;
     resp := coalesce(resp, actor);
+    SELECT coalesce(array_agg(DISTINCT e.id), '{}') INTO afecta FROM equipo_perfiles e, unnest(pp.afecta_nombres) n
+    WHERE e.activo AND e.id <> resp AND (lower(btrim(e.nombre)) = lower(n) OR lower(btrim(e.nombre)) LIKE lower(n) || ' %');
     IF pp.por_sala THEN
       FOR s IN SELECT id, nombre FROM salas_cultivo WHERE id = ANY (salas_ok) ORDER BY nombre LOOP
-        INSERT INTO procesos_pasos (proceso_id, clave, orden, titulo, detalle, sala_id, responsable_id, campos)
-        VALUES (nuevo, pp.clave, pp.orden, pp.titulo || ' · ' || s.nombre, pp.detalle, s.id, resp, pp.campos);
+        INSERT INTO procesos_pasos (proceso_id, clave, orden, titulo, detalle, sala_id, responsable_id, campos, afecta_a)
+        VALUES (nuevo, pp.clave, pp.orden, pp.titulo || ' · ' || s.nombre, pp.detalle, s.id, resp, pp.campos, afecta);
       END LOOP;
     ELSE
-      INSERT INTO procesos_pasos (proceso_id, clave, orden, titulo, detalle, responsable_id, campos)
-      VALUES (nuevo, pp.clave, pp.orden, pp.titulo, pp.detalle, resp, pp.campos);
+      INSERT INTO procesos_pasos (proceso_id, clave, orden, titulo, detalle, responsable_id, campos, afecta_a)
+      VALUES (nuevo, pp.clave, pp.orden, pp.titulo, pp.detalle, resp, pp.campos, afecta);
     END IF;
   END LOOP;
 

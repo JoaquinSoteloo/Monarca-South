@@ -11,7 +11,7 @@ import { CalendarIcon, Receipt, AlertTriangle, Info } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
-import { formatCurrency } from "@/lib/format"
+import { formatCurrency, formatMoneda } from "@/lib/format"
 
 interface ResumenCaja {
   ventasEfectivo: number
@@ -27,6 +27,7 @@ interface ResumenCaja {
   devolucionEfectivo: number
   devolucionTransferencia: number
   devolucion: number
+  devolucionDolares: number
   // Aportes menos los gastos que cuentan en el resultado.
   gananciaNeta: number
   // Movimiento real de caja: todo lo que entró menos todo lo que salió.
@@ -91,7 +92,7 @@ export function Caja() {
         .select("total, metodo_pago, created_at")
         .gte("created_at", desde)
         .lte("created_at", `${hasta}T23:59:59`),
-      supabase.from("gastos").select("monto, metodo_pago, fecha, categoria").gte("fecha", desde).lte("fecha", hasta),
+      supabase.from("gastos").select("monto, metodo_pago, fecha, categoria, moneda").gte("fecha", desde).lte("fecha", hasta),
       supabase.from("categorias_gasto").select("nombre, en_resultado"),
     ])
 
@@ -120,14 +121,17 @@ export function Caja() {
     const tipoDe = (g: { categoria: string }) => tipoPorCategoria.get(g.categoria) ?? "resultado"
     const suma = (lista: { monto: number }[] | undefined) => lista?.reduce((sum, g) => sum + Number(g.monto), 0) || 0
 
-    const egresos = gastos?.filter((g) => tipoDe(g) !== "aparte")
-    const devoluciones = gastos?.filter((g) => tipoDe(g) === "aparte")
+    // Todo en pesos: las devoluciones de aportes en dólares se muestran aparte.
+    const gastosPesos = gastos?.filter((g) => g.moneda !== "USD")
+    const egresos = gastosPesos?.filter((g) => tipoDe(g) !== "aparte")
+    const devoluciones = gastosPesos?.filter((g) => tipoDe(g) === "aparte")
+    const devolucionDolares = suma(gastos?.filter((g) => g.moneda === "USD"))
 
     const gastosEfectivo = suma(egresos?.filter((g) => g.metodo_pago === "efectivo"))
     const gastosTransferencia = suma(egresos?.filter((g) => g.metodo_pago === "transferencia"))
     const totalGastos = gastosEfectivo + gastosTransferencia
-    const gastosResultado = suma(gastos?.filter((g) => tipoDe(g) === "resultado"))
-    const inversion = suma(gastos?.filter((g) => tipoDe(g) === "inversion"))
+    const gastosResultado = suma(gastosPesos?.filter((g) => tipoDe(g) === "resultado"))
+    const inversion = suma(gastosPesos?.filter((g) => tipoDe(g) === "inversion"))
     const devolucionEfectivo = suma(devoluciones?.filter((g) => g.metodo_pago === "efectivo"))
     const devolucionTransferencia = suma(devoluciones?.filter((g) => g.metodo_pago === "transferencia"))
     const devolucion = devolucionEfectivo + devolucionTransferencia
@@ -149,6 +153,7 @@ export function Caja() {
       devolucionEfectivo,
       devolucionTransferencia,
       devolucion,
+      devolucionDolares,
       gananciaNeta,
       efectivoNeto,
       transferenciaNeto,
@@ -300,6 +305,12 @@ export function Caja() {
                       <dt>Devolución de aportes</dt>
                       <dd className="tabular-nums">{formatCurrency(resumen.devolucion)}</dd>
                     </div>
+                    {resumen.devolucionDolares > 0 && (
+                      <div className="flex justify-between gap-2">
+                        <dt>Devolución en dólares</dt>
+                        <dd className="tabular-nums">{formatMoneda(resumen.devolucionDolares, "USD")}</dd>
+                      </div>
+                    )}
                   </dl>
                 </CardContent>
               </Card>
@@ -392,6 +403,12 @@ export function Caja() {
                   </TableBody>
                 </Table>
               </div>
+              {resumen.devolucionDolares > 0 && (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Además se devolvieron {formatMoneda(resumen.devolucionDolares, "USD")} de aportes en dólares, que no
+                  entran en el balance en pesos.
+                </p>
+              )}
             </CardContent>
           </Card>
         </>

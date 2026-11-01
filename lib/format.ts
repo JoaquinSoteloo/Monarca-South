@@ -11,6 +11,13 @@ export function formatCurrency(value: number): string {
   return `${value < 0 ? "-" : ""}$${formatted}`
 }
 
+export type Moneda = "ARS" | "USD"
+
+/** Pesos con formatCurrency; dólares con el mismo formato y prefijo US$. */
+export function formatMoneda(value: number, moneda: Moneda): string {
+  return moneda === "USD" ? `US${formatCurrency(value)}`.replace("US-$", "-US$") : formatCurrency(value)
+}
+
 export function formatGramos(value: number): string {
   const formatted = value.toLocaleString("es-AR", {
     minimumFractionDigits: 0,

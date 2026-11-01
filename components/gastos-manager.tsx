@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
-import type { Gasto, CategoriaGasto, EnResultado } from "@/lib/types"
+import type { Gasto, CategoriaGasto, EnResultado, AporteCapital } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,7 +34,7 @@ import {
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
-import { formatCurrency } from "@/lib/format"
+import { formatCurrency, formatMoneda } from "@/lib/format"
 
 const SIN_CLASIFICAR = "Sin clasificar"
 const SIN_PROYECTO = "__sin_proyecto__"
@@ -75,6 +75,7 @@ function AvisoBox({ aviso, onClose }: { aviso: Aviso; onClose: () => void }) {
 export function GastosManager({ esComision }: GastosManagerProps) {
   const [gastos, setGastos] = useState<Gasto[]>([])
   const [categorias, setCategorias] = useState<CategoriaGasto[]>([])
+  const [aportes, setAportes] = useState<AporteCapital[]>([])
   const [loading, setLoading] = useState(true)
   const [aviso, setAviso] = useState<Aviso>(null)
   const [showForm, setShowForm] = useState(false)
@@ -92,6 +93,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
     monto: "",
     categoria: "",
     proyecto: "",
+    aporte_id: "",
     metodo_pago: "efectivo" as "efectivo" | "transferencia",
     fecha: new Date(),
   })
@@ -100,6 +102,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
   useEffect(() => {
     fetchGastos()
     fetchCategorias()
+    fetchAportes()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -124,10 +127,18 @@ export function GastosManager({ esComision }: GastosManagerProps) {
     if (data) setCategorias(data)
   }
 
+  async function fetchAportes() {
+    const { data } = await supabase.from("aportes_capital_resumen").select("*").order("fecha", { ascending: false })
+    if (data) setAportes(data)
+  }
+
   // Categorías que se ofrecen al cargar un gasto: "Sin clasificar" queda sólo
   // para los gastos viejos que todavía no se reclasificaron.
   const categoriasElegibles = categorias.filter((c) => c.nombre !== SIN_CLASIFICAR)
   const categoriaPorNombre = useMemo(() => new Map(categorias.map((c) => [c.nombre, c])), [categorias])
+  // Una devolución necesita su aporte: no se reclasifica en lote a esas categorías.
+  const categoriasLote = categoriasElegibles.filter((c) => c.en_resultado !== "aparte")
+  const esDevolucion = (nombre: string) => categoriaPorNombre.get(nombre)?.en_resultado === "aparte"
 
   const proyectos = useMemo(() => {
     const set = new Set<string>()
@@ -147,12 +158,19 @@ export function GastosManager({ esComision }: GastosManagerProps) {
       setFormError("Elegí una categoría.")
       return
     }
+    const devolucion = esDevolucion(formData.categoria)
+    if (devolucion && !formData.aporte_id) {
+      setFormError("Elegí a qué aporte corresponde la devolución.")
+      return
+    }
 
     const gastoData = {
       descripcion: formData.descripcion.trim(),
       monto: Number.parseFloat(formData.monto),
       categoria: formData.categoria,
       proyecto: formData.proyecto.trim() || null,
+      // La moneda la pone la base: la del aporte en una devolución, pesos en el resto.
+      aporte_id: devolucion ? formData.aporte_id : null,
       metodo_pago: formData.metodo_pago,
       fecha: format(formData.fecha, "yyyy-MM-dd"),
     }
@@ -162,12 +180,19 @@ export function GastosManager({ esComision }: GastosManagerProps) {
       : await supabase.from("gastos").insert([gastoData])
 
     if (error) {
-      setFormError(editingGasto ? "No se pudo actualizar el gasto." : "No se pudo registrar el gasto.")
+      setFormError(
+        /^GA00\d$/.test(error.code || "")
+          ? error.message
+          : editingGasto
+            ? "No se pudo actualizar el gasto."
+            : "No se pudo registrar el gasto.",
+      )
       return
     }
     setAviso({ ok: true, texto: editingGasto ? "Gasto actualizado." : "Gasto registrado." })
     resetForm()
     fetchGastos()
+    if (devolucion || editingGasto?.aporte_id) fetchAportes()
   }
 
   function resetForm() {
@@ -176,6 +201,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
       monto: "",
       categoria: "",
       proyecto: "",
+      aporte_id: "",
       metodo_pago: "efectivo",
       fecha: new Date(),
     })
@@ -192,6 +218,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
       // Un gasto sin clasificar obliga a elegir una categoría al editarlo.
       categoria: gasto.categoria === SIN_CLASIFICAR ? "" : gasto.categoria,
       proyecto: gasto.proyecto || "",
+      aporte_id: gasto.aporte_id || "",
       metodo_pago: gasto.metodo_pago,
       fecha: new Date(gasto.fecha + "T00:00:00"),
     })
@@ -235,35 +262,38 @@ export function GastosManager({ esComision }: GastosManagerProps) {
     })
   }, [gastos, mesSeleccionado, categoriaFiltro, proyectoFiltro])
 
-  const totalFiltrado = gastosFiltrados.reduce((sum, g) => sum + Number(g.monto), 0)
+  // Los totales son en pesos; las devoluciones de aportes en dólares se suman aparte.
+  const gastosPesos = gastosFiltrados.filter((g) => g.moneda !== "USD")
+  const totalFiltrado = gastosPesos.reduce((sum, g) => sum + Number(g.monto), 0)
+  const totalDolares = gastosFiltrados.filter((g) => g.moneda === "USD").reduce((sum, g) => sum + Number(g.monto), 0)
 
   // Total del período según cómo cuenta cada categoría en el resultado.
   const totalesPorTipo = useMemo(() => {
     const t: Record<EnResultado, number> = { resultado: 0, inversion: 0, aparte: 0 }
-    for (const g of gastosFiltrados) {
+    for (const g of gastosPesos) {
       const tipo = categoriaPorNombre.get(g.categoria)?.en_resultado ?? "resultado"
       t[tipo] += Number(g.monto)
     }
     return t
-  }, [gastosFiltrados, categoriaPorNombre])
+  }, [gastosPesos, categoriaPorNombre])
 
   const totalesPorCategoria = useMemo(() => {
     const map = new Map<string, number>()
-    for (const g of gastosFiltrados) {
+    for (const g of gastosPesos) {
       map.set(g.categoria, (map.get(g.categoria) || 0) + Number(g.monto))
     }
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
-  }, [gastosFiltrados])
+  }, [gastosPesos])
 
   const totalesPorProyecto = useMemo(() => {
     const map = new Map<string, number>()
-    for (const g of gastosFiltrados) {
+    for (const g of gastosPesos) {
       if (g.proyecto) map.set(g.proyecto, (map.get(g.proyecto) || 0) + Number(g.monto))
     }
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
-  }, [gastosFiltrados])
+  }, [gastosPesos])
 
-  const totalOtros = gastosFiltrados.filter((g) => g.categoria === "Otros").reduce((s, g) => s + Number(g.monto), 0)
+  const totalOtros = gastosPesos.filter((g) => g.categoria === "Otros").reduce((s, g) => s + Number(g.monto), 0)
   const porcentajeOtros = totalesPorTipo.resultado > 0 ? (totalOtros / totalesPorTipo.resultado) * 100 : 0
   const cantidadSinClasificar = gastos.filter((g) => g.categoria === SIN_CLASIFICAR).length
 
@@ -285,8 +315,15 @@ export function GastosManager({ esComision }: GastosManagerProps) {
 
   async function reclasificarSeleccion() {
     if (!categoriaLote || seleccion.size === 0) return
-    setAplicandoLote(true)
     const ids = Array.from(seleccion)
+    if (gastos.some((g) => seleccion.has(g.id) && g.aporte_id)) {
+      setAviso({
+        ok: false,
+        texto: "La selección incluye devoluciones de aportes: esas se cambian una por una con Editar.",
+      })
+      return
+    }
+    setAplicandoLote(true)
     const { error } = await supabase.from("gastos").update({ categoria: categoriaLote }).in("id", ids)
     setAplicandoLote(false)
     if (error) {
@@ -316,6 +353,8 @@ export function GastosManager({ esComision }: GastosManagerProps) {
     .join(" · ")
 
   const categoriaSeleccionada = categoriaPorNombre.get(formData.categoria)
+  const aporteSeleccionado =
+    categoriaSeleccionada?.en_resultado === "aparte" ? aportes.find((a) => a.id === formData.aporte_id) : undefined
 
   const renderCategoriaYProyecto = (gasto: Gasto) => (
     <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
@@ -482,6 +521,12 @@ export function GastosManager({ esComision }: GastosManagerProps) {
                   <dt className="text-primary-foreground/80">Devolución de aportes</dt>
                   <dd className="font-medium tabular-nums">{formatCurrency(totalesPorTipo.aparte)}</dd>
                 </div>
+                {totalDolares > 0 && (
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-primary-foreground/80">Devolución de aportes en dólares</dt>
+                    <dd className="font-medium tabular-nums">{formatMoneda(totalDolares, "USD")}</dd>
+                  </div>
+                )}
               </dl>
             )}
           </CardContent>
@@ -620,6 +665,33 @@ export function GastosManager({ esComision }: GastosManagerProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                  {categoriaSeleccionada?.en_resultado === "aparte" && (
+                    <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                      <Label htmlFor="aporte">Aporte que se devuelve</Label>
+                      <Select
+                        value={formData.aporte_id}
+                        onValueChange={(value) => setFormData({ ...formData, aporte_id: value })}
+                      >
+                        <SelectTrigger id="aporte" className="w-full bg-white">
+                          <SelectValue placeholder="Seleccionar aporte" />
+                        </SelectTrigger>
+                        <SelectContent className="monarca-theme">
+                          {aportes
+                            .filter((a) => Number(a.saldo) > 0 || a.id === formData.aporte_id)
+                            .map((a) => (
+                              <SelectItem key={a.id} value={a.id}>
+                                {a.aportante} · saldo {formatMoneda(Number(a.saldo), a.moneda)}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      {aportes.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          No hay aportes cargados: la comisión los carga en Aportes de capital.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {categoriaSeleccionada?.descripcion && (
                     <p className="text-xs text-muted-foreground">
                       {categoriaSeleccionada.descripcion}
@@ -659,7 +731,9 @@ export function GastosManager({ esComision }: GastosManagerProps) {
               <div className="min-w-0 space-y-4 self-start rounded-xl border border-primary/15 bg-primary/5 p-4">
                 <h3 className="text-sm font-semibold text-primary">Importe y pago</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="monto">Monto ($)</Label>
+                  <Label htmlFor="monto">
+                    Monto ({aporteSeleccionado?.moneda === "USD" ? "US$" : "$"})
+                  </Label>
                   <Input
                     id="monto"
                     className="h-12 bg-white text-xl font-semibold tabular-nums"
@@ -718,7 +792,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
                     <SelectValue placeholder="Pasar a categoría…" />
                   </SelectTrigger>
                   <SelectContent className="monarca-theme">
-                    {categoriasElegibles.map((cat) => (
+                    {categoriasLote.map((cat) => (
                       <SelectItem key={cat.id} value={cat.nombre}>
                         {cat.nombre}
                       </SelectItem>
@@ -780,7 +854,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
                           {renderCategoriaYProyecto(gasto)}
                         </TableCell>
                         <TableCell className="text-right font-semibold tabular-nums">
-                          {formatCurrency(Number(gasto.monto))}
+                          {formatMoneda(Number(gasto.monto), gasto.moneda)}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="gap-1.5 border-primary/20 bg-primary/5 font-normal text-primary">
@@ -833,7 +907,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
                             </p>
                             {renderCategoriaYProyecto(gasto)}
                           </div>
-                          <p className="shrink-0 font-semibold tabular-nums">{formatCurrency(Number(gasto.monto))}</p>
+                          <p className="shrink-0 font-semibold tabular-nums">{formatMoneda(Number(gasto.monto), gasto.moneda)}</p>
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-2">
                           <Badge variant="outline" className="gap-1.5 border-primary/20 bg-primary/5 font-normal text-primary">

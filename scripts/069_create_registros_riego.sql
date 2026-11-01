@@ -1,7 +1,7 @@
 -- Prueba piloto del módulo de cultivo: registro digital de riego.
 --
--- NO SE EJECUTÓ TODAVÍA. Correr a mano en el SQL Editor de Supabase después
--- de revisar. Reemplaza la planilla de riego en papel (Manual de cultivo 3).
+-- NO SE EJECUTÓ TODAVÍA. Correr a mano en el SQL Editor de Supabase, después
+-- de 068_fase_b_stock.sql y de revisar. Reemplaza la planilla de riego en papel (Manual de cultivo 3).
 --
 -- Un registro = un riego de una sala en un día. Guarda la solución que entró
 -- (EC/pH/litros) y el runoff de las 2 macetas testigo (EC/pH/% de drenaje).

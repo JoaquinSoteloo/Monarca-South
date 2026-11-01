@@ -7,11 +7,12 @@
 --   Sala 4: esquejes comprados y trasplantados el 20/10.
 --   Sala 5: plantas seleccionadas en recuperación desde el 22/09 (las mejores).
 --
--- Objetivo de Facundo: un corte cada 20 días (también para no saturar la sala
--- de vege). Propuesta de 12/12: Sala 5 el 05/11 (corte 04/01), Sala 4 el 25/11
--- (corte 24/01) y Sala 1 el 15/12 (corte 13/02), después de la Sala 2 (15/12).
--- Desde la vuelta siguiente, cada sala hace ~12 días de vege en la sala (después
--- de ~30 en la Sala 3): ciclo de 80 días y un corte cada 20.
+-- Objetivo de Facundo: un corte cada 3 semanas, con margen (también para no
+-- saturar la sala de vege). Cortes: Sala 2 semana del 14/12, Sala 5 semana del
+-- 04/01, Sala 4 semana del 25/01 y Sala 1 semana del 15/02. 12/12: Sala 5
+-- semana del 02/11, Sala 4 semana del 23/11 y Sala 1 semana del 14/12.
+-- Desde la vuelta siguiente, cada sala hace unas 2 semanas de vege en la sala
+-- (después de 4 en la Sala 3): unas 11 semanas y media por sala y un corte cada 3.
 --
 -- NO SE EJECUTÓ TODAVÍA. Correr después de 072. Busca las salas por nombre
 -- ("Sala 1", "Sala 2", …): revisar que coincidan con salas_cultivo.
@@ -26,10 +27,10 @@ BEGIN;
 INSERT INTO public.ciclos_sala (sala_id, nombre, fecha_inicio, dias_vege, dias_flora, m2, notas)
 SELECT s.id, v.nombre, v.inicio::date, v.vege, v.flora, v.m2, v.notas
 FROM (VALUES
-  ('Sala 1', 'Sala 1 · tanda oct-26', '2026-10-30', 46, 60, 10, '80 esquejes + las mejores plantas en recuperación, contadas como una sola tanda. 12/12 propuesto el 15/12 (corte cada 20 días).'),
-  ('Sala 2', 'Sala 2 · tanda oct-26', '2026-10-03', 21, 52,  6, 'Flora desde el 24/10. Flora corta (52 días) para cortar ~15/12 y llegar a Navidad: a confirmar por Lucho.'),
-  ('Sala 4', 'Sala 4 · tanda oct-26', '2026-10-20', 36, 60,  6, 'Casa de Lucho. Esquejes comprados, trasplantados el 20/10. 12/12 propuesto el 25/11 (corte cada 20 días).'),
-  ('Sala 5', 'Sala 5 · tanda sep-26', '2026-09-22', 44, 60, 10, 'Las mejores plantas, en recuperación con JuaniJuana desde el 22/09. 12/12 propuesto el 05/11 (corte cada 20 días).')
+  ('Sala 1', 'Sala 1 · tanda oct-26', '2026-10-30', 48, 60, 10, '80 esquejes + las mejores plantas en recuperación, contadas como una sola tanda. 12/12 la semana del 14/12; corte la semana del 15/02.'),
+  ('Sala 2', 'Sala 2 · tanda oct-26', '2026-10-03', 21, 52,  6, 'Flora desde el 24/10. Flora corta (unas 7 semanas y media) para cortar la semana del 14/12 y llegar a Navidad.'),
+  ('Sala 4', 'Sala 4 · tanda oct-26', '2026-10-20', 37, 60,  6, 'Casa de Lucho. Esquejes comprados, trasplantados el 20/10. 12/12 la semana del 23/11; corte la semana del 25/01.'),
+  ('Sala 5', 'Sala 5 · tanda sep-26', '2026-09-22', 44, 60, 10, 'Las mejores plantas, en recuperación con JuaniJuana desde el 22/09. 12/12 la semana del 02/11; corte la semana del 04/01.')
 ) AS v(sala, nombre, inicio, vege, flora, m2, notas)
 JOIN public.salas_cultivo s ON lower(s.nombre) = lower(v.sala)
 WHERE NOT EXISTS (SELECT 1 FROM public.ciclos_sala c WHERE c.sala_id = s.id AND c.estado = 'abierto');

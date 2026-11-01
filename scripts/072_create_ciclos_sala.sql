@@ -1,6 +1,6 @@
 -- Superciclo Monarca: un ciclo por tanda de cada sala de flora.
 --
--- NO SE EJECUTÓ TODAVÍA. Correr después de 067_create_equipo_tareas.sql.
+-- NO SE EJECUTÓ TODAVÍA. Correr después de 071_seed_equipo.sql.
 --
 -- Se guarda solo la fecha de entrada a la sala y las duraciones; todas las
 -- demás fechas (12/12, lavado, cosecha, fin de secado, sala libre) se calculan
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.ciclos_sala (
   dias_secado SMALLINT NOT NULL DEFAULT 6 CHECK (dias_secado BETWEEN 1 AND 21),
   dias_limpieza SMALLINT NOT NULL DEFAULT 2 CHECK (dias_limpieza BETWEEN 0 AND 14),
   notas TEXT,
-  creado_por UUID REFERENCES public.perfiles(id) ON DELETE SET NULL,
+  creado_por UUID REFERENCES public.equipo(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

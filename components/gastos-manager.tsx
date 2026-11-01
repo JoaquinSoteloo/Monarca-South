@@ -34,6 +34,7 @@ import {
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
+import { ReclasificarGastosDialog } from "@/components/reclasificar-gastos-dialog"
 import { formatCurrency, formatMoneda } from "@/lib/format"
 
 const SIN_CLASIFICAR = "Sin clasificar"
@@ -88,6 +89,8 @@ export function GastosManager({ esComision }: GastosManagerProps) {
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [categoriaLote, setCategoriaLote] = useState<string>("")
   const [aplicandoLote, setAplicandoLote] = useState(false)
+  // Gastos sin clasificar que se recorren uno por uno (null = cerrado).
+  const [reclasificando, setReclasificando] = useState<Gasto[] | null>(null)
   const [formData, setFormData] = useState({
     descripcion: "",
     monto: "",
@@ -414,7 +417,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
 
       <AvisoBox aviso={aviso} onClose={() => setAviso(null)} />
 
-      {cantidadSinClasificar > 0 && categoriaFiltro !== SIN_CLASIFICAR && (
+      {cantidadSinClasificar > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <span className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -422,15 +425,10 @@ export function GastosManager({ esComision }: GastosManagerProps) {
           </span>
           <Button
             size="sm"
-            variant="outline"
-            className="border-amber-300 bg-white"
-            onClick={() => {
-              setMesSeleccionado(TODOS)
-              setProyectoFiltro(TODOS)
-              setCategoriaFiltro(SIN_CLASIFICAR)
-            }}
+            className="bg-amber-600 text-white hover:bg-amber-700"
+            onClick={() => setReclasificando(gastos.filter((g) => g.categoria === SIN_CLASIFICAR))}
           >
-            Ver y reclasificar
+            Reclasificar uno por uno
           </Button>
         </div>
       )}
@@ -604,6 +602,21 @@ export function GastosManager({ esComision }: GastosManagerProps) {
           </CardContent>
         </Card>
       </div>
+
+      {reclasificando && (
+        <ReclasificarGastosDialog
+          gastos={reclasificando}
+          categorias={categoriasElegibles}
+          aportes={aportes}
+          onClose={(huboCambios) => {
+            setReclasificando(null)
+            if (huboCambios) {
+              fetchGastos()
+              fetchAportes()
+            }
+          }}
+        />
+      )}
 
       {showCategoriasDialog && (
         <CategoriasDialog

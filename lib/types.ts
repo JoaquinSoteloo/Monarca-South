@@ -152,6 +152,8 @@ export interface AporteCapital {
   moneda: "ARS" | "USD"
   fecha: string
   cuotas: number
+  /** Cuándo hay que devolverlo; null = cuando haya plata (scripts/071). */
+  fecha_devolucion: string | null
   nota: string | null
   created_at: string
   updated_at: string

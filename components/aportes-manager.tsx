@@ -166,6 +166,7 @@ export function AportesManager({ esComision }: { esComision: boolean }) {
             <ul className="space-y-3">
               {aportes.map((a) => {
                 const saldado = Number(a.saldo) <= 0
+                const vencido = !saldado && !!a.fecha_devolucion && a.fecha_devolucion < hoy()
                 const porcentaje = Math.min(100, (Number(a.devuelto) / Number(a.monto)) * 100)
                 return (
                   <li key={a.id} className="rounded-lg border border-border p-4">
@@ -179,11 +180,21 @@ export function AportesManager({ esComision }: { esComision: boolean }) {
                             </Badge>
                           )}
                           {saldado && <Badge className="bg-primary/15 text-primary hover:bg-primary/15">Saldado</Badge>}
+                          {vencido && (
+                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Vencido</Badge>
+                          )}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Aportó {formatMoneda(Number(a.monto), a.moneda)} el {fechaCorta(a.fecha)} · {a.cuotas_pagadas} de{" "}
                           {a.cuotas} {a.cuotas === 1 ? "cuota" : "cuotas"} pagadas
                         </p>
+                        {!saldado && (
+                          <p className={cn("text-xs", vencido ? "font-medium text-amber-800" : "text-muted-foreground")}>
+                            {a.fecha_devolucion
+                              ? `${vencido ? "Se tenía que devolver" : "Devolver"} antes del ${fechaCorta(a.fecha_devolucion)}`
+                              : "Sin fecha: se devuelve cuando haya plata"}
+                          </p>
+                        )}
                         {a.nota && <p className="mt-1 text-xs text-muted-foreground">{a.nota}</p>}
                       </div>
                       <div className="text-right">
@@ -329,6 +340,7 @@ function AporteDialog({
     moneda: (aporte?.moneda ?? "ARS") as Moneda,
     fecha: aporte?.fecha ?? hoy(),
     cuotas: aporte ? String(aporte.cuotas) : "1",
+    fecha_devolucion: aporte?.fecha_devolucion ?? "",
     nota: aporte?.nota ?? "",
   })
   const [error, setError] = useState<string | null>(null)
@@ -344,6 +356,8 @@ function AporteDialog({
     if (!(monto > 0)) return setError("El monto tiene que ser mayor a 0.")
     if (!(cuotas >= 1)) return setError("La cantidad de cuotas tiene que ser 1 o más.")
     if (!form.fecha) return setError("Elegí la fecha del aporte.")
+    if (form.fecha_devolucion && form.fecha_devolucion < form.fecha)
+      return setError("La fecha de devolución no puede ser anterior a la del aporte.")
 
     const datos = {
       aportante: form.aportante.trim(),
@@ -351,6 +365,7 @@ function AporteDialog({
       moneda: form.moneda,
       fecha: form.fecha,
       cuotas,
+      fecha_devolucion: form.fecha_devolucion || null,
       nota: form.nota.trim() || null,
     }
     setGuardando(true)
@@ -416,7 +431,7 @@ function AporteDialog({
           )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="aporte-fecha">Fecha</Label>
+              <Label htmlFor="aporte-fecha">Fecha del aporte</Label>
               <Input
                 id="aporte-fecha"
                 type="date"
@@ -438,6 +453,25 @@ function AporteDialog({
                 onChange={(e) => setForm({ ...form, cuotas: e.target.value })}
               />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="aporte-fecha-devolucion">Fecha de devolución (opcional)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="aporte-fecha-devolucion"
+                type="date"
+                className="bg-white"
+                value={form.fecha_devolucion}
+                min={form.fecha || undefined}
+                onChange={(e) => setForm({ ...form, fecha_devolucion: e.target.value })}
+              />
+              {form.fecha_devolucion && (
+                <Button type="button" variant="ghost" onClick={() => setForm({ ...form, fecha_devolucion: "" })}>
+                  Quitar
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">Dejala vacía si se devuelve cuando haya plata.</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="aporte-nota">Nota (opcional)</Label>

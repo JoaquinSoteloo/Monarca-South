@@ -179,7 +179,7 @@ BEGIN
   END IF;
 
   IF p_fecha IS NULL THEN
-    RAISE EXCEPTION 'La fecha de la venta es obligatoria' USING ERRCODE = 'VT005';
+    RAISE EXCEPTION 'La fecha de la entrega es obligatoria' USING ERRCODE = 'VT005';
   END IF;
 
   IF p_lineas IS NULL OR jsonb_typeof(p_lineas) <> 'array' OR jsonb_array_length(p_lineas) = 0 THEN
@@ -389,7 +389,7 @@ BEGIN
   -- 5) Validación de pago
   ----------------------------------------------------------------------
   IF p_pago_efectivo + p_pago_transferencia > v_total THEN
-    RAISE EXCEPTION 'El pago excede el total de la venta' USING ERRCODE = 'VT007';
+    RAISE EXCEPTION 'El pago excede el aporte total de la entrega' USING ERRCODE = 'VT007';
   END IF;
 
   v_monto_pagado := p_pago_efectivo + p_pago_transferencia;

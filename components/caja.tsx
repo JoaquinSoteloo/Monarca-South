@@ -234,14 +234,14 @@ export function Caja() {
                     {formatCurrency(resumen.gananciaNeta)}
                   </div>
                   <p className={cn("mt-1 text-xs", resultadoEstilo.claseSubtexto)}>
-                    Ventas menos gastos registrados
+                    Aportes menos gastos registrados
                   </p>
                 </CardContent>
               </Card>
 
               <Card className="min-w-0 gap-4 border-border bg-card shadow-sm lg:min-h-[180px]">
                 <CardHeader className="px-5">
-                  <CardTitle className="text-sm font-medium leading-5 text-muted-foreground">Total ventas</CardTitle>
+                  <CardTitle className="text-sm font-medium leading-5 text-muted-foreground">Total aportes</CardTitle>
                 </CardHeader>
                 <CardContent className="px-5">
                   <div className="break-words text-2xl font-bold leading-9 text-foreground tabular-nums">
@@ -287,7 +287,7 @@ export function Caja() {
                   </TableHeader>
                   <TableBody>
                     <TableRow className="hover:bg-muted/40">
-                      <TableCell className="font-medium text-foreground">Ingresos (ventas)</TableCell>
+                      <TableCell className="font-medium text-foreground">Ingresos (aportes)</TableCell>
                       <TableCell className="text-right text-foreground tabular-nums">
                         {formatCurrency(resumen.ventasEfectivo)}
                       </TableCell>

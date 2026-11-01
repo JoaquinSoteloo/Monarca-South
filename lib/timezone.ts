@@ -31,6 +31,16 @@ export function getArgentinaDayRangeUTC(date: Date = new Date()): { startUTC: st
   return { startUTC: inicio.toISOString(), endUTC: fin.toISOString() }
 }
 
+/**
+ * Inicio del mes calendario argentino que contiene `date`, como instante UTC.
+ * Mismo corte que usa la base para las reglas de entrega
+ * (inicio_mes_argentina en scripts/066).
+ */
+export function getArgentinaMonthStartUTC(date: Date = new Date()): string {
+  const [anio, mes] = getArgentinaDateString(date).split("-")
+  return new Date(`${anio}-${mes}-01T00:00:00${ARGENTINA_UTC_OFFSET}`).toISOString()
+}
+
 /** Hora en formato 24h (HH:mm) en horario argentino, p. ej. "16:37". */
 export function formatHoraArgentina(value: string | Date): string {
   const date = typeof value === "string" ? new Date(value) : value

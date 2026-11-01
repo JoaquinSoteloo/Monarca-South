@@ -12,10 +12,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Pencil, Trash2, Crown, Star, PackageX, PackageSearch, PackageCheck } from "lucide-react"
+import { Pencil, Trash2, Crown, Star, PackageX, PackageSearch, PackageCheck, PackagePlus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatGramos } from "@/lib/format"
+import { MovimientoStockDialog } from "@/components/movimiento-stock-dialog"
 
 interface StockManagerProps {
   initialGeneticas: Genetica[]
@@ -72,7 +73,8 @@ function PriceField({
 
 // Mismo umbral de "stock bajo" que ya usaba la tabla original
 // (gramos_disponibles < 100), sólo se subdivide en 0 para distinguir "sin
-// stock" de "stock bajo" — no es un umbral nuevo.
+// stock" de "stock bajo" — no es un umbral nuevo. Se mide sobre el stock de
+// sueltos, igual que la alerta del Inicio.
 function getDisponibilidad(gramos: number) {
   if (gramos <= 0) {
     return {
@@ -142,12 +144,14 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
   const [geneticas, setGeneticas] = useState(initialGeneticas)
   const [editingGenetica, setEditingGenetica] = useState<Genetica | null>(null)
   const [loading, setLoading] = useState(false)
+  const [movGenetica, setMovGenetica] = useState<Genetica | null>(null)
   const router = useRouter()
 
   const [formData, setFormData] = useState({
     nombre: "",
     descripcion: "",
     gramos_disponibles: "",
+    gramos_enrolados: "",
     precio_por_gramo: "",
     precio_por_enrolado: "",
     precio_gramo_miembro: "",
@@ -161,6 +165,7 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
       nombre: "",
       descripcion: "",
       gramos_disponibles: "",
+    gramos_enrolados: "",
       precio_por_gramo: "",
       precio_por_enrolado: "",
       precio_gramo_miembro: "",
@@ -185,6 +190,7 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
       nombre: formData.nombre,
       descripcion: formData.descripcion || null,
       gramos_disponibles: Number.parseFloat(formData.gramos_disponibles),
+      gramos_enrolados: Number.parseFloat(formData.gramos_enrolados) || 0,
       precio_por_gramo: Number.parseFloat(formData.precio_por_gramo),
       precio_por_enrolado: Number.parseFloat(formData.precio_por_enrolado) || 0,
       precio_gramo_miembro: Number.parseFloat(formData.precio_gramo_miembro) || 0,
@@ -227,6 +233,7 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
       nombre: genetica.nombre,
       descripcion: genetica.descripcion || "",
       gramos_disponibles: genetica.gramos_disponibles.toString(),
+      gramos_enrolados: (genetica.gramos_enrolados || 0).toString(),
       precio_por_gramo: genetica.precio_por_gramo.toString(),
       precio_por_enrolado: (genetica.precio_por_enrolado || 0).toString(),
       precio_gramo_miembro: (genetica.precio_gramo_miembro || 0).toString(),
@@ -253,6 +260,17 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
 
   return (
     <div className="flex flex-col gap-6">
+      {movGenetica && (
+        <MovimientoStockDialog
+          genetica={movGenetica}
+          onOpenChange={(open) => !open && setMovGenetica(null)}
+          onGuardado={(stock) => {
+            setGeneticas(geneticas.map((g) => (g.id === movGenetica.id ? { ...g, ...stock } : g)))
+            setMovGenetica(null)
+            router.refresh()
+          }}
+        />
+      )}
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
@@ -296,22 +314,42 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                         className="bg-card"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="gramos">
-                        Gramos disponibles <span className="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        id="gramos"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.gramos_disponibles}
-                        onChange={(e) => setFormData({ ...formData, gramos_disponibles: e.target.value })}
-                        placeholder="0"
-                        required
-                        className="bg-card"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="gramos">
+                          Gramos sueltos <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id="gramos"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.gramos_disponibles}
+                          onChange={(e) => setFormData({ ...formData, gramos_disponibles: e.target.value })}
+                          placeholder="0"
+                          required
+                          className="bg-card"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="gramos_enrolados">Gramos para enrolados</Label>
+                        <Input
+                          id="gramos_enrolados"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.gramos_enrolados}
+                          onChange={(e) => setFormData({ ...formData, gramos_enrolados: e.target.value })}
+                          placeholder="0"
+                          className="bg-card"
+                        />
+                      </div>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      {editingGenetica
+                        ? "Para sumar lo que pesaste o mover gramos entre los dos stocks, usá el botón “Sumar o mover stock” de la tabla: queda registrado."
+                        : "Los enrolados descuentan de su propio stock (cocos más chicos)."}
+                    </p>
                   </div>
 
                   {/* Columna derecha: precios */}
@@ -430,7 +468,7 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                           VIP
                         </span>
                       </TableHead>
-                      <TableHead className="text-center text-foreground w-24">Acciones</TableHead>
+                      <TableHead className="text-center text-foreground w-32">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -451,7 +489,12 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                           <TableCell>
                             <div className="flex flex-col gap-0.5">
                               <span className="font-medium text-foreground tabular-nums">
-                                {formatGramos(genetica.gramos_disponibles)}
+                                {formatGramos(genetica.gramos_disponibles)}{" "}
+                                <span className="text-xs font-normal text-muted-foreground">sueltos</span>
+                              </span>
+                              <span className="text-sm text-foreground tabular-nums">
+                                {formatGramos(genetica.gramos_enrolados)}{" "}
+                                <span className="text-xs text-muted-foreground">enrolados</span>
                               </span>
                               <span
                                 className={cn(
@@ -482,6 +525,16 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setMovGenetica(genetica)}
+                                className="h-9 w-9 p-0 hover:bg-primary/10"
+                                title="Sumar o mover stock"
+                                aria-label={`Sumar o mover stock de ${genetica.nombre}`}
+                              >
+                                <PackagePlus className="h-4 w-4 text-primary" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -555,6 +608,16 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => setMovGenetica(genetica)}
+                            className="h-9 w-9 p-0 hover:bg-primary/10"
+                            title="Sumar o mover stock"
+                            aria-label={`Sumar o mover stock de ${genetica.nombre}`}
+                          >
+                            <PackagePlus className="h-4 w-4 text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleEdit(genetica)}
                             className="h-9 w-9 p-0 hover:bg-primary/10"
                             title="Editar genética"
@@ -583,7 +646,10 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                       >
                         <disponibilidad.Icon className="h-4 w-4 shrink-0" />
                         <span className="font-medium tabular-nums">{formatGramos(genetica.gramos_disponibles)}</span>
-                        <span className="text-xs">{disponibilidad.label}</span>
+                        <span className="text-xs">sueltos · {disponibilidad.label}</span>
+                        <span className="ml-auto text-xs tabular-nums">
+                          {formatGramos(genetica.gramos_enrolados)} enrolados
+                        </span>
                       </div>
 
                       <div className="space-y-2 text-sm">

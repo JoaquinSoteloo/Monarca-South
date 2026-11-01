@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { Venta, DetalleVenta, Socio, Genetica, LineaVenta, Producto } from "@/lib/types"
+import { AutorizacionEntregaDialog, motivosDeError, type UsuarioActual } from "@/components/autorizacion-entrega-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -73,7 +74,7 @@ interface VentaConDetalles extends Venta {
   socio?: Socio // Asegúrate de que Socio tenga es_miembro
 }
 
-export function HistorialVentas() {
+export function HistorialVentas({ usuarioActual }: { usuarioActual: UsuarioActual }) {
   const [ventas, setVentas] = useState<VentaConDetalles[]>([])
   const [loading, setLoading] = useState(false)
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined)
@@ -102,6 +103,8 @@ export function HistorialVentas() {
   const [guardandoMetodoPagoId, setGuardandoMetodoPagoId] = useState<string | null>(null)
   const [editLineas, setEditLineas] = useState<LineaVenta[]>([])
   const [savingEdit, setSavingEdit] = useState(false)
+  // Reglas de entrega que la edición no cumple (VB001): pedido de excepción.
+  const [motivosBloqueoEdicion, setMotivosBloqueoEdicion] = useState<string[] | null>(null)
   const [popoverEditFechaOpen, setPopoverEditFechaOpen] = useState(false)
   const router = useRouter()
 
@@ -282,7 +285,7 @@ export function HistorialVentas() {
     // antes de subir nada a Storage.
     if (!pagoTransferencia && saldoPendiente <= 0 && venta.pagos && venta.pagos.length > 0) {
       alert(
-        "Esta venta ya está completamente paga con otro método; no corresponde asociar un comprobante de transferencia.",
+        "Esta entrega ya está completamente paga con otro método; no corresponde asociar un comprobante de transferencia.",
       )
       resetInput()
       return
@@ -350,7 +353,7 @@ export function HistorialVentas() {
         monto: Number(venta.total),
         metodo_pago: "transferencia",
         comprobante_url: publicUrl,
-        notas: "Comprobante asociado retroactivamente a venta histórica ya paga",
+        notas: "Comprobante asociado retroactivamente a entrega histórica ya paga",
         fecha: venta.created_at,
       })
       dbError = error
@@ -488,7 +491,7 @@ export function HistorialVentas() {
     }
   }
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async (autorizacionId: string | null = null) => {
     if (!editingFullVenta) return
 
     const lineasValidas = editLineas.filter(
@@ -508,7 +511,7 @@ export function HistorialVentas() {
     const supabase = createClient()
 
     const { error } = await supabase
-      .rpc("editar_venta", {
+      .rpc("editar_entrega", {
         p_venta_id: editingFullVenta.id,
         p_socio_id: editFormData.socio_id,
         p_lineas: lineasValidas.map((l) => ({
@@ -523,19 +526,27 @@ export function HistorialVentas() {
         })),
         p_notas: editFormData.notas || null,
         p_fecha: editFormData.fecha.toISOString(),
+        p_autorizacion_id: autorizacionId,
       })
       .single()
+
+    if (error?.code === "VB001") {
+      setMotivosBloqueoEdicion(motivosDeError(error.message))
+      setSavingEdit(false)
+      return
+    }
+    setMotivosBloqueoEdicion(null)
 
     if (!error) {
       setEditingFullVenta(null)
       await fetchVentas()
       await fetchGeneticasAndProductos()
       router.refresh()
-    } else if (/^VE0\d{2}$/.test(error.code || "")) {
+    } else if (/^(VE0\d{2}|VB00\d)$/.test(error.code || "")) {
       alert(error.message)
     } else {
       console.error("Error inesperado al editar la venta:", error)
-      alert("Ocurrió un error inesperado al editar la venta. Intentá nuevamente.")
+      alert("Ocurrió un error inesperado al editar la entrega. Intentá nuevamente.")
     }
     setSavingEdit(false)
   }
@@ -545,7 +556,7 @@ export function HistorialVentas() {
     setBorrando(true)
     const supabase = createClient()
 
-    const { error } = await supabase.rpc("eliminar_venta", { p_venta_id: ventaABorrar.id })
+    const { error } = await supabase.rpc("eliminar_entrega", { p_venta_id: ventaABorrar.id })
 
     if (!error) {
       setVentaABorrar(null)
@@ -555,7 +566,7 @@ export function HistorialVentas() {
       alert(error.message)
     } else {
       console.error("Error inesperado al eliminar la venta:", error)
-      alert("Ocurrió un error inesperado al eliminar la venta. Intentá nuevamente.")
+      alert("Ocurrió un error inesperado al eliminar la entrega. Intentá nuevamente.")
     }
     setBorrando(false)
   }
@@ -692,7 +703,7 @@ export function HistorialVentas() {
 
       doc.setFontSize(14)
       doc.setTextColor(100)
-      doc.text("Reporte de Ventas", pageWidth / 2, 66, { align: "center" })
+      doc.text("Reporte de Entregas", pageWidth / 2, 66, { align: "center" })
 
       const desdeStr = format(fechaDesde, "dd/MM/yyyy")
       const hastaStr = format(fechaHasta, "dd/MM/yyyy")
@@ -704,9 +715,9 @@ export function HistorialVentas() {
       doc.text("Resumen del Período", 14, 88)
 
       doc.setFontSize(10)
-      doc.text(`Total Ventas: $${totalVentas.toFixed(2)}`, 14, 96)
+      doc.text(`Total Aportes: $${totalVentas.toFixed(2)}`, 14, 96)
       doc.text(`Total Gramos: ${totalGramos.toFixed(1)}g`, 14, 102)
-      doc.text(`Transacciones: ${initialVentasFiltradas.length}`, 14, 108)
+      doc.text(`Entregas: ${initialVentasFiltradas.length}`, 14, 108)
       doc.text(`Efectivo: $${ventasEfectivo.toFixed(2)}`, 100, 96)
       doc.text(`Transferencia: $${ventasTransferencia.toFixed(2)}`, 100, 102)
       doc.text(`Pendiente: $${ventasPendientes.toFixed(2)}`, 100, 108)
@@ -812,7 +823,7 @@ export function HistorialVentas() {
 
       const desdeFile = format(fechaDesde, "yyyy-MM-dd")
       const hastaFile = format(fechaHasta, "yyyy-MM-dd")
-      doc.save(`reporte-ventas-${desdeFile}-${hastaFile}.pdf`)
+      doc.save(`reporte-entregas-${desdeFile}-${hastaFile}.pdf`)
     } catch (error) {
       console.error("Error al exportar PDF:", error)
     }
@@ -1079,8 +1090,8 @@ export function HistorialVentas() {
         size="sm"
         onClick={() => openEditVenta(venta)}
         className="h-9 w-9 p-0 hover:bg-primary/10"
-        title="Editar venta"
-        aria-label="Editar venta"
+        title="Editar entrega"
+        aria-label="Editar entrega"
       >
         <Pencil className="h-4 w-4 text-primary" />
       </Button>
@@ -1091,7 +1102,7 @@ export function HistorialVentas() {
             size="sm"
             className="h-9 w-9 p-0 hover:bg-primary/10"
             title="Más acciones"
-            aria-label={`Más acciones para la venta de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
+            aria-label={`Más acciones para la entrega de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
           >
             <MoreVertical className="h-4 w-4 text-muted-foreground" />
           </Button>
@@ -1099,7 +1110,7 @@ export function HistorialVentas() {
         <DropdownMenuContent align="end" className="monarca-theme">
           <DropdownMenuItem variant="destructive" onClick={() => setVentaABorrar(venta)}>
             <Trash2 className="h-4 w-4" />
-            Eliminar venta
+            Eliminar entrega
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -1134,7 +1145,7 @@ export function HistorialVentas() {
               </div>
               <div>
                 <DialogTitle className="text-foreground">Confirmar Pago</DialogTitle>
-                <DialogDescription className="text-muted-foreground">Registrar el pago de esta venta</DialogDescription>
+                <DialogDescription className="text-muted-foreground">Registrar el pago de esta entrega</DialogDescription>
               </div>
             </div>
           </DialogHeader>
@@ -1205,7 +1216,7 @@ export function HistorialVentas() {
               <div>
                 <DialogTitle className="text-foreground">Corregir Método de Pago</DialogTitle>
                 <DialogDescription className="text-muted-foreground">
-                  Corrige el método de un cobro puntual. No modifica el total, el saldo ni el resto de la venta.
+                  Corrige el método de un cobro puntual. No modifica el total, el saldo ni el resto de la entrega.
                 </DialogDescription>
               </div>
             </div>
@@ -1222,7 +1233,7 @@ export function HistorialVentas() {
                   </p>
                 </div>
                 {(editingPagosVenta.pagos || []).length === 0 && (
-                  <p className="text-sm text-muted-foreground">Esta venta no tiene pagos registrados para corregir.</p>
+                  <p className="text-sm text-muted-foreground">Esta entrega no tiene pagos registrados para corregir.</p>
                 )}
                 {(editingPagosVenta.pagos || []).map((pago) => {
                   const valorSeleccionado = metodoPagoCorregido[pago.id] ?? pago.metodo_pago
@@ -1299,9 +1310,9 @@ export function HistorialVentas() {
                 <Pencil className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-foreground">Editar Venta</DialogTitle>
+                <DialogTitle className="text-foreground">Editar Entrega</DialogTitle>
                 <DialogDescription className="text-muted-foreground">
-                  Modificar los datos de esta venta
+                  Modificar los datos de esta entrega
                 </DialogDescription>
               </div>
             </div>
@@ -1310,7 +1321,7 @@ export function HistorialVentas() {
           <div className="py-4 space-y-4">
             {/* Fecha */}
             <div className="space-y-2">
-              <Label>Fecha de Venta</Label>
+              <Label>Fecha de Entrega</Label>
               <Popover open={popoverEditFechaOpen} onOpenChange={setPopoverEditFechaOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -1530,22 +1541,33 @@ export function HistorialVentas() {
             <Button variant="outline" onClick={() => setEditingFullVenta(null)} className="bg-card">
               Cancelar
             </Button>
-            <Button onClick={handleSaveEdit} disabled={savingEdit} >
+            <Button onClick={() => handleSaveEdit()} disabled={savingEdit} >
               {savingEdit ? "Guardando..." : "Guardar Cambios"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {editingFullVenta && motivosBloqueoEdicion && (
+        <AutorizacionEntregaDialog
+          open
+          onOpenChange={(open) => !open && setMotivosBloqueoEdicion(null)}
+          socioId={editFormData.socio_id}
+          motivos={motivosBloqueoEdicion}
+          usuarioActual={usuarioActual}
+          onAutorizado={(autorizacionId) => handleSaveEdit(autorizacionId)}
+        />
+      )}
+
       <AlertDialog open={!!ventaABorrar} onOpenChange={(open) => !open && setVentaABorrar(null)}>
         <AlertDialogContent className="monarca-theme bg-card">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              ¿Eliminar esta venta?
+              ¿Eliminar esta entrega?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminará la venta y se devolverán los gramos/stock al inventario de
+              Esta acción no se puede deshacer. Se eliminará la entrega y se devolverán los gramos/stock al inventario de
               las genéticas/productos correspondientes.
               {ventaABorrar && (
                 <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
@@ -1575,7 +1597,7 @@ export function HistorialVentas() {
               disabled={borrando}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {borrando ? "Eliminando..." : "Eliminar Venta"}
+              {borrando ? "Eliminando..." : "Eliminar Entrega"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1584,7 +1606,7 @@ export function HistorialVentas() {
       {/* Encabezado */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-[26px] font-semibold leading-tight text-foreground">Historial de ventas</h1>
+          <h1 className="text-[26px] font-semibold leading-tight text-foreground">Historial de entregas</h1>
           {fechaDesde && fechaHasta && (
             <p className="text-sm text-muted-foreground">
               {format(fechaDesde, "dd/MM/yyyy")} – {format(fechaHasta, "dd/MM/yyyy")}
@@ -1605,9 +1627,9 @@ export function HistorialVentas() {
       {/* Resumen compacto: todos los indicadores conservan su cálculo actual */}
       <section aria-label="Resumen de resultados" className="grid min-w-0 overflow-hidden rounded-xl border bg-card lg:grid-cols-[minmax(0,1.2fr)_minmax(0,3fr)]">
         <div className="min-w-0 bg-primary p-5 text-primary-foreground">
-          <p className="text-sm text-primary-foreground/80">Total ventas</p>
+          <p className="text-sm text-primary-foreground/80">Total aportes</p>
           <p className="mt-2 break-words text-2xl font-semibold tabular-nums">{formatCurrency(totalVentasFiltradas)}</p>
-          <p className="mt-1 text-xs text-primary-foreground/80">{ventasFiltradas.length} transacciones</p>
+          <p className="mt-1 text-xs text-primary-foreground/80">{ventasFiltradas.length} entregas</p>
         </div>
         <dl className="grid min-w-0 grid-cols-2 xl:grid-cols-4">
           <div className="min-w-0 border-b border-r p-4 xl:border-b-0"><dt className="text-xs text-muted-foreground">Gramos</dt><dd className="mt-3 break-words text-lg font-semibold tabular-nums">{formatGramos(totalGramosFiltradas)}</dd></div>
@@ -1797,10 +1819,10 @@ export function HistorialVentas() {
           </div>
 
           {loading ? (
-            <div className="py-8 text-center text-muted-foreground">Cargando ventas...</div>
+            <div className="py-8 text-center text-muted-foreground">Cargando entregas...</div>
           ) : ventasFiltradas.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
-              {soloNoPagados ? "No hay ventas pendientes de pago en este período" : "No hay ventas en este período"}
+              {soloNoPagados ? "No hay entregas con aporte pendiente en este período" : "No hay entregas en este período"}
             </div>
           ) : (
             <>
@@ -1856,7 +1878,7 @@ export function HistorialVentas() {
                             </TableCell>
                             <TableCell>
                               <button type="button" aria-expanded={isExpanded}
-                                aria-label={`${isExpanded ? "Ocultar" : "Ver"} detalle de venta de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
+                                aria-label={`${isExpanded ? "Ocultar" : "Ver"} detalle de entrega de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
                                 onClick={(event) => { event.stopPropagation(); toggleExpand(venta.id) }}
                                 className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium text-primary hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary">
                                 <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
@@ -1926,7 +1948,7 @@ export function HistorialVentas() {
                         <button
                           type="button"
                           aria-expanded={isExpanded}
-                          aria-label={`${isExpanded ? "Ocultar" : "Ver"} detalle de venta de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
+                          aria-label={`${isExpanded ? "Ocultar" : "Ver"} detalle de entrega de ${venta.socio?.apellido}, ${venta.socio?.nombre}`}
                           onClick={() => toggleExpand(venta.id)}
                           className="mt-2 flex items-center gap-2 rounded-md px-2 py-1.5 -mx-2 text-left text-sm font-medium text-primary hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary"
                         >

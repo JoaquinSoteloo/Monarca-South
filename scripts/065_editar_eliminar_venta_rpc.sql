@@ -360,16 +360,16 @@ BEGIN
   -- 1) Bloquear la venta ANTES de leer/comparar nada más.
   ----------------------------------------------------------------------
   IF p_venta_id IS NULL THEN
-    RAISE EXCEPTION 'Falta indicar la venta a editar' USING ERRCODE = 'VE001';
+    RAISE EXCEPTION 'Falta indicar la entrega a editar' USING ERRCODE = 'VE001';
   END IF;
 
   SELECT * INTO v_venta FROM public.ventas WHERE id = p_venta_id FOR UPDATE;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'La venta indicada no existe' USING ERRCODE = 'VE001';
+    RAISE EXCEPTION 'La entrega indicada no existe' USING ERRCODE = 'VE001';
   END IF;
 
   IF p_fecha IS NULL THEN
-    RAISE EXCEPTION 'La fecha de la venta es obligatoria' USING ERRCODE = 'VE015';
+    RAISE EXCEPTION 'La fecha de la entrega es obligatoria' USING ERRCODE = 'VE015';
   END IF;
 
   IF p_lineas IS NULL OR jsonb_typeof(p_lineas) <> 'array' OR jsonb_array_length(p_lineas) = 0 THEN
@@ -395,7 +395,7 @@ BEGIN
   -- que con NULL da NULL y la condición nunca dispara).
   IF v_cambia_socio THEN
     IF v_socio_nuevo.activo IS NOT TRUE THEN
-      RAISE EXCEPTION 'No se puede reasignar la venta a un socio inactivo' USING ERRCODE = 'VE003';
+      RAISE EXCEPTION 'No se puede reasignar la entrega a un socio inactivo' USING ERRCODE = 'VE003';
     END IF;
   ELSE
     v_socio_actual_inactivo := NOT COALESCE(v_socio_nuevo.activo, false);
@@ -526,7 +526,7 @@ BEGIN
         v_orig_idx := array_position(v_orig_id, v_detalle_id);
       END IF;
       IF v_orig_idx IS NULL THEN
-        RAISE EXCEPTION 'Línea %: el detalle indicado no pertenece a esta venta', v_idx USING ERRCODE = 'VE009';
+        RAISE EXCEPTION 'Línea %: el detalle indicado no pertenece a esta entrega', v_idx USING ERRCODE = 'VE009';
       END IF;
       IF v_orig_idx = ANY(v_l_orig_idx) THEN
         RAISE EXCEPTION 'Línea %: el detalle indicado está duplicado en la edición', v_idx USING ERRCODE = 'VE009';
@@ -742,7 +742,7 @@ BEGIN
     v_diff := v_gen_nuevo_qty[i] - v_gen_orig_qty[i];
     IF v_diff > 0 THEN
       IF v_socio_actual_inactivo THEN
-        RAISE EXCEPTION 'No se puede agregar ni aumentar cantidades: el socio de esta venta está inactivo' USING ERRCODE = 'VE013';
+        RAISE EXCEPTION 'No se puede agregar ni aumentar cantidades: el socio de esta entrega está inactivo' USING ERRCODE = 'VE013';
       END IF;
       IF NOT v_gen_activo[i] THEN
         RAISE EXCEPTION 'No se puede agregar ni aumentar la cantidad de %, que está inactiva', v_gen_nombre[i] USING ERRCODE = 'VE012';
@@ -757,7 +757,7 @@ BEGIN
     v_diff := v_prod_nuevo_qty[i] - v_prod_orig_qty[i];
     IF v_diff > 0 THEN
       IF v_socio_actual_inactivo THEN
-        RAISE EXCEPTION 'No se puede agregar ni aumentar cantidades: el socio de esta venta está inactivo' USING ERRCODE = 'VE013';
+        RAISE EXCEPTION 'No se puede agregar ni aumentar cantidades: el socio de esta entrega está inactivo' USING ERRCODE = 'VE013';
       END IF;
       IF NOT v_prod_activo[i] THEN
         RAISE EXCEPTION 'No se puede agregar ni aumentar la cantidad de %, que está inactivo', v_prod_nombre[i] USING ERRCODE = 'VE012';
@@ -967,12 +967,12 @@ BEGIN
   -- 1) Bloquear la venta primero, igual que editar_venta.
   ----------------------------------------------------------------------
   IF p_venta_id IS NULL THEN
-    RAISE EXCEPTION 'Falta indicar la venta a eliminar' USING ERRCODE = 'VD001';
+    RAISE EXCEPTION 'Falta indicar la entrega a eliminar' USING ERRCODE = 'VD001';
   END IF;
 
   SELECT * INTO v_venta FROM public.ventas WHERE id = p_venta_id FOR UPDATE;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'La venta indicada no existe' USING ERRCODE = 'VD001';
+    RAISE EXCEPTION 'La entrega indicada no existe' USING ERRCODE = 'VD001';
   END IF;
 
   ----------------------------------------------------------------------

@@ -362,7 +362,7 @@ export function DeudasManager() {
 
         <Card className="gap-3 bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Ventas pendientes</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Aportes pendientes</CardTitle>
             <CreditCard className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
@@ -418,7 +418,7 @@ export function DeudasManager() {
                 <div className="rounded-full bg-primary/10 p-2 text-primary"><User className="h-5 w-5" /></div>
                 <div className="min-w-0">
                   <h2 className="break-words font-semibold">{socio?.apellido}, {socio?.nombre}</h2>
-                  <p className="text-xs text-muted-foreground">DNI: {socio?.dni} · {deudasSocio.length} {deudasSocio.length === 1 ? "venta pendiente" : "ventas pendientes"}</p>
+                  <p className="text-xs text-muted-foreground">DNI: {socio?.dni} · {deudasSocio.length} {deudasSocio.length === 1 ? "aporte pendiente" : "aportes pendientes"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -427,7 +427,7 @@ export function DeudasManager() {
               </div>
             </summary>
             <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-primary/5 px-5 py-3">
-              <p className="text-sm text-muted-foreground">Ventas pendientes de este socio</p>
+              <p className="text-sm text-muted-foreground">Aportes pendientes de este socio</p>
               <Button onClick={() => handleOpenPagoSocioDialog(grupo)}><DollarSign className="h-4 w-4" />Pagar deuda del socio</Button>
             </div>
             {/* Desktop/tablet: tabla completa (sin cambios de comportamiento). */}
@@ -436,7 +436,7 @@ export function DeudasManager() {
                 <TableHeader>
                   <TableRow className="bg-primary/10">
                     <TableHead>Fecha</TableHead>
-                    <TableHead className="text-right">Total venta</TableHead>
+                    <TableHead className="text-right">Aporte total</TableHead>
                     <TableHead className="text-right">Pagado</TableHead>
                     <TableHead className="text-right">Pendiente</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
@@ -483,7 +483,7 @@ export function DeudasManager() {
                             onClick={() => handleOpenPagoDialog(deuda)}
                           >
                             <Plus className="h-4 w-4 mr-1" />
-                            Pagar esta venta
+                            Pagar esta entrega
                           </Button>
                         </div>
                       </TableCell>
@@ -534,7 +534,7 @@ export function DeudasManager() {
                       onClick={() => handleOpenPagoDialog(deuda)}
                     >
                       <Plus className="h-4 w-4 mr-1" />
-                      Pagar esta venta
+                      Pagar esta entrega
                     </Button>
                   </div>
                 </div>
@@ -558,7 +558,7 @@ export function DeudasManager() {
             <DialogTitle>Registrar Pago</DialogTitle>
             <DialogDescription>
               {ventaSeleccionada?.socio?.apellido}, {ventaSeleccionada?.socio?.nombre}
-              <br />Saldo pendiente de esta venta: {formatCurrency(Number(ventaSeleccionada?.saldo_pendiente || 0))}
+              <br />Saldo pendiente de esta entrega: {formatCurrency(Number(ventaSeleccionada?.saldo_pendiente || 0))}
             </DialogDescription>
           </DialogHeader>
 
@@ -836,7 +836,7 @@ export function DeudasManager() {
           <DialogHeader>
             <DialogTitle>Historial de Pagos</DialogTitle>
             <DialogDescription>
-              Venta del {ventaSeleccionada && format(new Date(ventaSeleccionada.created_at), "dd/MM/yyyy", { locale: es })} - Total: {formatCurrency(Number(ventaSeleccionada?.total || 0))}
+              Entrega del {ventaSeleccionada && format(new Date(ventaSeleccionada.created_at), "dd/MM/yyyy", { locale: es })} - Total: {formatCurrency(Number(ventaSeleccionada?.total || 0))}
             </DialogDescription>
           </DialogHeader>
 

@@ -2,7 +2,7 @@
 -- Son ESTIMADOS: Lucho tiene que confirmar las fechas desde la pantalla Ciclos
 -- (botón "Planificar"); al guardar se recalculan las tareas.
 --
--- NO SE EJECUTÓ TODAVÍA. Correr después de 069. Busca las salas por nombre
+-- NO SE EJECUTÓ TODAVÍA. Correr después de 072. Busca las salas por nombre
 -- ("Sala 1", "Sala 2", …): revisar que coincidan con salas_cultivo.
 -- No duplica: si la sala ya tiene un ciclo abierto, la saltea.
 -- Las tareas del protocolo se generan al abrir la pantalla Ciclos.

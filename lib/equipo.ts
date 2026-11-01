@@ -1,5 +1,5 @@
 /**
- * Equipo: perfiles, tareas, avisos y conversación (scripts 067 y 068).
+ * Equipo: perfiles, tareas, avisos y conversación (scripts 070 y 071).
  * Lógica pura, sin Supabase, para poder testearla.
  */
 

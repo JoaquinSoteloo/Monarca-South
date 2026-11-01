@@ -1,7 +1,7 @@
 -- Equipo: usuarios con perfil, tareas diarias, avisos y conversación.
 --
 -- NO SE EJECUTÓ TODAVÍA. Correr a mano en el SQL Editor de Supabase, después
--- de 066_create_registros_riego.sql. Después correr 068_seed_equipo.sql.
+-- de 069_create_registros_riego.sql. Después correr 071_seed_equipo.sql.
 --
 -- Pedido de Facundo (31/10/2026):
 --   - Cada persona entra con su propio usuario (Supabase Auth, email + clave).
@@ -16,23 +16,32 @@
 -- Los avisos se generan con triggers en la base, así no dependen de que la
 -- pantalla esté abierta. Todo nace solo para `authenticated`.
 --
--- La sesión del sistema (lib/auth/session.ts) sigue igual: esto agrega
--- perfiles por usuario sin tocar la cuenta admin existente.
+-- Usuarios: se crean en la pantalla Usuarios (public.perfiles de Joaquín,
+-- script 066: nombre y rol operador/comisión). Esto NO toca esa tabla: agrega
+-- `equipo` (área, quién supervisa a quién, quién ve todas las tareas) y la
+-- vista `equipo_perfiles`, que junta las dos para las pantallas del equipo.
 --
 -- Script idempotente, envuelto en una transacción.
 
 BEGIN;
 
--- 1. Perfiles: una fila por usuario de Supabase Auth -----------------------
-CREATE TABLE IF NOT EXISTS public.perfiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  nombre VARCHAR(40) NOT NULL UNIQUE,
-  rol VARCHAR(20) NOT NULL CHECK (rol IN ('direccion', 'cultivo', 'mantenimiento', 'atencion', 'ayudante')),
+-- 1. Equipo: datos de trabajo de cada usuario de la pantalla Usuarios -------
+CREATE TABLE IF NOT EXISTS public.equipo (
+  id UUID PRIMARY KEY REFERENCES public.perfiles(user_id) ON DELETE CASCADE,
+  area VARCHAR(20) NOT NULL CHECK (area IN ('direccion', 'cultivo', 'mantenimiento', 'atencion', 'ayudante')),
   ve_todas_las_tareas BOOLEAN NOT NULL DEFAULT false,
-  supervisor_id UUID REFERENCES public.perfiles(id) ON DELETE SET NULL,
+  supervisor_id UUID REFERENCES public.equipo(id) ON DELETE SET NULL,
   activo BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Vista con el nombre de perfiles y los datos de equipo (la usan la app y las
+-- funciones de abajo). `rol` acá es el área de trabajo, no el permiso.
+CREATE OR REPLACE VIEW public.equipo_perfiles WITH (security_invoker = true) AS
+SELECT e.id, p.nombre, e.area AS rol, e.ve_todas_las_tareas, e.supervisor_id, (e.activo AND p.activo) AS activo
+FROM public.equipo e
+JOIN public.perfiles p ON p.user_id = e.id;
+GRANT SELECT ON public.equipo_perfiles TO authenticated;
 
 -- 2. Rutinas (plantillas que generan tareas cada día) ----------------------
 --   semanal:        se genera los días de `dias_semana` (ISO: 1 = lunes … 7 = domingo).
@@ -43,7 +52,7 @@ CREATE TABLE IF NOT EXISTS public.tareas_plantilla (
   id BIGSERIAL PRIMARY KEY,
   titulo VARCHAR(160) NOT NULL,
   detalle TEXT,
-  responsable_id UUID NOT NULL REFERENCES public.perfiles(id) ON DELETE CASCADE,
+  responsable_id UUID NOT NULL REFERENCES public.equipo(id) ON DELETE CASCADE,
   afecta_a UUID[] NOT NULL DEFAULT '{}',
   frecuencia VARCHAR(20) NOT NULL DEFAULT 'semanal' CHECK (frecuencia IN ('semanal', 'mensual_dia', 'mensual_primer')),
   dias_semana SMALLINT[] NOT NULL DEFAULT '{1,2,3,4,5,6,7}',
@@ -64,14 +73,14 @@ CREATE TABLE IF NOT EXISTS public.tareas (
   fecha DATE NOT NULL,
   titulo VARCHAR(160) NOT NULL,
   detalle TEXT,
-  responsable_id UUID NOT NULL REFERENCES public.perfiles(id) ON DELETE CASCADE,
-  creada_por UUID REFERENCES public.perfiles(id) ON DELETE SET NULL,
+  responsable_id UUID NOT NULL REFERENCES public.equipo(id) ON DELETE CASCADE,
+  creada_por UUID REFERENCES public.equipo(id) ON DELETE SET NULL,
   plantilla_id BIGINT REFERENCES public.tareas_plantilla(id) ON DELETE SET NULL,
   afecta_a UUID[] NOT NULL DEFAULT '{}',
   estado VARCHAR(10) NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'hecha', 'problema')),
   nota TEXT,
   completada_at TIMESTAMPTZ,
-  completada_por UUID REFERENCES public.perfiles(id) ON DELETE SET NULL,
+  completada_por UUID REFERENCES public.equipo(id) ON DELETE SET NULL,
   orden SMALLINT NOT NULL DEFAULT 100,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -81,8 +90,8 @@ CREATE INDEX IF NOT EXISTS tareas_fecha_responsable_idx ON public.tareas (fecha,
 -- 4. Avisos (bandeja de cada usuario) --------------------------------------
 CREATE TABLE IF NOT EXISTS public.notificaciones (
   id BIGSERIAL PRIMARY KEY,
-  destinatario_id UUID NOT NULL REFERENCES public.perfiles(id) ON DELETE CASCADE,
-  autor_id UUID REFERENCES public.perfiles(id) ON DELETE SET NULL,
+  destinatario_id UUID NOT NULL REFERENCES public.equipo(id) ON DELETE CASCADE,
+  autor_id UUID REFERENCES public.equipo(id) ON DELETE SET NULL,
   tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('tarea_hecha', 'tarea_problema', 'tarea_nueva', 'comentario', 'riego', 'otro')),
   titulo VARCHAR(200) NOT NULL,
   cuerpo TEXT,
@@ -96,7 +105,7 @@ CREATE INDEX IF NOT EXISTS notificaciones_destinatario_idx ON public.notificacio
 -- 5. Conversación: chat del equipo (tarea_id NULL) y comentarios por tarea --
 CREATE TABLE IF NOT EXISTS public.mensajes (
   id BIGSERIAL PRIMARY KEY,
-  autor_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.perfiles(id) ON DELETE CASCADE,
+  autor_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.equipo(id) ON DELETE CASCADE,
   tarea_id BIGINT REFERENCES public.tareas(id) ON DELETE CASCADE,
   cuerpo TEXT NOT NULL CHECK (char_length(btrim(cuerpo)) BETWEEN 1 AND 2000),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -105,7 +114,7 @@ CREATE INDEX IF NOT EXISTS mensajes_tarea_idx ON public.mensajes (tarea_id, crea
 
 -- 6. Quién cargó cada riego -------------------------------------------------
 ALTER TABLE public.registros_riego
-  ADD COLUMN IF NOT EXISTS cargado_por UUID REFERENCES public.perfiles(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS cargado_por UUID REFERENCES public.equipo(id) ON DELETE SET NULL;
 
 -- 7. Generar las tareas de rutina de un día (idempotente) ------------------
 CREATE OR REPLACE FUNCTION public.generar_tareas_del_dia(p_fecha DATE)
@@ -120,7 +129,7 @@ BEGIN
   INSERT INTO tareas (fecha, titulo, detalle, responsable_id, plantilla_id, afecta_a, orden)
   SELECT p_fecha, p.titulo, p.detalle, p.responsable_id, p.id, p.afecta_a, p.orden
   FROM tareas_plantilla p
-  JOIN perfiles r ON r.id = p.responsable_id AND r.activo
+  JOIN equipo_perfiles r ON r.id = p.responsable_id AND r.activo
   WHERE p.activo AND (
     (p.frecuencia = 'semanal' AND dow = ANY (p.dias_semana))
     OR (p.frecuencia = 'mensual_dia' AND extract(day FROM p_fecha) = p.dia_mes)
@@ -141,7 +150,7 @@ CREATE OR REPLACE FUNCTION public.notificar_destinatarios(
   INSERT INTO notificaciones (destinatario_id, autor_id, tipo, titulo, cuerpo, tarea_id, enlace)
   SELECT DISTINCT d, p_autor, p_tipo, left(p_titulo, 200), p_cuerpo, p_tarea, '/equipo'
   FROM unnest(p_destinatarios) AS d
-  JOIN perfiles pf ON pf.id = d AND pf.activo
+  JOIN equipo_perfiles pf ON pf.id = d AND pf.activo
   WHERE d IS NOT NULL AND d IS DISTINCT FROM p_autor;
 $$;
 REVOKE ALL ON FUNCTION public.notificar_destinatarios(UUID[], UUID, TEXT, TEXT, TEXT, BIGINT) FROM PUBLIC, anon, authenticated;
@@ -158,11 +167,11 @@ BEGIN
   IF NEW.estado = OLD.estado OR NEW.estado = 'pendiente' THEN
     RETURN NEW;
   END IF;
-  SELECT nombre INTO nombre_actor FROM perfiles WHERE id = actor;
+  SELECT nombre INTO nombre_actor FROM equipo_perfiles WHERE id = actor;
   SELECT array_agg(x) INTO dest FROM (
-    SELECT supervisor_id AS x FROM perfiles WHERE id = NEW.responsable_id
+    SELECT supervisor_id AS x FROM equipo_perfiles WHERE id = NEW.responsable_id
     UNION SELECT unnest(NEW.afecta_a)
-    UNION SELECT id FROM perfiles WHERE NEW.estado = 'problema' AND ve_todas_las_tareas AND activo
+    UNION SELECT id FROM equipo_perfiles WHERE NEW.estado = 'problema' AND ve_todas_las_tareas AND activo
   ) s;
   PERFORM notificar_destinatarios(
     dest, actor,
@@ -188,8 +197,8 @@ BEGIN
   IF NEW.creada_por IS NULL THEN
     RETURN NEW;
   END IF;
-  SELECT nombre INTO nombre_autor FROM perfiles WHERE id = NEW.creada_por;
-  SELECT nombre INTO nombre_resp FROM perfiles WHERE id = NEW.responsable_id;
+  SELECT nombre INTO nombre_autor FROM equipo_perfiles WHERE id = NEW.creada_por;
+  SELECT nombre INTO nombre_resp FROM equipo_perfiles WHERE id = NEW.responsable_id;
   PERFORM notificar_destinatarios(
     ARRAY[NEW.responsable_id], NEW.creada_por, 'tarea_nueva',
     coalesce(nombre_autor, 'Alguien') || ' te asignó: ' || NEW.titulo, NEW.detalle, NEW.id
@@ -219,10 +228,10 @@ BEGIN
     RETURN NEW;
   END IF;
   SELECT * INTO t FROM tareas WHERE id = NEW.tarea_id;
-  SELECT nombre INTO nombre_autor FROM perfiles WHERE id = NEW.autor_id;
+  SELECT nombre INTO nombre_autor FROM equipo_perfiles WHERE id = NEW.autor_id;
   SELECT array_agg(x) INTO dest FROM (
     SELECT t.responsable_id AS x
-    UNION SELECT supervisor_id FROM perfiles WHERE id = t.responsable_id
+    UNION SELECT supervisor_id FROM equipo_perfiles WHERE id = t.responsable_id
     UNION SELECT unnest(t.afecta_a)
     UNION SELECT t.creada_por
   ) s;
@@ -239,15 +248,15 @@ CREATE TRIGGER mensajes_avisar_comentario_trg
   FOR EACH ROW EXECUTE FUNCTION public.mensajes_avisar_comentario();
 
 -- 9. Seguridad --------------------------------------------------------------
-ALTER TABLE public.perfiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.equipo ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tareas_plantilla ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tareas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notificaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mensajes ENABLE ROW LEVEL SECURITY;
 
--- Perfiles: todos los leen; se administran desde el SQL Editor.
-DROP POLICY IF EXISTS "authenticated_select_perfiles" ON public.perfiles;
-CREATE POLICY "authenticated_select_perfiles" ON public.perfiles
+-- Equipo: todos lo leen; se administra desde el SQL Editor (071_seed_equipo.sql).
+DROP POLICY IF EXISTS "authenticated_select_equipo" ON public.equipo;
+CREATE POLICY "authenticated_select_equipo" ON public.equipo
   FOR SELECT TO authenticated USING (true);
 
 -- Rutinas y tareas: todo el equipo ve y edita (pedido: "todos ven todo").

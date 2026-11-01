@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
   const supabase = await createClient()
   const desde = request.headers.get("user-agent")
-  const { activado, checklist } = await activarModoAusente(supabase, session.usuario, desde)
+  const { activado, checklist } = await activarModoAusente(supabase, session.nombre, desde)
 
   if (!activado) {
     return NextResponse.json(checklist, { status: 409 })

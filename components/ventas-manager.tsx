@@ -29,34 +29,38 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { formatCurrency, formatGramos } from "@/lib/format"
 import { BarcodeScanner } from "./barcode-scanner"
+import { AutorizacionEntregaDialog, motivosDeError, type UsuarioActual } from "./autorizacion-entrega-dialog"
 
 interface VentasManagerProps {
   socios: Socio[]
   geneticas: Genetica[]
   productos: Producto[]
   initialVentas: Venta[]
+  usuarioActual: UsuarioActual
+  maxEntregasExterno: number
 }
 
-export function VentasManager({ socios, geneticas, productos, initialVentas }: VentasManagerProps) {
+export function VentasManager({
+  socios,
+  geneticas,
+  productos,
+  initialVentas,
+  usuarioActual,
+  maxEntregasExterno,
+}: VentasManagerProps) {
   const [ventas, setVentas] = useState(initialVentas)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const [showLimitDialog, setShowLimitDialog] = useState(false)
+  // Reglas que la entrega no cumple (error VB001 del servidor): abre el
+  // pedido de excepción a la comisión.
+  const [motivosBloqueo, setMotivosBloqueo] = useState<string[] | null>(null)
   const [fechaVenta, setFechaVenta] = useState<Date>(new Date())
   const [popoverFechaOpen, setPopoverFechaOpen] = useState(false)
 
@@ -173,10 +177,20 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
     return Math.round((acc + subtotal) * 100) / 100
   }, 0)
 
+  // Límite mensual: cuentan sólo los gramos sueltos, los enrolados no
+  // (misma regla que reglas_entrega_incumplidas en scripts/066). Esto es
+  // sólo aviso: el servidor es quien frena.
+  const gramosSueltosVenta = lineas.reduce(
+    (acc, linea) => (linea.tipo === "genetica" && linea.genetica_id ? Math.round((acc + linea.gramos) * 10) / 10 : acc),
+    0,
+  )
+  const esExterno = selectedSocio?.tipo === "externo"
+  const tieneLimite = !esExterno && selectedSocio?.gramos_mensuales !== null && selectedSocio?.gramos_mensuales !== undefined
   const limiteMensual = selectedSocio?.gramos_mensuales || 0
   const consumidoMes = selectedSocio?.gramos_consumidos_mes || 0
-  const disponibleSocio = limiteMensual - consumidoMes
-  const excedeLimit = limiteMensual > 0 && gramosTotalesVenta > disponibleSocio
+  const limiteAlcanzado = tieneLimite && consumidoMes >= limiteMensual
+  const excedeLimit = tieneLimite && gramosSueltosVenta > 0 && consumidoMes + gramosSueltosVenta > limiteMensual
+  const entregasMes = selectedSocio?.entregas_mes || 0
 
   const agregarLineaGenetica = () => {
     setLineas([
@@ -224,17 +238,21 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
     setLineas(nuevasLineas)
   }
 
-  const procesarVenta = async (lineasValidas: LineaVenta[]) => {
+  const procesarVenta = async (lineasValidas: LineaVenta[], autorizacionId: string | null = null) => {
     setLoading(true)
-    setShowLimitDialog(false)
 
     // Chequeo rápido de UX (no es la autoridad: el servidor vuelve a validar
     // todo contra el stock y los precios vigentes al momento de la llamada).
     for (const linea of lineasValidas) {
       if (linea.tipo === "genetica" && linea.genetica_id) {
-        const { gramosTotales, genetica } = calcularLinea(linea)
-        if (genetica && gramosTotales > genetica.gramos_disponibles) {
-          setError(`Stock insuficiente de ${genetica.nombre}. Disponible: ${formatGramos(genetica.gramos_disponibles)}`)
+        const { pesoEnrolados, genetica } = calcularLinea(linea)
+        if (genetica && linea.gramos > genetica.gramos_disponibles) {
+          setError(`Stock insuficiente de ${genetica.nombre} para sueltos. Disponible: ${formatGramos(genetica.gramos_disponibles)}`)
+          setLoading(false)
+          return
+        }
+        if (genetica && pesoEnrolados > genetica.gramos_enrolados) {
+          setError(`Stock insuficiente de ${genetica.nombre} para enrolados. Disponible: ${formatGramos(genetica.gramos_enrolados)}`)
           setLoading(false)
           return
         }
@@ -249,7 +267,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
     }
 
     const { data: newVenta, error: rpcError } = await supabase
-      .rpc("registrar_venta", {
+      .rpc("registrar_entrega", {
         p_socio_id: formData.socio_id,
         p_lineas: lineasValidas.map((l) => ({
           tipo: l.tipo,
@@ -264,12 +282,17 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
         p_pago_transferencia: pagoCombinado.transferencia,
         p_notas: formData.notas || null,
         p_fecha: fechaVenta.toISOString(),
+        p_autorizacion_id: autorizacionId,
       })
       .single()
 
     if (rpcError) {
       setLoading(false)
-      if (/^VT0\d{2}$/.test(rpcError.code || "")) {
+      if (rpcError.code === "VB001") {
+        setLineasParaEnviar(lineasValidas)
+        setMotivosBloqueo(motivosDeError(rpcError.message))
+      } else if (/^(VT0\d{2}|VB00\d)$/.test(rpcError.code || "")) {
+        setMotivosBloqueo(null)
         setError(rpcError.message)
       } else {
         console.error("Error inesperado al registrar venta:", rpcError)
@@ -277,6 +300,8 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       }
       return
     }
+
+    setMotivosBloqueo(null)
 
     // La RPC devuelve sólo la fila de `ventas` (sin el join a socios que
     // hacía el insert directo antes) — se arma el mismo objeto de
@@ -347,17 +372,10 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
       }
     }
 
-    setLineasParaEnviar(lineasValidas)
-
-    if (excedeLimit) {
-      setShowLimitDialog(true)
-      return
-    }
-
     // Validar que el pago no exceda el total
     const totalPagado = pagoCombinado.efectivo + pagoCombinado.transferencia
     if (totalPagado > totalVenta) {
-      setError(`El pago (${formatCurrency(totalPagado)}) excede el total de la venta (${formatCurrency(totalVenta)})`)
+      setError(`El pago (${formatCurrency(totalPagado)}) excede el aporte total de la entrega (${formatCurrency(totalVenta)})`)
       return
     }
 
@@ -390,56 +408,20 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
-        <DialogContent className="monarca-theme max-h-[90dvh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-                <AlertTriangle className="h-6 w-6 text-amber-600" />
-              </div>
-              <div>
-                <DialogTitle className="text-foreground">Límite mensual excedido</DialogTitle>
-                <DialogDescription className="text-muted-foreground">
-                  El socio superará su límite mensual
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground mb-3">
-              <strong className="text-foreground">
-                {selectedSocio?.nombre} {selectedSocio?.apellido}
-              </strong>{" "}
-              tiene un límite de <strong className="text-foreground">{formatGramos(limiteMensual)}</strong> por mes.
-            </p>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">
-              <p className="text-sm text-amber-800">
-                Consumido este mes: <strong>{formatGramos(consumidoMes)}</strong>
-              </p>
-              <p className="text-sm text-amber-800">
-                Intentando comprar: <strong>{formatGramos(gramosTotalesVenta)}</strong>
-              </p>
-              <p className="text-sm text-amber-800">
-                Nuevo total: <strong>{formatGramos(consumidoMes + gramosTotalesVenta)}</strong> (
-                {formatGramos(consumidoMes + gramosTotalesVenta - limiteMensual)} sobre el límite)
-              </p>
-            </div>
-            <p className="text-sm text-muted-foreground mt-3">¿Deseas continuar con la venta de todas formas?</p>
-          </div>
-          <DialogFooter className="flex gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowLimitDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={() => procesarVenta(lineasParaEnviar)} disabled={loading}>
-              {loading ? "Registrando..." : "Sí, continuar con la venta"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {formData.socio_id && motivosBloqueo && (
+        <AutorizacionEntregaDialog
+          open
+          onOpenChange={(open) => !open && setMotivosBloqueo(null)}
+          socioId={formData.socio_id}
+          motivos={motivosBloqueo}
+          usuarioActual={usuarioActual}
+          onAutorizado={(autorizacionId) => procesarVenta(lineasParaEnviar, autorizacionId)}
+        />
+      )}
 
       <div>
-        <h1 className="text-[26px] font-semibold leading-tight text-foreground">Ventas</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Prepará la venta y revisá el cobro antes de registrarla.</p>
+        <h1 className="text-[26px] font-semibold leading-tight text-foreground">Entregas</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Prepará la entrega y revisá el aporte antes de registrarla.</p>
       </div>
 
       <form
@@ -449,11 +431,11 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
         {/* Columna principal: fecha, socio, ítems */}
         <div className="flex min-w-0 flex-col gap-6">
           <section className="min-w-0 rounded-xl border bg-card p-5">
-            <h2 className="mb-4 flex items-center gap-2 text-base font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">1</span> Datos de la venta</h2>
+            <h2 className="mb-4 flex items-center gap-2 text-base font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">1</span> Datos de la entrega</h2>
             <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,1fr)_240px]">
           <div className="space-y-2">
             <Label htmlFor="socio-select" className="font-semibold text-primary">
-              Socio <span className="text-destructive">*</span>
+              Socio o externo <span className="text-destructive">*</span>
             </Label>
             <Select
               value={formData.socio_id}
@@ -467,6 +449,11 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
                   <SelectItem key={s.id} value={s.id}>
                     <div className="flex items-center gap-2">
                       {s.apellido}, {s.nombre} - {s.dni}
+                      {s.tipo === "externo" && (
+                        <Badge variant="outline" className="ml-1 text-xs">
+                          Externo
+                        </Badge>
+                      )}
                       {s.es_miembro && (
                         <Badge variant="outline" className="border-accent/50 bg-accent/10 text-accent-foreground text-xs ml-1">
                           <Crown className="h-3 w-3 mr-1" />
@@ -487,7 +474,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
 
           </div>
           <div className="min-w-0 space-y-2">
-            <Label htmlFor="fecha-venta">Fecha de venta</Label>
+            <Label htmlFor="fecha-venta">Fecha de entrega</Label>
             <Popover open={popoverFechaOpen} onOpenChange={setPopoverFechaOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -520,13 +507,52 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             {fechaVenta.toDateString() !== new Date().toDateString() && (
               <p className="text-xs text-amber-600 flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                Registrando venta de fecha anterior
+                Registrando entrega de fecha anterior
               </p>
             )}
           </div>
 
             </div>
             <div className="mt-3 space-y-2">
+            {selectedSocio && tieneLimite && (
+              <div
+                className={`p-3 rounded-lg border flex items-start gap-2 ${
+                  limiteAlcanzado || excedeLimit ? "bg-red-50 border-red-200" : "bg-muted/40 border-border"
+                }`}
+              >
+                <Scale className={`h-4 w-4 mt-0.5 shrink-0 ${limiteAlcanzado || excedeLimit ? "text-destructive" : "text-primary"}`} />
+                <div className="text-sm">
+                  <p className={limiteAlcanzado || excedeLimit ? "font-medium text-destructive" : "text-foreground"}>
+                    Lleva {formatGramos(consumidoMes)} sueltos de {formatGramos(limiteMensual)} este mes
+                    {gramosSueltosVenta > 0 && <> · con esta entrega, {formatGramos(consumidoMes + gramosSueltosVenta)}</>}
+                  </p>
+                  {limiteAlcanzado || excedeLimit ? (
+                    <p className="text-destructive">
+                      Superó su límite: sólo puede llevar enrolados, salvo autorización de la comisión.
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground">Los enrolados no cuentan para el límite.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {selectedSocio && esExterno && (
+              <div
+                className={`p-3 rounded-lg border flex items-start gap-2 ${
+                  entregasMes >= maxEntregasExterno ? "bg-red-50 border-red-200" : "bg-muted/40 border-border"
+                }`}
+              >
+                <AlertCircle
+                  className={`h-4 w-4 mt-0.5 shrink-0 ${entregasMes >= maxEntregasExterno ? "text-destructive" : "text-primary"}`}
+                />
+                <p className={`text-sm ${entregasMes >= maxEntregasExterno ? "font-medium text-destructive" : "text-foreground"}`}>
+                  Externo: {entregasMes} de {maxEntregasExterno} entregas este mes
+                  {entregasMes >= maxEntregasExterno && " — necesita autorización de la comisión"}
+                </p>
+              </div>
+            )}
+
             {deudaSocio > 0 && (
               <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
@@ -559,7 +585,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
 
           <div className="space-y-3 rounded-xl border bg-card p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-base font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">2</span> Ítems de la venta</h2>
+              <h2 className="flex items-center gap-2 text-base font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">2</span> Ítems de la entrega</h2>
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -634,7 +660,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
                                   : g.precio_por_enrolado || 0
                               return (
                                 <SelectItem key={g.id} value={g.id}>
-                                  {g.nombre} - {formatGramos(g.gramos_disponibles)} ({formatCurrency(gPrecioGramo)}/g
+                                  {g.nombre} - {formatGramos(g.gramos_disponibles)} sueltos · {formatGramos(g.gramos_enrolados)} enr ({formatCurrency(gPrecioGramo)}/g
                                   {gPrecioEnrolado ? ` | ${formatCurrency(gPrecioEnrolado)}/enr` : ""})
                                 </SelectItem>
                               )
@@ -812,7 +838,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
           </div>
 
           <details className="rounded-xl border bg-card p-4">
-            <summary className="cursor-pointer text-sm font-medium text-primary">Notas de la venta (opcional)</summary>
+            <summary className="cursor-pointer text-sm font-medium text-primary">Notas de la entrega (opcional)</summary>
             <Label htmlFor="notas" className="sr-only">Notas</Label>
             <Textarea
               id="notas"
@@ -829,9 +855,9 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
           <CardHeader className="-mt-6 gap-3 bg-primary py-5 text-primary-foreground">
             <CardTitle className="flex items-center gap-2 text-base"><ShoppingCart className="h-4 w-4" />3 · Resumen y cobro</CardTitle>
             <div>
-              <p className="text-xs text-primary-foreground/80">Total de la venta</p>
+              <p className="text-xs text-primary-foreground/80">Aporte total</p>
               <p className="mt-1 break-words text-3xl font-semibold tabular-nums">{formatCurrency(totalVenta)}</p>
-              <p className="mt-1 text-xs text-primary-foreground/80">{formatGramos(gramosTotalesVenta)} en esta venta</p>
+              <p className="mt-1 text-xs text-primary-foreground/80">{formatGramos(gramosTotalesVenta)} en esta entrega</p>
             </div>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
@@ -917,7 +943,7 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
             )}
 
             <Button type="submit" className="w-full" size="lg" disabled={loading || !formData.socio_id}>
-              {loading ? "Registrando..." : "Registrar venta"}
+              {loading ? "Registrando..." : "Registrar entrega"}
             </Button>
           </CardContent>
         </Card>
@@ -936,12 +962,12 @@ export function VentasManager({ socios, geneticas, productos, initialVentas }: V
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <ShoppingCart className="h-4 w-4 text-primary" />
-            Últimas ventas
+            Últimas entregas
           </CardTitle>
         </CardHeader>
         <CardContent>
           {ventas.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No hay ventas registradas hoy</p>
+            <p className="text-center text-muted-foreground py-8">No hay entregas registradas hoy</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>

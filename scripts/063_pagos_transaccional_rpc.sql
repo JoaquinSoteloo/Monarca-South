@@ -109,12 +109,12 @@ BEGIN
   -- 1) Validaciones (sólo lecturas, nada se escribe todavía)
   ----------------------------------------------------------------------
   IF p_venta_id IS NULL THEN
-    RAISE EXCEPTION 'Falta indicar la venta a pagar' USING ERRCODE = 'VP001';
+    RAISE EXCEPTION 'Falta indicar la entrega a pagar' USING ERRCODE = 'VP001';
   END IF;
 
   SELECT * INTO v_venta FROM public.ventas WHERE id = p_venta_id;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'La venta indicada no existe' USING ERRCODE = 'VP001';
+    RAISE EXCEPTION 'La entrega indicada no existe' USING ERRCODE = 'VP001';
   END IF;
 
   IF p_monto IS NULL THEN

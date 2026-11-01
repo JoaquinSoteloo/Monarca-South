@@ -10,7 +10,7 @@ export async function POST() {
   }
 
   const supabase = await createClient()
-  await desactivarModoAusente(supabase, session.usuario)
+  await desactivarModoAusente(supabase, session.nombre)
 
   return NextResponse.json({ activo: false })
 }

@@ -29,17 +29,43 @@ export interface Socio {
   es_miembro: boolean
   es_vip: boolean
   activo: boolean
+  // "externo" = persona no socia cargada en el sistema (scripts/066).
+  tipo: "socio" | "externo"
+  // Registro genérico "No socios": conserva su historial, sin entregas nuevas.
+  es_generico: boolean
   created_at: string
   updated_at: string
   membresia?: Membresia
   sucursal?: Sucursal
+  // Calculado en la página (lib/consumo.ts), no es columna.
+  entregas_mes?: number
+}
+
+export type RolUsuario = "operador" | "comision"
+
+export interface Perfil {
+  user_id: string
+  nombre: string
+  rol: RolUsuario
+  activo: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ConfigEntregas {
+  tope_deuda: number
+  dias_max_pendiente: number
+  max_entregas_externo_mes: number
 }
 
 export interface Genetica {
   id: string
   nombre: string
   descripcion: string | null
+  /** Stock para entregar sueltos. */
   gramos_disponibles: number
+  /** Stock reservado para enrolados (scripts/068). */
+  gramos_enrolados: number
   precio_por_gramo: number
   precio_por_enrolado: number
   precio_gramo_miembro: number

@@ -132,15 +132,24 @@ export interface Gasto {
   descripcion: string
   monto: number
   categoria: string
+  /** Proyecto opcional (ej. "Sala nueva"), scripts/069. */
+  proyecto: string | null
   metodo_pago: "efectivo" | "transferencia"
   fecha: string
   created_at: string
   updated_at: string
 }
 
+/** Cómo cuenta una categoría en el resultado del mes (scripts/069). */
+export type EnResultado = "resultado" | "inversion" | "aparte"
+
 export interface CategoriaGasto {
   id: string
   nombre: string
+  /** Qué entra en la categoría. */
+  descripcion: string | null
+  en_resultado: EnResultado
+  orden: number
   created_at: string
 }
 

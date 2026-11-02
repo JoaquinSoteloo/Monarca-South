@@ -5,6 +5,7 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import {
+  ClipboardList,
   Home,
   Package,
   Users,
@@ -62,6 +63,7 @@ const navGroups: {
     items: [
       { href: "/stock", label: "Stock", icon: Package },
       { href: "/ciclos", label: "Ciclos", icon: CalendarRange },
+      { href: "/procesos", label: "Procedimientos", icon: ClipboardList },
       { href: "/cultivo", label: "Cultivo", icon: Sprout },
       { href: "/riego", label: "Riego", icon: Droplets },
       { href: "/monitoreo", label: "Monitoreo", icon: Thermometer },

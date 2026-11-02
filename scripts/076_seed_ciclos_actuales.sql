@@ -14,7 +14,7 @@
 -- Desde la vuelta siguiente, cada sala hace unas 2 semanas de vege en la sala
 -- (después de 4 en la Sala 3): unas 11 semanas y media por sala y un corte cada 3.
 --
--- NO SE EJECUTÓ TODAVÍA. Correr después de 072. Busca las salas por nombre
+-- NO SE EJECUTÓ TODAVÍA. Correr después de 075. Busca las salas por nombre
 -- ("Sala 1", "Sala 2", …): revisar que coincidan con salas_cultivo.
 -- No duplica: si la sala ya tiene un ciclo abierto, la saltea.
 -- Las tareas del protocolo se generan al abrir la pantalla Ciclos.

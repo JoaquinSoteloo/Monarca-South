@@ -25,8 +25,8 @@ export default async function CiclosPage() {
         <div className="mx-auto max-w-xl rounded-lg border p-6 text-sm">
           <h1 className="mb-2 text-lg font-semibold">Ciclos</h1>
           <p>
-            Falta crear las tablas. Correr en Supabase, en orden: <code>069</code>, <code>070</code>, <code>071</code>,{" "}
-            <code>072_create_ciclos_sala.sql</code> y <code>073_seed_ciclos_actuales.sql</code>.
+            Falta crear las tablas. Correr en Supabase, en orden: <code>072</code>, <code>073</code>, <code>074</code>,{" "}
+            <code>075_create_ciclos_sala.sql</code> y <code>076_seed_ciclos_actuales.sql</code>.
           </p>
         </div>
       </main>
@@ -38,7 +38,7 @@ export default async function CiclosPage() {
   const perfiles = (perfilesR.data || []) as Perfil[]
 
   // Ciclos abiertos que todavía no tienen tareas (por ejemplo, los cargados
-  // con el script 073): se les genera el protocolo desde hoy.
+  // con el script 076): se les genera el protocolo desde hoy.
   const abiertos = ciclos.filter((c) => c.estado === "abierto")
   if (abiertos.length > 0 && perfiles.length > 0) {
     const { data: conTareas } = await supabase

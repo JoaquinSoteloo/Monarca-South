@@ -1,7 +1,7 @@
 import { getServerSession } from "@/lib/auth/session"
-import { EquipoManager } from "@/components/equipo-manager"
+import { RetribucionesManager } from "@/components/retribuciones-manager"
 
-export default async function EquipoPage() {
+export default async function RetribucionesPage() {
   const session = await getServerSession()
 
   if (session?.rol !== "comision") {
@@ -15,7 +15,7 @@ export default async function EquipoPage() {
 
   return (
     <main className="container mx-auto px-4 py-8">
-      <EquipoManager />
+      <RetribucionesManager />
     </main>
   )
 }

@@ -77,7 +77,7 @@ const navGroups: {
       { href: "/caja", label: "Caja", icon: DollarSign },
       { href: "/gastos", label: "Gastos", icon: Receipt },
       { href: "/aportes", label: "Aportes de capital", icon: HandCoins },
-      { href: "/equipo", label: "Retribuciones", icon: Wallet, soloComision: true },
+      { href: "/retribuciones", label: "Retribuciones", icon: Wallet, soloComision: true },
       { href: "/deudas", label: "Deudas", icon: AlertCircle },
     ],
   },

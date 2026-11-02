@@ -68,7 +68,7 @@ function mensajeError(error: { code?: string; message: string }, generico: strin
   return /^EQ00\d$/.test(error.code || "") ? error.message : generico
 }
 
-export function EquipoManager() {
+export function RetribucionesManager() {
   const supabase = createClient()
   const [equipo, setEquipo] = useState<MiembroEquipo[]>([])
   const [liquidaciones, setLiquidaciones] = useState<LiquidacionEquipo[]>([])
@@ -81,7 +81,7 @@ export function EquipoManager() {
 
   async function cargar() {
     const [equipoResult, liqResult, genResult] = await Promise.all([
-      supabase.from("equipo").select("*").order("activo", { ascending: false }).order("nombre"),
+      supabase.from("retribuciones_equipo").select("*").order("activo", { ascending: false }).order("nombre"),
       supabase.from("liquidaciones_equipo").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
       supabase.from("geneticas").select("*").eq("activo", true).order("nombre"),
     ])
@@ -391,8 +391,8 @@ function MiembroDialog({
     }
     setGuardando(true)
     const { error: dbError } = miembro
-      ? await supabase.from("equipo").update({ ...datos, updated_at: new Date().toISOString() }).eq("id", miembro.id)
-      : await supabase.from("equipo").insert([datos])
+      ? await supabase.from("retribuciones_equipo").update({ ...datos, updated_at: new Date().toISOString() }).eq("id", miembro.id)
+      : await supabase.from("retribuciones_equipo").insert([datos])
     setGuardando(false)
     if (dbError) return setError("No se pudo guardar.")
     onGuardado(miembro ? "Datos actualizados." : `${datos.nombre} agregado al equipo.`)

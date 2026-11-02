@@ -9,7 +9,7 @@
  *
  * Fechas como "YYYY-MM-DD" (día civil en Argentina), sin horas.
  */
-import { rangoDrenaje, rangoEcEntrada, rangoPhEntrada, type EtapaRiego } from "./riego"
+import { phObjetivo, rangoDrenaje, rangoEcEntrada, type EtapaRiego } from "./riego"
 import type { Perfil, RolEquipo } from "./equipo"
 
 export interface CicloSala {
@@ -144,11 +144,11 @@ export function objetivos(m: Momento, c: Pick<CicloSala, "dias_flora">): Objetiv
   if (m.fase === "planificado" || m.fase === "libre" || m.fase === "limpieza") return vacio
   const er = etapaRiegoDe(m)
   const ec = er ? rangoEcEntrada(er.etapa, er.semana) : null
-  const ph = er ? rangoPhEntrada(er.etapa, er.semana) : null
+  const ph = er ? phObjetivo(er.etapa, er.semana) : null
   const dr = er ? rangoDrenaje(er.etapa, er.semana) : null
   const riego = {
     ecEntrada: er?.etapa === "lavado" ? "Solo agua de ósmosis" : ec ? rango(ec.min + 0.1, ec.max - 0.1) : null,
-    phEntrada: ph ? rango(ph.min + 0.2, ph.max - 0.2) : null,
+    phEntrada: ph ? rango(ph.min, ph.max) : null,
     drenaje: dr ? `${dr.min}–${dr.max} %` : null,
   }
   if (m.fase === "vegetativo") {

@@ -1,7 +1,7 @@
 -- Equipo: usuarios con perfil, tareas diarias, avisos y conversación.
 --
 -- NO SE EJECUTÓ TODAVÍA. Correr a mano en el SQL Editor de Supabase, después
--- de 069_create_registros_riego.sql. Después correr 071_seed_equipo.sql.
+-- de 072_create_registros_riego.sql. Después correr 074_seed_equipo.sql.
 --
 -- Pedido de Facundo (31/10/2026):
 --   - Cada persona entra con su propio usuario (Supabase Auth, email + clave).
@@ -254,7 +254,7 @@ ALTER TABLE public.tareas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notificaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mensajes ENABLE ROW LEVEL SECURITY;
 
--- Equipo: todos lo leen; se administra desde el SQL Editor (071_seed_equipo.sql).
+-- Equipo: todos lo leen; se administra desde el SQL Editor (074_seed_equipo.sql).
 DROP POLICY IF EXISTS "authenticated_select_equipo" ON public.equipo;
 CREATE POLICY "authenticated_select_equipo" ON public.equipo
   FOR SELECT TO authenticated USING (true);

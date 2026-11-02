@@ -1,4 +1,4 @@
-// Perfil de equipo del usuario logueado (vista `equipo_perfiles`, script 070:
+// Perfil de equipo del usuario logueado (vista `equipo_perfiles`, script 073:
 // nombre de public.perfiles + área y supervisión de public.equipo). Un usuario
 // que todavía no está en `equipo` devuelve null y las pantallas del equipo
 // explican cómo sumarlo. No reemplaza a lib/auth/session.ts.

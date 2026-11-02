@@ -63,16 +63,18 @@ export function rangoEcEntrada(etapa: EtapaRiego, semana: number | null): Rango 
 /** pH máximo de entrada en todas las etapas (decisión de Facundo, 02/11/2026). */
 export const PH_ENTRADA_MAX = 6.0
 
-/**
- * pH de entrada esperado: 5,8 en esqueje/vege, 5,8–6,0 en flora 1, 6,0 después.
- * 0,2 de tolerancia hacia abajo; hacia arriba nunca más de 6,0.
- */
+/** pH de entrada objetivo (sin tolerancia): 5,8 en esqueje/vege, 5,8–6,0 en flora 1, 6,0 después. */
+export function phObjetivo(etapa: EtapaRiego, semana: number | null): Rango {
+  if (etapa === "esqueje" || etapa === "vegetativo") return { min: 5.8, max: 5.8 }
+  if (etapa === "floracion" && semana === 1) return { min: 5.8, max: 6.0 }
+  return { min: 6.0, max: 6.0 }
+}
+
+/** Rango aceptado: 0,2 de tolerancia hacia abajo y hacia arriba, pero nunca más de 6,0. */
 export function rangoPhEntrada(etapa: EtapaRiego, semana: number | null): Rango {
   const tol = 0.2
-  const max = (v: number) => Math.min(redondear(v + tol), PH_ENTRADA_MAX)
-  if (etapa === "esqueje" || etapa === "vegetativo") return { min: redondear(5.8 - tol), max: max(5.8) }
-  if (etapa === "floracion" && semana === 1) return { min: redondear(5.8 - tol), max: PH_ENTRADA_MAX }
-  return { min: redondear(6.0 - tol), max: PH_ENTRADA_MAX }
+  const o = phObjetivo(etapa, semana)
+  return { min: redondear(o.min - tol), max: Math.min(redondear(o.max + tol), PH_ENTRADA_MAX) }
 }
 
 /** Drenaje buscado (%) según la tabla "Cuánto regar". */

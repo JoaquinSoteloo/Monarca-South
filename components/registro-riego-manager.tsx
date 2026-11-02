@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import { getArgentinaDateString } from "@/lib/timezone"
 import { ETAPAS, evaluarRiego, parseDecimal, type EtapaRiego } from "@/lib/riego"
 import { destinatariosAlertaRiego, type Perfil } from "@/lib/equipo"
+import { cicloActual, etapaRiegoDe, momentoCiclo, type CicloSala } from "@/lib/ciclo"
 
 interface Props {
   salas: SalaCultivo[]
@@ -25,6 +26,8 @@ interface Props {
   /** Perfil del usuario logueado (null con la cuenta admin compartida). */
   perfil?: Perfil | null
   perfiles?: Perfil[]
+  /** Ciclos abiertos: con ellos, al elegir la sala se completan etapa y semana. */
+  ciclos?: CicloSala[]
 }
 
 const RESPONSABLES = ["Lucho", "Vilela", "Pato", "Demian", "Facundo"]
@@ -67,7 +70,7 @@ function mostrar(v: unknown, dec = 1): string {
   return n === null ? "—" : n.toFixed(dec).replace(".", ",")
 }
 
-export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, perfil = null, perfiles = [] }: Props) {
+export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, perfil = null, perfiles = [], ciclos = [] }: Props) {
   const [registros, setRegistros] = useState(initialRegistros)
   const [form, setForm] = useState(() => formVacio(perfil?.nombre ?? "Lucho"))
   const [showForm, setShowForm] = useState(false)
@@ -102,6 +105,17 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
     return m
   }, [registros])
 
+  // Con el ciclo de la sala, el sistema ya sabe la etapa y la semana.
+  function cicloDe(salaId: string, fecha: string) {
+    return salaId ? cicloActual(ciclos, Number(salaId), fecha) : null
+  }
+  function elegirSala(v: string) {
+    const c = cicloDe(v, form.fecha)
+    const er = c ? etapaRiegoDe(momentoCiclo(c, form.fecha)) : null
+    setForm((f) => ({ ...f, sala_id: v, ...(er ? { etapa: er.etapa, semana: er.semana ? String(er.semana) : "" } : {}) }))
+  }
+  const cicloForm = cicloDe(form.sala_id, form.fecha)
+
   const set = (campo: keyof ReturnType<typeof formVacio>) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => setForm((f) => ({ ...f, [campo]: e.target.value }))
@@ -130,6 +144,7 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
       })(),
       notas: form.notas.trim() || null,
       ...(perfil ? { cargado_por: perfil.id } : {}),
+      ...(cicloForm ? { ciclo_id: cicloForm.id } : {}),
     }
     setGuardando(true)
     const { data, error } = await supabase.from("registros_riego").insert(fila).select().single()
@@ -246,7 +261,7 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
                 </div>
                 <div className="space-y-1">
                   <Label>Sala</Label>
-                  <Select value={form.sala_id} onValueChange={(v) => setForm((f) => ({ ...f, sala_id: v }))}>
+                  <Select value={form.sala_id} onValueChange={elegirSala}>
                     <SelectTrigger>
                       <SelectValue placeholder="Elegir" />
                     </SelectTrigger>
@@ -258,6 +273,9 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
                       ))}
                     </SelectContent>
                   </Select>
+                  {cicloForm && (
+                    <p className="text-xs text-muted-foreground">Etapa y semana tomadas del ciclo de la sala.</p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label>Etapa</Label>

@@ -16,21 +16,25 @@ import { AlertTriangle, CheckCircle2, Droplets, Info, Plus, Trash2 } from "lucid
 import { useToast } from "@/hooks/use-toast"
 import { getArgentinaDateString } from "@/lib/timezone"
 import { ETAPAS, evaluarRiego, parseDecimal, type EtapaRiego } from "@/lib/riego"
+import { destinatariosAlertaRiego, type Perfil } from "@/lib/equipo"
 
 interface Props {
   salas: SalaCultivo[]
   initialRegistros: RegistroRiego[]
   tablaFaltante: boolean
+  /** Perfil del usuario logueado (null con la cuenta admin compartida). */
+  perfil?: Perfil | null
+  perfiles?: Perfil[]
 }
 
 const RESPONSABLES = ["Lucho", "Vilela", "Pato", "Demian", "Facundo"]
 
-const formVacio = () => ({
+const formVacio = (responsable = "Lucho") => ({
   fecha: getArgentinaDateString(),
   sala_id: "",
   etapa: "floracion" as EtapaRiego,
   semana: "",
-  responsable: "Lucho",
+  responsable,
   ec_entrada: "",
   ph_entrada: "",
   litros_por_maceta: "",
@@ -63,9 +67,9 @@ function mostrar(v: unknown, dec = 1): string {
   return n === null ? "—" : n.toFixed(dec).replace(".", ",")
 }
 
-export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante }: Props) {
+export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, perfil = null, perfiles = [] }: Props) {
   const [registros, setRegistros] = useState(initialRegistros)
-  const [form, setForm] = useState(formVacio)
+  const [form, setForm] = useState(() => formVacio(perfil?.nombre ?? "Lucho"))
   const [showForm, setShowForm] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [filtroSala, setFiltroSala] = useState("todas")
@@ -125,6 +129,7 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante }:
         return d === null ? null : Math.round(d)
       })(),
       notas: form.notas.trim() || null,
+      ...(perfil ? { cargado_por: perfil.id } : {}),
     }
     setGuardando(true)
     const { data, error } = await supabase.from("registros_riego").insert(fila).select().single()
@@ -141,6 +146,23 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante }:
     // Se conservan sala, etapa, semana y responsable para cargar la sala siguiente rápido.
     setForm((f) => ({ ...formVacio(), fecha: f.fecha, etapa: f.etapa, semana: f.semana, responsable: f.responsable, ec_entrada: f.ec_entrada, ph_entrada: f.ph_entrada }))
     const alertas = alertasDe(data as RegistroRiego)
+    const graves = alertas.filter((a) => a.nivel === "atencion")
+    // Con usuario propio, las alertas le llegan como aviso a Facundo, Lucho y al supervisor.
+    if (perfil && graves.length > 0) {
+      const destinos = destinatariosAlertaRiego(perfil, perfiles)
+      if (destinos.length > 0) {
+        await supabase.from("notificaciones").insert(
+          destinos.map((d) => ({
+            destinatario_id: d,
+            autor_id: perfil.id,
+            tipo: "riego",
+            titulo: `Riego ${nombreSala(fila.sala_id)}: ${graves.length} alerta(s) (${perfil.nombre})`,
+            cuerpo: graves.map((a) => a.mensaje).join("\n"),
+            enlace: "/riego",
+          })),
+        )
+      }
+    }
     toast({
       title: "Riego registrado",
       description: alertas.length ? `${alertas.length} alerta(s) para revisar.` : "Todo dentro de lo esperado.",

@@ -28,7 +28,7 @@ INSERT INTO public.ciclos_sala (sala_id, nombre, fecha_inicio, dias_vege, dias_f
 SELECT s.id, v.nombre, v.inicio::date, v.vege, v.flora, v.m2, v.notas
 FROM (VALUES
   ('Sala 1', 'Sala 1 · tanda oct-26', '2026-10-30', 48, 60, 10, '80 esquejes + las mejores plantas en recuperación, contadas como una sola tanda. 12/12 la semana del 14/12; corte la semana del 15/02.'),
-  ('Sala 2', 'Sala 2 · tanda oct-26', '2026-10-03', 21, 52,  6, 'Flora desde el 24/10. Flora corta (unas 7 semanas y media) para cortar la semana del 14/12 y llegar a Navidad.'),
+  ('Sala 2', 'Sala 2 · tanda sep-26', '2026-09-22', 32, 52,  6, 'Entró el 22/09; flora desde el 24/10. Flora corta (unas 7 semanas y media) para cortar la semana del 14/12 y llegar a Navidad.'),
   ('Sala 4', 'Sala 4 · tanda oct-26', '2026-10-20', 37, 60,  6, 'Casa de Lucho. Esquejes comprados, trasplantados el 20/10. 12/12 la semana del 23/11; corte la semana del 25/01.'),
   ('Sala 5', 'Sala 5 · tanda sep-26', '2026-09-22', 44, 60, 10, 'Las mejores plantas, en recuperación con JuaniJuana desde el 22/09. 12/12 la semana del 02/11; corte la semana del 04/01.')
 ) AS v(sala, nombre, inicio, vege, flora, m2, notas)

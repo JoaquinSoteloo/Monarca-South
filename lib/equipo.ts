@@ -31,6 +31,8 @@ export interface Tarea {
   completada_por: string | null
   orden: number
   created_at: string
+  /** Paso de un procedimiento (script 077): se completa con su formulario. */
+  proceso_paso_id?: number | null
 }
 
 export interface TareaPlantilla {
@@ -50,7 +52,7 @@ export interface Notificacion {
   id: number
   destinatario_id: string
   autor_id: string | null
-  tipo: "tarea_hecha" | "tarea_problema" | "tarea_nueva" | "comentario" | "riego" | "otro"
+  tipo: "tarea_hecha" | "tarea_problema" | "tarea_nueva" | "comentario" | "riego" | "proceso" | "otro"
   titulo: string
   cuerpo: string | null
   tarea_id: number | null

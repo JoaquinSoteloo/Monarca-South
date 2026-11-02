@@ -1,9 +1,9 @@
 -- Recetas de los procedimientos (Manuales 2, 3 y 4 de Monarca South).
 --
--- NO SE EJECUTÓ TODAVÍA. Correr después de 077_create_procesos.sql.
+-- NO SE EJECUTÓ TODAVÍA. Correr después de 081_create_procesos.sql.
 -- Se puede volver a correr: actualiza títulos, responsables y campos.
 --
--- Responsables por nombre (074_seed_equipo.sql; sirve «Lucho Pérez» para «Lucho»). Si esa persona
+-- Responsables por nombre (078_seed_equipo.sql; sirve «Lucho Pérez» para «Lucho»). Si esa persona
 -- todavía no tiene usuario, el paso le queda a quien inició el procedimiento.
 
 BEGIN;

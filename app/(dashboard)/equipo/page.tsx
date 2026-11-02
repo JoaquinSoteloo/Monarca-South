@@ -16,13 +16,13 @@ export default async function EquipoPage() {
           <h1 className="mb-2 text-lg font-semibold">Equipo</h1>
           {tablaFaltante ? (
             <p>
-              Falta crear las tablas del equipo. Correr <code>scripts/073_create_equipo_tareas.sql</code> y después{" "}
-              <code>scripts/074_seed_equipo.sql</code> en el SQL Editor de Supabase.
+              Falta crear las tablas del equipo. Correr <code>scripts/077_create_equipo_tareas.sql</code> y después{" "}
+              <code>scripts/078_seed_equipo.sql</code> en el SQL Editor de Supabase.
             </p>
           ) : (
             <p>
               Tu usuario todavía no está en el equipo. Cada persona se crea en la pantalla Usuarios y después se suma al
-              equipo (área y quién supervisa) corriendo <code>scripts/074_seed_equipo.sql</code>.
+              equipo (área y quién supervisa) corriendo <code>scripts/078_seed_equipo.sql</code>.
             </p>
           )}
         </div>

@@ -1,6 +1,6 @@
 -- Procedimientos paso a paso con formularios (riego, cosecha, esquejes, sanidad).
 --
--- NO SE EJECUTÓ TODAVÍA. Correr después de 076_seed_ciclos_actuales.sql.
+-- NO SE EJECUTÓ TODAVÍA. Correr después de 080_seed_ciclos_actuales.sql.
 --
 -- Pedido de Facundo (31/10/2026): que cada procedimiento sea una cadena de
 -- pasos entre personas. Ejemplo del riego:

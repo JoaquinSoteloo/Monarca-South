@@ -27,7 +27,7 @@ export default async function ProcesosPage() {
           {plantillasR.error || tablaFaltante ? (
             <p>
               Falta crear las tablas. Correr en Supabase, en orden, los scripts <code>072</code> a <code>076</code> y después{" "}
-              <code>077_create_procesos.sql</code> y <code>078_seed_procesos.sql</code>.
+              <code>081_create_procesos.sql</code> y <code>082_seed_procesos.sql</code>.
             </p>
           ) : (
             <p>Cada persona tiene que entrar con su propio usuario para iniciar y completar procedimientos.</p>

@@ -26,7 +26,7 @@ export default async function CiclosPage() {
           <h1 className="mb-2 text-lg font-semibold">Ciclos</h1>
           <p>
             Falta crear las tablas. Correr en Supabase, en orden: <code>072</code>, <code>073</code>, <code>074</code>,{" "}
-            <code>075_create_ciclos_sala.sql</code> y <code>076_seed_ciclos_actuales.sql</code>.
+            <code>079_create_ciclos_sala.sql</code> y <code>080_seed_ciclos_actuales.sql</code>.
           </p>
         </div>
       </main>

@@ -26,6 +26,73 @@ import { es } from "date-fns/locale"
 
 type Aviso = { ok: boolean; texto: string } | null
 
+interface SocioLite {
+  id: string
+  nombre: string
+  apellido: string
+}
+
+interface EntregaConsumo {
+  socio_id: string
+  total: number
+  saldo_pendiente: number | null
+  created_at: string
+  detalles: { genetica_id: string | null; gramos: number | null; peso_enrolados: number | null; cantidad_enrolados: number | null }[]
+}
+
+/** Lo que retiró una persona del equipo en un mes, por genética. */
+interface Consumo {
+  porGenetica: { genetica_id: string; gramos: number }[]
+  gramos: number
+  total: number
+  pendiente: number
+}
+
+/** Mes (yyyy-mm-01) de una fecha, en hora de Argentina. */
+function mesArgentina(iso: string) {
+  return new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(0, 7) + "-01"
+}
+
+function mesAnterior(periodo: string) {
+  const [y, m] = periodo.split("-").map(Number)
+  return m === 1 ? `${y - 1}-12-01` : `${y}-${String(m - 1).padStart(2, "0")}-01`
+}
+
+/** Día del mes en Argentina (para la alerta del día 5). */
+function diaArgentina() {
+  return Number(new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(8, 10))
+}
+
+function calcularConsumo(entregas: EntregaConsumo[], socioId: string | null, periodo: string): Consumo | null {
+  if (!socioId) return null
+  const delMes = entregas.filter((e) => e.socio_id === socioId && mesArgentina(e.created_at) === periodo)
+  if (delMes.length === 0) return null
+  const map = new Map<string, number>()
+  for (const e of delMes) {
+    for (const d of e.detalles) {
+      if (!d.genetica_id) continue
+      const g = Number(d.gramos || 0) + Number(d.peso_enrolados || 0)
+      map.set(d.genetica_id, (map.get(d.genetica_id) || 0) + g)
+    }
+  }
+  const porGenetica = Array.from(map.entries())
+    .map(([genetica_id, gramos]) => ({ genetica_id, gramos }))
+    .sort((a, b) => b.gramos - a.gramos)
+  return {
+    porGenetica,
+    gramos: porGenetica.reduce((s, x) => s + x.gramos, 0),
+    total: delMes.reduce((s, e) => s + Number(e.total || 0), 0),
+    pendiente: delMes.reduce((s, e) => s + Number(e.saldo_pendiente || 0), 0),
+  }
+}
+
+function textoConsumo(c: Consumo, nombreGenetica: (id: string) => string) {
+  const detalle = c.porGenetica.map((x) => `${nombreGenetica(x.genetica_id)} ${formatGramos(x.gramos)}`).join(", ")
+  return `${formatGramos(c.gramos)} (${detalle}) · ${formatCurrency(c.total)}${
+    c.pendiente > 0 ? ` · debe ${formatCurrency(c.pendiente)}` : ""
+  }`
+}
+
 function hoy() {
   return format(new Date(), "yyyy-MM-dd")
 }
@@ -73,6 +140,8 @@ export function RetribucionesManager() {
   const [equipo, setEquipo] = useState<MiembroEquipo[]>([])
   const [liquidaciones, setLiquidaciones] = useState<LiquidacionEquipo[]>([])
   const [geneticas, setGeneticas] = useState<Genetica[]>([])
+  const [socios, setSocios] = useState<SocioLite[]>([])
+  const [entregas, setEntregas] = useState<EntregaConsumo[]>([])
   const [loading, setLoading] = useState(true)
   const [aviso, setAviso] = useState<Aviso>(null)
   const [editando, setEditando] = useState<MiembroEquipo | "nuevo" | null>(null)
@@ -92,6 +161,28 @@ export function RetribucionesManager() {
       setLiquidaciones(liqResult.data || [])
     }
     setGeneticas(genResult.data || [])
+
+    const sociosResult = await supabase
+      .from("socios")
+      .select("id, nombre, apellido")
+      .eq("activo", true)
+      .eq("es_generico", false)
+      .order("apellido")
+    setSocios(sociosResult.data || [])
+
+    // Entregas del mes pasado y de este de quienes retiran con un socio.
+    const vinculados = (equipoResult.data || []).map((m: MiembroEquipo) => m.socio_id).filter(Boolean) as string[]
+    if (vinculados.length > 0) {
+      const desde = new Date(`${mesAnterior(mesActual())}T03:00:00Z`).toISOString()
+      const entregasResult = await supabase
+        .from("ventas")
+        .select("socio_id, total, saldo_pendiente, created_at, detalles:detalle_venta(genetica_id, gramos, peso_enrolados, cantidad_enrolados)")
+        .in("socio_id", vinculados)
+        .gte("created_at", desde)
+      setEntregas((entregasResult.data as EntregaConsumo[]) || [])
+    } else {
+      setEntregas([])
+    }
     setLoading(false)
   }
 
@@ -128,6 +219,10 @@ export function RetribucionesManager() {
   }
 
   const activos = equipo.filter((m) => m.activo)
+  const nombreGenetica = (id: string) => geneticas.find((g) => g.id === id)?.nombre ?? "otra genética"
+  // Desde el día 5, avisa quién tiene retribuciones de meses anteriores sin liquidar.
+  const sinLiquidarAnteriores =
+    diaArgentina() >= 5 ? activos.filter((m) => pendientesDe(m).some((p) => p.periodo < mesActual())) : []
   const totalMes = activos.reduce((s, m) => s + Number(m.retribucion_mensual), 0)
   const liquidadoMes = activos.reduce((s, m) => s + (liquidadoPorMes.get(`${m.id}|${mesActual()}`) || 0), 0)
 
@@ -143,6 +238,22 @@ export function RetribucionesManager() {
           Agregar persona
         </Button>
       </div>
+
+      {sinLiquidarAnteriores.length > 0 && (
+        <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">Ya pasó el día 5: hay retribuciones para liquidar</p>
+          <p>
+            {sinLiquidarAnteriores
+              .map((m) =>
+                `${m.nombre} (${pendientesDe(m)
+                  .filter((p) => p.periodo < mesActual())
+                  .map((p) => `${nombreMes(p.periodo)} ${formatCurrency(p.saldo)}`)
+                  .join(", ")})`,
+              )
+              .join(" · ")}
+          </p>
+        </div>
+      )}
 
       {aviso && (
         <div
@@ -234,6 +345,20 @@ export function RetribucionesManager() {
                     <p className="mt-1 text-xs text-muted-foreground">
                       Liquidado este mes {formatCurrency(liquidadoActual)}
                     </p>
+                    {[mesActual(), mesAnterior(mesActual())].map((p) => {
+                      const c = calcularConsumo(entregas, m.socio_id, p)
+                      return c ? (
+                        <p key={p} className="mt-1 text-xs text-foreground">
+                          <span className="capitalize text-muted-foreground">Retiró en {nombreMes(p)}:</span>{" "}
+                          {textoConsumo(c, nombreGenetica)}
+                        </p>
+                      ) : null
+                    })}
+                    {!m.socio_id && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Sin socio vinculado: editalo para ver lo que retira cada mes.
+                      </p>
+                    )}
                     {anteriores.length > 0 && (
                       <p className="mt-1 text-xs font-medium text-amber-800">
                         Pendiente de meses anteriores:{" "}
@@ -275,6 +400,7 @@ export function RetribucionesManager() {
       {editando && (
         <MiembroDialog
           miembro={editando === "nuevo" ? null : editando}
+          socios={socios}
           onClose={() => setEditando(null)}
           onGuardado={(texto) => {
             setEditando(null)
@@ -289,6 +415,8 @@ export function RetribucionesManager() {
           miembro={liquidando}
           pendientes={pendientesDe(liquidando)}
           geneticas={geneticas}
+          consumoDe={(periodo) => calcularConsumo(entregas, liquidando.socio_id, periodo)}
+          nombreGenetica={nombreGenetica}
           onClose={() => setLiquidando(null)}
           onGuardado={(texto) => {
             setLiquidando(null)
@@ -357,10 +485,12 @@ export function RetribucionesManager() {
 
 function MiembroDialog({
   miembro,
+  socios,
   onClose,
   onGuardado,
 }: {
   miembro: MiembroEquipo | null
+  socios: SocioLite[]
   onClose: () => void
   onGuardado: (texto: string) => void
 }) {
@@ -371,6 +501,7 @@ function MiembroDialog({
     forma_cobro: (miembro?.forma_cobro ?? "dinero") as "dinero" | "producto",
     desde: (miembro?.desde ?? mesActual()).slice(0, 7),
     activo: miembro?.activo ?? true,
+    socio_id: miembro?.socio_id ?? "",
   })
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -388,6 +519,7 @@ function MiembroDialog({
       forma_cobro: form.forma_cobro,
       desde: `${form.desde}-01`,
       activo: form.activo,
+      socio_id: form.socio_id || null,
     }
     setGuardando(true)
     const { error: dbError } = miembro
@@ -459,6 +591,25 @@ function MiembroDialog({
               />
             </div>
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="miembro-socio">Retira como socio</Label>
+            <Select value={form.socio_id || "ninguno"} onValueChange={(v) => setForm({ ...form, socio_id: v === "ninguno" ? "" : v })}>
+              <SelectTrigger id="miembro-socio" className="w-full bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="monarca-theme">
+                <SelectItem value="ninguno">Sin vincular</SelectItem>
+                {socios.map((so) => (
+                  <SelectItem key={so.id} value={so.id}>
+                    {so.apellido}, {so.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Sus entregas se ven en el resumen del mes para descontarlas del sueldo.
+            </p>
+          </div>
           {miembro && (
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -488,12 +639,16 @@ function LiquidarDialog({
   miembro,
   pendientes,
   geneticas,
+  consumoDe,
+  nombreGenetica,
   onClose,
   onGuardado,
 }: {
   miembro: MiembroEquipo
   pendientes: { periodo: string; saldo: number }[]
   geneticas: Genetica[]
+  consumoDe: (periodo: string) => Consumo | null
+  nombreGenetica: (id: string) => string
   onClose: () => void
   onGuardado: (texto: string) => void
 }) {
@@ -716,6 +871,13 @@ function LiquidarDialog({
               onChange={(e) => setForm({ ...form, nota: e.target.value })}
             />
           </div>
+
+          {consumoDe(periodo) && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <span className="font-medium capitalize">Retiró en {nombreMes(periodo)}:</span>{" "}
+              {textoConsumo(consumoDe(periodo)!, nombreGenetica)}
+            </p>
+          )}
 
           <dl className="space-y-1 rounded-lg border bg-primary/5 p-3 text-sm" aria-live="polite">
             <div className="flex justify-between gap-3">

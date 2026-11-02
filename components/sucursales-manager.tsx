@@ -23,9 +23,11 @@ import { useRouter } from "next/navigation"
 
 interface SucursalesManagerProps {
   initialSucursales: Sucursal[]
+  /** Socios activos de cada sucursal (sucursal_id -> cantidad). */
+  activosPorSucursal: Record<string, number>
 }
 
-export function SucursalesManager({ initialSucursales }: SucursalesManagerProps) {
+export function SucursalesManager({ initialSucursales, activosPorSucursal }: SucursalesManagerProps) {
   const [sucursales, setSucursales] = useState(initialSucursales)
   const [isOpen, setIsOpen] = useState(false)
   const [editingSucursal, setEditingSucursal] = useState<Sucursal | null>(null)
@@ -212,6 +214,7 @@ export function SucursalesManager({ initialSucursales }: SucursalesManagerProps)
                 <TableRow className="border-border">
                   <TableHead className="text-muted-foreground">Nombre</TableHead>
                   <TableHead className="text-muted-foreground">Dirección</TableHead>
+                  <TableHead className="text-muted-foreground text-right">Socios activos</TableHead>
                   <TableHead className="text-muted-foreground text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -220,6 +223,9 @@ export function SucursalesManager({ initialSucursales }: SucursalesManagerProps)
                   <TableRow key={sucursal.id} className="border-border">
                     <TableCell className="font-medium text-foreground">{sucursal.nombre}</TableCell>
                     <TableCell className="text-muted-foreground">{sucursal.direccion || "-"}</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums text-foreground">
+                      {activosPorSucursal[sucursal.id] ?? 0}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button

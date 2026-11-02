@@ -200,6 +200,47 @@ export default async function Dashboard() {
     },
   ]
 
+  // REPROCANN vencido o que vence en los próximos 45 días (socios activos).
+  const hoyArgentinaIso = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
+  const limiteReprocann = new Date(Date.now() + 45 * 86_400_000).toLocaleDateString("sv-SE", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  })
+  const { count: reprocannPorVencer } = await supabase
+    .from("socios")
+    .select("id", { count: "exact", head: true })
+    .eq("activo", true)
+    .not("reprocann_vence", "is", null)
+    .lte("reprocann_vence", limiteReprocann)
+
+  // Desde el día 5: personas del equipo con retribuciones de meses anteriores
+  // sin liquidar. Sólo la comisión ve estas tablas; para el resto da 0.
+  let retribucionesSinLiquidar = 0
+  if (Number(hoyArgentinaIso.slice(8, 10)) >= 5) {
+    const mesActualIso = `${hoyArgentinaIso.slice(0, 7)}-01`
+    const [{ data: equipoRetribuido }, { data: liquidadas }] = await Promise.all([
+      supabase.from("retribuciones_equipo").select("id, retribucion_mensual, desde").eq("activo", true),
+      supabase.from("liquidaciones_equipo").select("miembro_id, periodo, total").lt("periodo", mesActualIso),
+    ])
+    for (const m of equipoRetribuido ?? []) {
+      let [y, mes] = String(m.desde).split("-").map(Number)
+      let debe = false
+      for (let guard = 0; guard < 240 && !debe; guard++) {
+        const periodo = `${y}-${String(mes).padStart(2, "0")}-01`
+        if (periodo >= mesActualIso) break
+        const pagado = (liquidadas ?? [])
+          .filter((l) => l.miembro_id === m.id && l.periodo === periodo)
+          .reduce((sum, l) => sum + Number(l.total), 0)
+        debe = Number(m.retribucion_mensual) - pagado > 0
+        mes++
+        if (mes > 12) {
+          mes = 1
+          y++
+        }
+      }
+      if (debe) retribucionesSinLiquidar++
+    }
+  }
+
   const alertas = ([
     deudaSociosCount > 0
       ? {
@@ -224,6 +265,20 @@ export default async function Dashboard() {
       ? {
           key: "limite",
           texto: `${formatNumero(sociosLimiteExcedidoCount)} socio${sociosLimiteExcedidoCount === 1 ? "" : "s"} superó su límite mensual este mes`,
+          href: "/socios",
+        }
+      : null,
+    retribucionesSinLiquidar > 0
+      ? {
+          key: "retribuciones",
+          texto: `Ya pasó el día 5: ${formatNumero(retribucionesSinLiquidar)} persona${retribucionesSinLiquidar === 1 ? "" : "s"} del equipo con retribuciones sin liquidar`,
+          href: "/retribuciones",
+        }
+      : null,
+    (reprocannPorVencer ?? 0) > 0
+      ? {
+          key: "reprocann",
+          texto: `${formatNumero(reprocannPorVencer ?? 0)} socio${reprocannPorVencer === 1 ? "" : "s"} con el REPROCANN vencido o por vencer en 45 días`,
           href: "/socios",
         }
       : null,

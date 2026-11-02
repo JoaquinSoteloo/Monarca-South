@@ -32,6 +32,24 @@ interface SociosManagerProps {
   sucursales: Sucursal[]
 }
 
+// Checklist de documentos de la ficha (scripts/083).
+const DOCUMENTOS = [
+  { campo: "doc_credencial_reprocann", label: "Credencial REPROCANN" },
+  { campo: "doc_codigo_vinculacion", label: "Código de vinculación" },
+  { campo: "doc_dni", label: "DNI" },
+  { campo: "doc_notas_firmadas", label: "Notas firmadas" },
+] as const
+
+/** Aviso si el REPROCANN venció o vence en los próximos 45 días. */
+function avisoVencimiento(fecha: string): string | null {
+  const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
+  const dias = Math.round((Date.parse(fecha) - Date.parse(hoy)) / 86_400_000)
+  const [y, m, d] = fecha.split("-")
+  if (dias < 0) return `REPROCANN vencido el ${d}/${m}/${y}`
+  if (dias <= 45) return `REPROCANN vence el ${d}/${m}/${y} (${dias === 0 ? "hoy" : `en ${dias} días`})`
+  return null
+}
+
 export function SociosManager({ initialSocios, sucursales }: SociosManagerProps) {
   const [socios, setSocios] = useState(initialSocios)
   const [search, setSearch] = useState("")
@@ -56,6 +74,11 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
     sucursal_id: "",
     es_miembro: false,
     es_vip: false,
+    doc_credencial_reprocann: false,
+    doc_codigo_vinculacion: false,
+    doc_dni: false,
+    doc_notas_firmadas: false,
+    reprocann_vence: "",
   })
 
   const resetForm = () => {
@@ -70,6 +93,11 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       sucursal_id: "",
       es_miembro: false,
       es_vip: false,
+      doc_credencial_reprocann: false,
+      doc_codigo_vinculacion: false,
+      doc_dni: false,
+      doc_notas_firmadas: false,
+      reprocann_vence: "",
     })
     setEditingSocio(null)
   }
@@ -108,6 +136,11 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       sucursal_id: formData.sucursal_id ? formData.sucursal_id : null,
       es_miembro: formData.es_miembro,
       es_vip: formData.es_vip,
+      doc_credencial_reprocann: formData.doc_credencial_reprocann,
+      doc_codigo_vinculacion: formData.doc_codigo_vinculacion,
+      doc_dni: formData.doc_dni,
+      doc_notas_firmadas: formData.doc_notas_firmadas,
+      reprocann_vence: formData.reprocann_vence || null,
     }
 
     if (editingSocio) {
@@ -161,6 +194,11 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
       sucursal_id: socio.sucursal_id || "",
       es_miembro: socio.es_miembro || false,
       es_vip: socio.es_vip || false,
+      doc_credencial_reprocann: socio.doc_credencial_reprocann ?? false,
+      doc_codigo_vinculacion: socio.doc_codigo_vinculacion ?? false,
+      doc_dni: socio.doc_dni ?? false,
+      doc_notas_firmadas: socio.doc_notas_firmadas ?? false,
+      reprocann_vence: socio.reprocann_vence || "",
     })
     setIsOpen(true)
   }
@@ -296,6 +334,23 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
     ) : (
       <span className="text-muted-foreground">-</span>
     )
+
+  // Vencimiento cercano y documentos faltantes, debajo del estado del REPROCANN.
+  const renderDocumentos = (socio: Socio) => {
+    const faltan = DOCUMENTOS.filter(({ campo }) => !socio[campo]).length
+    const vence = socio.reprocann_vence ? avisoVencimiento(socio.reprocann_vence) : null
+    if (!vence && faltan === 0) return null
+    return (
+      <span className="mt-1 flex flex-col gap-0.5 text-xs">
+        {vence && <span className="font-medium text-amber-700">{vence}</span>}
+        {faltan > 0 && (
+          <span className="text-muted-foreground">
+            Faltan {faltan} {faltan === 1 ? "documento" : "documentos"}
+          </span>
+        )}
+      </span>
+    )
+  }
 
   const renderAccionesSocio = (socio: Socio) => (
     <>
@@ -600,6 +655,35 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                     </div>
                   </div>
                 </div>
+
+                <section className="mt-6 space-y-3 rounded-lg border border-border bg-card p-4">
+                  <h3 className="text-sm font-semibold text-primary">Documentos</h3>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {DOCUMENTOS.map(({ campo, label }) => (
+                      <label key={campo} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={formData[campo]}
+                          onChange={(e) => setFormData({ ...formData, [campo]: e.target.checked })}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="space-y-1.5 sm:max-w-xs">
+                    <Label htmlFor="reprocann_vence">Vencimiento del REPROCANN</Label>
+                    <Input
+                      id="reprocann_vence"
+                      type="date"
+                      value={formData.reprocann_vence}
+                      onChange={(e) => setFormData({ ...formData, reprocann_vence: e.target.value })}
+                      className="bg-card"
+                    />
+                    {formData.reprocann_vence && avisoVencimiento(formData.reprocann_vence) && (
+                      <p className="text-xs font-medium text-amber-700">{avisoVencimiento(formData.reprocann_vence)}</p>
+                    )}
+                  </div>
+                </section>
               </div>
 
               <DialogFooter className="border-t border-border bg-card px-6 py-4">
@@ -697,7 +781,10 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                             <span className="text-xs text-muted-foreground select-text">{formatDni(socio.dni)}</span>
                           </div>
                         </TableCell>
-                        <TableCell>{renderEstadoReprocan(socio)}</TableCell>
+                        <TableCell>
+                          {renderEstadoReprocan(socio)}
+                          {renderDocumentos(socio)}
+                        </TableCell>
                         <TableCell>
                           {socio.sucursal ? (
                             <span className="text-sm text-foreground">{socio.sucursal.nombre}</span>
@@ -747,6 +834,7 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
 
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {renderEstadoReprocan(socio)}
+                      {renderDocumentos(socio)}
                       {socio.sucursal && (
                         <span className="text-sm text-muted-foreground">{socio.sucursal.nombre}</span>
                       )}

@@ -33,6 +33,12 @@ export interface Socio {
   tipo: "socio" | "externo"
   // Registro genérico "No socios": conserva su historial, sin entregas nuevas.
   es_generico: boolean
+  // Checklist de documentos y vencimiento del REPROCANN (scripts/083).
+  doc_credencial_reprocann: boolean
+  doc_codigo_vinculacion: boolean
+  doc_dni: boolean
+  doc_notas_firmadas: boolean
+  reprocann_vence: string | null
   created_at: string
   updated_at: string
   membresia?: Membresia
@@ -153,6 +159,8 @@ export interface MiembroEquipo {
   forma_cobro: "dinero" | "producto"
   /** Primer mes que se le debe (yyyy-mm-01). */
   desde: string
+  /** Socio con el que retira, para el resumen de consumo (scripts/083). */
+  socio_id: string | null
   activo: boolean
   nota: string | null
   created_at: string

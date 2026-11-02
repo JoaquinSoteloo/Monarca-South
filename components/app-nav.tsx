@@ -31,6 +31,7 @@ import {
   KeyRound,
   HandCoins,
   Wallet,
+  Scissors,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PushNotificationsBell } from "@/components/push-notifications-bell"
@@ -63,6 +64,7 @@ const navGroups: {
     label: "Operación",
     items: [
       { href: "/stock", label: "Stock", icon: Package },
+      { href: "/cosechas", label: "Cosechas", icon: Scissors },
       { href: "/ciclos", label: "Ciclos", icon: CalendarRange },
       { href: "/procesos", label: "Procedimientos", icon: ClipboardList },
       { href: "/cultivo", label: "Cultivo", icon: Sprout },

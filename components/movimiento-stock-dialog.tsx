@@ -10,7 +10,7 @@
  */
 import type React from "react"
 import { useState } from "react"
-import { ArrowRightLeft, Plus } from "lucide-react"
+import { ArrowRightLeft, PackageMinus, Plus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { Genetica } from "@/lib/types"
 import { formatGramos } from "@/lib/format"
@@ -27,7 +27,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
-type Tipo = "ingreso" | "traspaso"
+type Tipo = "ingreso" | "traspaso" | "salida"
+type Motivo = "exposicion" | "muestra"
 type Destino = "sueltos" | "enrolados"
 
 interface Props {
@@ -85,6 +86,7 @@ function Linea({ label, antes, cambio, final }: { label: string; antes: number; 
 export function MovimientoStockDialog({ genetica, onOpenChange, onGuardado }: Props) {
   const [tipo, setTipo] = useState<Tipo>("ingreso")
   const [destino, setDestino] = useState<Destino>("sueltos")
+  const [motivo, setMotivo] = useState<Motivo>("exposicion")
   const [gramosTexto, setGramosTexto] = useState("")
   const [nota, setNota] = useState("")
   const [guardando, setGuardando] = useState(false)
@@ -95,11 +97,22 @@ export function MovimientoStockDialog({ genetica, onOpenChange, onGuardado }: Pr
   const enrolados = Number(genetica.gramos_enrolados)
 
   // Cuánto cambia cada stock con el movimiento elegido.
-  const cambioSueltos = tipo === "ingreso" ? (destino === "sueltos" ? gramos : 0) : destino === "sueltos" ? gramos : -gramos
-  const cambioEnrolados = tipo === "ingreso" ? (destino === "enrolados" ? gramos : 0) : -cambioSueltos
+  // En una salida, `destino` es el stock del que sale.
+  const cambioSueltos =
+    tipo === "ingreso"
+      ? destino === "sueltos" ? gramos : 0
+      : tipo === "salida"
+        ? destino === "sueltos" ? -gramos : 0
+        : destino === "sueltos" ? gramos : -gramos
+  const cambioEnrolados =
+    tipo === "ingreso"
+      ? destino === "enrolados" ? gramos : 0
+      : tipo === "salida"
+        ? destino === "enrolados" ? -gramos : 0
+        : -cambioSueltos
   const sueltosFinal = redondear(sueltos + cambioSueltos)
   const enroladosFinal = redondear(enrolados + cambioEnrolados)
-  const origenInsuficiente = tipo === "traspaso" && (sueltosFinal < 0 || enroladosFinal < 0)
+  const origenInsuficiente = tipo !== "ingreso" && (sueltosFinal < 0 || enroladosFinal < 0)
 
   const guardar = async () => {
     setError(null)
@@ -108,7 +121,8 @@ export function MovimientoStockDialog({ genetica, onOpenChange, onGuardado }: Pr
       return
     }
     if (origenInsuficiente) {
-      setError(`No alcanza el stock de ${destino === "enrolados" ? "sueltos" : "enrolados"}`)
+      const origen = tipo === "salida" ? destino : destino === "enrolados" ? "sueltos" : "enrolados"
+      setError(`No alcanza el stock de ${origen}`)
       return
     }
     setGuardando(true)
@@ -119,6 +133,7 @@ export function MovimientoStockDialog({ genetica, onOpenChange, onGuardado }: Pr
       p_destino: destino,
       p_gramos: gramos,
       p_nota: nota,
+      p_motivo: tipo === "salida" ? motivo : null,
     })
     setGuardando(false)
     if (rpcError) {
@@ -138,7 +153,7 @@ export function MovimientoStockDialog({ genetica, onOpenChange, onGuardado }: Pr
         <DialogHeader>
           <DialogTitle className="text-foreground">Stock de {genetica.nombre}</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Sumá lo que pesaste o pasá gramos entre sueltos y enrolados.
+            Sumá lo que pesaste, pasá gramos entre sueltos y enrolados, o registrá una salida.
           </DialogDescription>
         </DialogHeader>
 
@@ -154,16 +169,37 @@ export function MovimientoStockDialog({ genetica, onOpenChange, onGuardado }: Pr
                 <ArrowRightLeft className="h-4 w-4" /> Mover
               </span>
             </Opcion>
+            <Opcion activa={tipo === "salida"} onClick={() => setTipo("salida")}>
+              <span className="inline-flex items-center gap-1.5">
+                <PackageMinus className="h-4 w-4" /> Salida
+              </span>
+            </Opcion>
           </div>
 
+          {tipo === "salida" && (
+            <div className="space-y-1.5">
+              <Label>Motivo</Label>
+              <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+                <Opcion activa={motivo === "exposicion"} onClick={() => setMotivo("exposicion")}>
+                  Exposición
+                </Opcion>
+                <Opcion activa={motivo === "muestra"} onClick={() => setMotivo("muestra")}>
+                  Muestra
+                </Opcion>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1.5">
-            <Label>{tipo === "ingreso" ? "¿A qué stock va?" : "¿Hacia dónde se mueven?"}</Label>
+            <Label>
+              {tipo === "ingreso" ? "¿A qué stock va?" : tipo === "salida" ? "¿De qué stock sale?" : "¿Hacia dónde se mueven?"}
+            </Label>
             <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
               <Opcion activa={destino === "sueltos"} onClick={() => setDestino("sueltos")}>
-                {tipo === "ingreso" ? "Sueltos" : "Enrolados → Sueltos"}
+                {tipo === "traspaso" ? "Enrolados → Sueltos" : "Sueltos"}
               </Opcion>
               <Opcion activa={destino === "enrolados"} onClick={() => setDestino("enrolados")}>
-                {tipo === "ingreso" ? "Enrolados" : "Sueltos → Enrolados"}
+                {tipo === "traspaso" ? "Sueltos → Enrolados" : "Enrolados"}
               </Opcion>
             </div>
           </div>
@@ -190,7 +226,13 @@ export function MovimientoStockDialog({ genetica, onOpenChange, onGuardado }: Pr
               id="mov-nota"
               value={nota}
               onChange={(e) => setNota(e.target.value)}
-              placeholder={tipo === "ingreso" ? "Ej: cosecha del sábado" : "Ej: cocos chicos para enrolar"}
+              placeholder={
+                tipo === "ingreso"
+                  ? "Ej: cosecha del sábado"
+                  : tipo === "salida"
+                    ? "Ej: expo del sábado, muestra para el laboratorio"
+                    : "Ej: cocos chicos para enrolar"
+              }
               className="bg-card"
             />
           </div>

@@ -65,6 +65,8 @@ export interface Mensaje {
   id: number
   autor_id: string
   tarea_id: number | null
+  /** Privado (script 087): a quién va. null = canal «Todos». */
+  para_id?: string | null
   cuerpo: string
   created_at: string
 }

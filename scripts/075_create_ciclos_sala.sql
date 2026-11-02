@@ -1,6 +1,6 @@
 -- Superciclo Monarca: un ciclo por tanda de cada sala de flora.
 --
--- NO SE EJECUTÓ TODAVÍA. Correr después de 071_seed_equipo.sql.
+-- NO SE EJECUTÓ TODAVÍA. Correr después de 074_seed_equipo.sql.
 --
 -- Se guarda solo la fecha de entrada a la sala y las duraciones; todas las
 -- demás fechas (12/12, lavado, cosecha, fin de secado, sala libre) se calculan

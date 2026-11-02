@@ -132,15 +132,47 @@ export interface Gasto {
   descripcion: string
   monto: number
   categoria: string
+  /** Proyecto opcional (ej. "Sala nueva"), scripts/069. */
+  proyecto: string | null
+  /** Aporte que devuelve (sólo en la categoría de devolución), scripts/070. */
+  aporte_id: string | null
+  /** Las devoluciones van en la moneda del aporte; el resto, en pesos. */
+  moneda: "ARS" | "USD"
   metodo_pago: "efectivo" | "transferencia"
   fecha: string
   created_at: string
   updated_at: string
 }
 
+/** Aporte de capital con su saldo (vista aportes_capital_resumen, scripts/070). */
+export interface AporteCapital {
+  id: string
+  aportante: string
+  monto: number
+  moneda: "ARS" | "USD"
+  fecha: string
+  cuotas: number
+  /** Cuándo hay que devolverlo; null = cuando haya plata (scripts/071). */
+  fecha_devolucion: string | null
+  nota: string | null
+  created_at: string
+  updated_at: string
+  devuelto: number
+  cuotas_pagadas: number
+  saldo: number
+  ultima_devolucion: string | null
+}
+
+/** Cómo cuenta una categoría en el resultado del mes (scripts/069). */
+export type EnResultado = "resultado" | "inversion" | "aparte"
+
 export interface CategoriaGasto {
   id: string
   nombre: string
+  /** Qué entra en la categoría. */
+  descripcion: string | null
+  en_resultado: EnResultado
+  orden: number
   created_at: string
 }
 

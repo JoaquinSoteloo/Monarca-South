@@ -107,7 +107,7 @@ export default async function Dashboard() {
         .order("created_at", { ascending: false }),
       supabase.from("geneticas").select("nombre, gramos_disponibles").eq("activo", true).lt("gramos_disponibles", 100),
       supabase.from("geneticas").select("gramos_disponibles, gramos_enrolados").eq("activo", true),
-      supabase.from("gastos").select("monto").eq("fecha", hoyArgentina),
+      supabase.from("gastos").select("monto").eq("fecha", hoyArgentina).eq("moneda", "ARS"),
       supabase
         .from("ventas")
         .select("gramos, detalles:detalle_venta(gramos, peso_enrolados)")

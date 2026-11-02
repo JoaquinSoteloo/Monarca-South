@@ -11,18 +11,29 @@ import { CalendarIcon, Receipt, AlertTriangle, Info } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
-import { formatCurrency } from "@/lib/format"
+import { formatCurrency, formatMoneda } from "@/lib/format"
 
 interface ResumenCaja {
   ventasEfectivo: number
   ventasTransferencia: number
   totalVentas: number
+  // Egresos de caja sin la devolución de aportes (incluye equipamiento).
   gastosEfectivo: number
   gastosTransferencia: number
   totalGastos: number
+  // Desglose según cómo cuenta cada categoría (scripts/069).
+  gastosResultado: number
+  inversion: number
+  devolucionEfectivo: number
+  devolucionTransferencia: number
+  devolucion: number
+  devolucionDolares: number
+  // Aportes menos los gastos que cuentan en el resultado.
   gananciaNeta: number
+  // Movimiento real de caja: todo lo que entró menos todo lo que salió.
   efectivoNeto: number
   transferenciaNeto: number
+  cajaNeta: number
 }
 
 // Estilo según signo, usado tanto en el bloque de Resultado como en la fila
@@ -75,19 +86,23 @@ export function Caja() {
     const desde = format(desdeCalculo, "yyyy-MM-dd")
     const hasta = format(hastaCalculo, "yyyy-MM-dd")
 
-    const [ventasResult, gastosResult] = await Promise.all([
+    const [ventasResult, gastosResult, categoriasResult] = await Promise.all([
       supabase
         .from("ventas")
         .select("total, metodo_pago, created_at")
         .gte("created_at", desde)
         .lte("created_at", `${hasta}T23:59:59`),
-      supabase.from("gastos").select("monto, metodo_pago, fecha").gte("fecha", desde).lte("fecha", hasta),
+      supabase.from("gastos").select("monto, metodo_pago, fecha, categoria, moneda").gte("fecha", desde).lte("fecha", hasta),
+      supabase.from("categorias_gasto").select("nombre, en_resultado"),
     ])
 
     // Una consulta fallida no es un período sin movimientos: no debe
     // mostrarse como un resumen válido en cero.
-    if (ventasResult.error || gastosResult.error) {
-      console.error("Error al calcular el resumen de caja:", ventasResult.error || gastosResult.error)
+    if (ventasResult.error || gastosResult.error || categoriasResult.error) {
+      console.error(
+        "Error al calcular el resumen de caja:",
+        ventasResult.error || gastosResult.error || categoriasResult.error,
+      )
       setError("No se pudo calcular el resumen. Probá de nuevo.")
       setLoading(false)
       return
@@ -102,15 +117,29 @@ export function Caja() {
       ventas?.filter((v) => v.metodo_pago === "transferencia").reduce((sum, v) => sum + Number(v.total), 0) || 0
     const totalVentas = ventasEfectivo + ventasTransferencia
 
-    const gastosEfectivo =
-      gastos?.filter((g) => g.metodo_pago === "efectivo").reduce((sum, g) => sum + Number(g.monto), 0) || 0
-    const gastosTransferencia =
-      gastos?.filter((g) => g.metodo_pago === "transferencia").reduce((sum, g) => sum + Number(g.monto), 0) || 0
-    const totalGastos = gastosEfectivo + gastosTransferencia
+    const tipoPorCategoria = new Map(categoriasResult.data?.map((c) => [c.nombre, c.en_resultado]) ?? [])
+    const tipoDe = (g: { categoria: string }) => tipoPorCategoria.get(g.categoria) ?? "resultado"
+    const suma = (lista: { monto: number }[] | undefined) => lista?.reduce((sum, g) => sum + Number(g.monto), 0) || 0
 
-    const gananciaNeta = totalVentas - totalGastos
-    const efectivoNeto = ventasEfectivo - gastosEfectivo
-    const transferenciaNeto = ventasTransferencia - gastosTransferencia
+    // Todo en pesos: las devoluciones de aportes en dólares se muestran aparte.
+    const gastosPesos = gastos?.filter((g) => g.moneda !== "USD")
+    const egresos = gastosPesos?.filter((g) => tipoDe(g) !== "aparte")
+    const devoluciones = gastosPesos?.filter((g) => tipoDe(g) === "aparte")
+    const devolucionDolares = suma(gastos?.filter((g) => g.moneda === "USD"))
+
+    const gastosEfectivo = suma(egresos?.filter((g) => g.metodo_pago === "efectivo"))
+    const gastosTransferencia = suma(egresos?.filter((g) => g.metodo_pago === "transferencia"))
+    const totalGastos = gastosEfectivo + gastosTransferencia
+    const gastosResultado = suma(gastosPesos?.filter((g) => tipoDe(g) === "resultado"))
+    const inversion = suma(gastosPesos?.filter((g) => tipoDe(g) === "inversion"))
+    const devolucionEfectivo = suma(devoluciones?.filter((g) => g.metodo_pago === "efectivo"))
+    const devolucionTransferencia = suma(devoluciones?.filter((g) => g.metodo_pago === "transferencia"))
+    const devolucion = devolucionEfectivo + devolucionTransferencia
+
+    const gananciaNeta = totalVentas - gastosResultado
+    const efectivoNeto = ventasEfectivo - gastosEfectivo - devolucionEfectivo
+    const transferenciaNeto = ventasTransferencia - gastosTransferencia - devolucionTransferencia
+    const cajaNeta = efectivoNeto + transferenciaNeto
 
     setResumen({
       ventasEfectivo,
@@ -119,9 +148,16 @@ export function Caja() {
       gastosEfectivo,
       gastosTransferencia,
       totalGastos,
+      gastosResultado,
+      inversion,
+      devolucionEfectivo,
+      devolucionTransferencia,
+      devolucion,
+      devolucionDolares,
       gananciaNeta,
       efectivoNeto,
       transferenciaNeto,
+      cajaNeta,
     })
     setResumenPeriodo({ desde: desdeCalculo, hasta: hastaCalculo })
 
@@ -234,7 +270,7 @@ export function Caja() {
                     {formatCurrency(resumen.gananciaNeta)}
                   </div>
                   <p className={cn("mt-1 text-xs", resultadoEstilo.claseSubtexto)}>
-                    Aportes menos gastos registrados
+                    Aportes menos gastos del resultado (sin equipamiento ni devolución de aportes)
                   </p>
                 </CardContent>
               </Card>
@@ -252,12 +288,30 @@ export function Caja() {
 
               <Card className="min-w-0 gap-4 border-border bg-card shadow-sm lg:min-h-[180px]">
                 <CardHeader className="px-5">
-                  <CardTitle className="text-sm font-medium leading-5 text-muted-foreground">Total gastos</CardTitle>
+                  <CardTitle className="text-sm font-medium leading-5 text-muted-foreground">
+                    Gastos del resultado
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="px-5">
                   <div className="break-words text-2xl font-bold leading-9 text-foreground tabular-nums">
-                    {formatCurrency(resumen.totalGastos)}
+                    {formatCurrency(resumen.gastosResultado)}
                   </div>
+                  <dl className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                    <div className="flex justify-between gap-2">
+                      <dt>Inversión (equipamiento)</dt>
+                      <dd className="tabular-nums">{formatCurrency(resumen.inversion)}</dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt>Devolución de aportes</dt>
+                      <dd className="tabular-nums">{formatCurrency(resumen.devolucion)}</dd>
+                    </div>
+                    {resumen.devolucionDolares > 0 && (
+                      <div className="flex justify-between gap-2">
+                        <dt>Devolución en dólares</dt>
+                        <dd className="tabular-nums">{formatMoneda(resumen.devolucionDolares, "USD")}</dd>
+                      </div>
+                    )}
+                  </dl>
                 </CardContent>
               </Card>
             </div>
@@ -299,7 +353,7 @@ export function Caja() {
                       </TableCell>
                     </TableRow>
                     <TableRow className="hover:bg-muted/40">
-                      <TableCell className="font-medium text-foreground">Egresos (gastos)</TableCell>
+                      <TableCell className="font-medium text-foreground">Egresos (gastos e inversión)</TableCell>
                       <TableCell className="text-right text-foreground tabular-nums">
                         {formatCurrency(resumen.gastosEfectivo)}
                       </TableCell>
@@ -308,6 +362,18 @@ export function Caja() {
                       </TableCell>
                       <TableCell className="text-right font-medium text-foreground tabular-nums">
                         {formatCurrency(resumen.totalGastos)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow className="hover:bg-muted/40">
+                      <TableCell className="font-medium text-foreground">Devolución de aportes</TableCell>
+                      <TableCell className="text-right text-foreground tabular-nums">
+                        {formatCurrency(resumen.devolucionEfectivo)}
+                      </TableCell>
+                      <TableCell className="text-right text-foreground tabular-nums">
+                        {formatCurrency(resumen.devolucionTransferencia)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-foreground tabular-nums">
+                        {formatCurrency(resumen.devolucion)}
                       </TableCell>
                     </TableRow>
                     <TableRow className="bg-primary/5 hover:bg-primary/5">
@@ -328,13 +394,21 @@ export function Caja() {
                       >
                         {formatCurrency(resumen.transferenciaNeto)}
                       </TableCell>
-                      <TableCell className={cn("text-right font-bold tabular-nums", resultadoEstilo.claseTexto)}>
-                        {formatCurrency(resumen.gananciaNeta)}
+                      <TableCell
+                        className={cn("text-right font-bold tabular-nums", getResultadoEstilo(resumen.cajaNeta).claseTexto)}
+                      >
+                        {formatCurrency(resumen.cajaNeta)}
                       </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </div>
+              {resumen.devolucionDolares > 0 && (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Además se devolvieron {formatMoneda(resumen.devolucionDolares, "USD")} de aportes en dólares, que no
+                  entran en el balance en pesos.
+                </p>
+              )}
             </CardContent>
           </Card>
         </>

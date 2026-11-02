@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { evaluarRiego, parseDecimal, rangoEcEntrada, type LecturaRiego } from "./riego"
+import { evaluarRiego, parseDecimal, rangoEcEntrada, rangoPhEntrada, type LecturaRiego } from "./riego"
 
 const base: LecturaRiego = {
   etapa: "floracion",
@@ -74,5 +74,11 @@ describe("parseDecimal", () => {
     expect(parseDecimal(" 6.0 ")).toBe(6)
     expect(parseDecimal("")).toBeNull()
     expect(parseDecimal("abc")).toBeNull()
+  })
+  it("pH de entrada: máximo 6,0 en cualquier etapa", () => {
+    expect(rangoPhEntrada("floracion", 4).max).toBe(6)
+    expect(rangoPhEntrada("vegetativo", null).max).toBe(6)
+    const alertas = evaluarRiego({ ...base, ph_entrada: 6.1 })
+    expect(alertas.map((a) => a.mensaje).join(" ")).toContain("pH de entrada")
   })
 })

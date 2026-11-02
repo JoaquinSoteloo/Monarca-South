@@ -28,6 +28,8 @@ interface ResumenCaja {
   devolucionTransferencia: number
   devolucion: number
   devolucionDolares: number
+  // Retribuciones pagadas en producto: cuentan en el resultado, no en la caja.
+  pagadoEnProducto: number
   // Aportes menos los gastos que cuentan en el resultado.
   gananciaNeta: number
   // Movimiento real de caja: todo lo que entró menos todo lo que salió.
@@ -126,6 +128,7 @@ export function Caja() {
     const egresos = gastosPesos?.filter((g) => tipoDe(g) !== "aparte")
     const devoluciones = gastosPesos?.filter((g) => tipoDe(g) === "aparte")
     const devolucionDolares = suma(gastos?.filter((g) => g.moneda === "USD"))
+    const pagadoEnProducto = suma(gastosPesos?.filter((g) => g.metodo_pago === "producto"))
 
     const gastosEfectivo = suma(egresos?.filter((g) => g.metodo_pago === "efectivo"))
     const gastosTransferencia = suma(egresos?.filter((g) => g.metodo_pago === "transferencia"))
@@ -154,6 +157,7 @@ export function Caja() {
       devolucionTransferencia,
       devolucion,
       devolucionDolares,
+      pagadoEnProducto,
       gananciaNeta,
       efectivoNeto,
       transferenciaNeto,
@@ -305,6 +309,12 @@ export function Caja() {
                       <dt>Devolución de aportes</dt>
                       <dd className="tabular-nums">{formatCurrency(resumen.devolucion)}</dd>
                     </div>
+                    {resumen.pagadoEnProducto > 0 && (
+                      <div className="flex justify-between gap-2">
+                        <dt>Pagado en producto (incluido)</dt>
+                        <dd className="tabular-nums">{formatCurrency(resumen.pagadoEnProducto)}</dd>
+                      </div>
+                    )}
                     {resumen.devolucionDolares > 0 && (
                       <div className="flex justify-between gap-2">
                         <dt>Devolución en dólares</dt>

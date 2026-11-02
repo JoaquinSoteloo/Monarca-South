@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   Check,
   X,
+  Leaf,
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -54,6 +55,23 @@ interface GastosManagerProps {
 }
 
 type Aviso = { ok: boolean; texto: string } | null
+
+function MetodoPago({ metodo }: { metodo: Gasto["metodo_pago"] }) {
+  if (metodo === "producto") {
+    return (
+      <>
+        <Leaf className="h-3.5 w-3.5" />
+        Producto
+      </>
+    )
+  }
+  return (
+    <>
+      {metodo === "efectivo" ? <Banknote className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
+      {metodo === "efectivo" ? "Efectivo" : "Transferencia"}
+    </>
+  )
+}
 
 function AvisoBox({ aviso, onClose }: { aviso: Aviso; onClose: () => void }) {
   if (!aviso) return null
@@ -184,7 +202,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
 
     if (error) {
       setFormError(
-        /^GA00\d$/.test(error.code || "")
+        /^(GA|EQ)00\d$/.test(error.code || "")
           ? error.message
           : editingGasto
             ? "No se pudo actualizar el gasto."
@@ -222,7 +240,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
       categoria: gasto.categoria === SIN_CLASIFICAR ? "" : gasto.categoria,
       proyecto: gasto.proyecto || "",
       aporte_id: gasto.aporte_id || "",
-      metodo_pago: gasto.metodo_pago,
+      metodo_pago: gasto.metodo_pago === "transferencia" ? "transferencia" : "efectivo",
       fecha: new Date(gasto.fecha + "T00:00:00"),
     })
     setFormError(null)
@@ -234,7 +252,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
 
     const { error } = await supabase.from("gastos").delete().eq("id", id)
     if (error) {
-      setAviso({ ok: false, texto: "No se pudo eliminar el gasto." })
+      setAviso({ ok: false, texto: error.code === "EQ006" ? error.message : "No se pudo eliminar el gasto." })
     } else {
       setAviso({ ok: true, texto: "Gasto eliminado." })
       setSeleccion((s) => {
@@ -326,6 +344,13 @@ export function GastosManager({ esComision }: GastosManagerProps) {
       })
       return
     }
+    if (gastos.some((g) => seleccion.has(g.id) && g.metodo_pago === "producto")) {
+      setAviso({
+        ok: false,
+        texto: "La selección incluye retribuciones pagadas en producto: esas no se reclasifican.",
+      })
+      return
+    }
     setAplicandoLote(true)
     const { error } = await supabase.from("gastos").update({ categoria: categoriaLote }).in("id", ids)
     setAplicandoLote(false)
@@ -371,7 +396,10 @@ export function GastosManager({ esComision }: GastosManagerProps) {
     </span>
   )
 
-  const renderAcciones = (gasto: Gasto) => (
+  const renderAcciones = (gasto: Gasto) =>
+    // Los pagos en producto son liquidaciones de retribuciones: se anulan desde
+    // Retribuciones del equipo.
+    gasto.metodo_pago === "producto" ? null : (
     <>
       <Button
         size="icon"
@@ -394,7 +422,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
         <Trash2 className="h-4 w-4" />
       </Button>
     </>
-  )
+    )
 
   return (
     <div className="min-w-0 space-y-6">
@@ -871,12 +899,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="gap-1.5 border-primary/20 bg-primary/5 font-normal text-primary">
-                            {gasto.metodo_pago === "efectivo" ? (
-                              <Banknote className="h-3.5 w-3.5" />
-                            ) : (
-                              <CreditCard className="h-3.5 w-3.5" />
-                            )}
-                            {gasto.metodo_pago === "efectivo" ? "Efectivo" : "Transferencia"}
+                            <MetodoPago metodo={gasto.metodo_pago} />
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -924,12 +947,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-2">
                           <Badge variant="outline" className="gap-1.5 border-primary/20 bg-primary/5 font-normal text-primary">
-                            {gasto.metodo_pago === "efectivo" ? (
-                              <Banknote className="h-3.5 w-3.5" />
-                            ) : (
-                              <CreditCard className="h-3.5 w-3.5" />
-                            )}
-                            {gasto.metodo_pago === "efectivo" ? "Efectivo" : "Transferencia"}
+                            <MetodoPago metodo={gasto.metodo_pago} />
                           </Badge>
                           <div className="flex shrink-0 gap-1">
                             {renderAcciones(gasto)}

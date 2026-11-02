@@ -72,6 +72,9 @@ export interface Genetica {
   precio_enrolado_miembro: number
   precio_gramo_vip: number
   precio_enrolado_vip: number
+  /** Precio para las retribuciones del equipo en producto (scripts/072). */
+  precio_gramo_staff: number
+  precio_enrolado_staff: number
   activo: boolean
   created_at: string
   updated_at: string
@@ -138,10 +141,46 @@ export interface Gasto {
   aporte_id: string | null
   /** Las devoluciones van en la moneda del aporte; el resto, en pesos. */
   moneda: "ARS" | "USD"
-  metodo_pago: "efectivo" | "transferencia"
+  /** "producto": retribución pagada en cannabis (no mueve caja), scripts/072. */
+  metodo_pago: "efectivo" | "transferencia" | "producto"
   fecha: string
   created_at: string
   updated_at: string
+}
+
+/** Persona del equipo con su retribución mensual (scripts/072). */
+export interface MiembroEquipo {
+  id: string
+  nombre: string
+  retribucion_mensual: number
+  forma_cobro: "dinero" | "producto"
+  /** Primer mes que se le debe (yyyy-mm-01). */
+  desde: string
+  activo: boolean
+  nota: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LiquidacionEquipo {
+  id: string
+  miembro_id: string
+  /** Mes liquidado (yyyy-mm-01). */
+  periodo: string
+  fecha: string
+  dinero: number
+  metodo_pago: "efectivo" | "transferencia" | null
+  genetica_id: string | null
+  gramos: number
+  cantidad_enrolados: number
+  peso_enrolados: number
+  precio_gramo: number
+  precio_enrolado: number
+  valor_producto: number
+  total: number
+  nota: string | null
+  usuario_nombre: string | null
+  created_at: string
 }
 
 /** Aporte de capital con su saldo (vista aportes_capital_resumen, scripts/070). */

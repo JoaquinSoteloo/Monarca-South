@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Pencil, Trash2, Crown, Star, PackageX, PackageSearch, PackageCheck, PackagePlus } from "lucide-react"
+import { Pencil, Trash2, Crown, Star, BadgeCheck, PackageX, PackageSearch, PackageCheck, PackagePlus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatGramos } from "@/lib/format"
@@ -158,6 +158,8 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
     precio_enrolado_miembro: "",
     precio_gramo_vip: "",
     precio_enrolado_vip: "",
+    precio_gramo_staff: "",
+    precio_enrolado_staff: "",
   })
 
   const resetForm = () => {
@@ -172,6 +174,8 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
       precio_enrolado_miembro: "",
       precio_gramo_vip: "",
       precio_enrolado_vip: "",
+    precio_gramo_staff: "",
+    precio_enrolado_staff: "",
     })
     setEditingGenetica(null)
   }
@@ -197,6 +201,8 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
       precio_enrolado_miembro: Number.parseFloat(formData.precio_enrolado_miembro) || 0,
       precio_gramo_vip: Number.parseFloat(formData.precio_gramo_vip) || 0,
       precio_enrolado_vip: Number.parseFloat(formData.precio_enrolado_vip) || 0,
+      precio_gramo_staff: Number.parseFloat(formData.precio_gramo_staff) || 0,
+      precio_enrolado_staff: Number.parseFloat(formData.precio_enrolado_staff) || 0,
     }
 
     if (editingGenetica) {
@@ -240,6 +246,8 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
       precio_enrolado_miembro: (genetica.precio_enrolado_miembro || 0).toString(),
       precio_gramo_vip: (genetica.precio_gramo_vip || 0).toString(),
       precio_enrolado_vip: (genetica.precio_enrolado_vip || 0).toString(),
+      precio_gramo_staff: (genetica.precio_gramo_staff || 0).toString(),
+      precio_enrolado_staff: (genetica.precio_enrolado_staff || 0).toString(),
     })
     onDialogOpenChange(true)
   }
@@ -416,10 +424,30 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                           onChange={(v) => setFormData({ ...formData, precio_enrolado_vip: v })}
                         />
                       </div>
+
+                      <div className="grid grid-cols-1 gap-3 border-t border-border bg-muted/40 px-3 py-3 sm:grid-cols-[110px_1fr_1fr] sm:items-center">
+                        <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                          <BadgeCheck className="h-3.5 w-3.5 text-primary" />
+                          Staff
+                        </span>
+                        <PriceField
+                          id="precio_gramo_staff"
+                          label="Precio staff por gramo"
+                          value={formData.precio_gramo_staff}
+                          onChange={(v) => setFormData({ ...formData, precio_gramo_staff: v })}
+                        />
+                        <PriceField
+                          id="precio_enrolado_staff"
+                          label="Precio staff por enrolado"
+                          value={formData.precio_enrolado_staff}
+                          onChange={(v) => setFormData({ ...formData, precio_enrolado_staff: v })}
+                        />
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       El precio por enrolado es el valor de cada enrolado armado. Un precio en blanco o en 0 en
-                      Miembro/VIP se toma como no configurado para esa categoría.
+                      Miembro/VIP se toma como no configurado para esa categoría. Staff es el valor de lo que el
+                      equipo cobra en producto.
                     </p>
                   </div>
                 </div>
@@ -466,6 +494,12 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                         <span className="inline-flex items-center gap-1">
                           <Star className="h-3.5 w-3.5 text-primary" />
                           VIP
+                        </span>
+                      </TableHead>
+                      <TableHead className="text-right text-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <BadgeCheck className="h-3.5 w-3.5 text-primary" />
+                          Staff
                         </span>
                       </TableHead>
                       <TableHead className="text-center text-foreground w-32">Acciones</TableHead>
@@ -522,6 +556,9 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                           </TableCell>
                           <TableCell>
                             <PriceCellLines gramo={genetica.precio_gramo_vip} enrolado={genetica.precio_enrolado_vip} />
+                          </TableCell>
+                          <TableCell>
+                            <PriceCellLines gramo={genetica.precio_gramo_staff} enrolado={genetica.precio_enrolado_staff} />
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -591,6 +628,14 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                       iconClass: "text-primary",
                       gramo: genetica.precio_gramo_vip,
                       enrolado: genetica.precio_enrolado_vip,
+                      siempreGramo: false,
+                    },
+                    {
+                      label: "Staff",
+                      icon: BadgeCheck,
+                      iconClass: "text-primary",
+                      gramo: genetica.precio_gramo_staff,
+                      enrolado: genetica.precio_enrolado_staff,
                       siempreGramo: false,
                     },
                   ]

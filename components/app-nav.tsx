@@ -26,6 +26,7 @@ import {
   UserRoundPlus,
   KeyRound,
   HandCoins,
+  Wallet,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PushNotificationsBell } from "@/components/push-notifications-bell"
@@ -76,6 +77,7 @@ const navGroups: {
       { href: "/caja", label: "Caja", icon: DollarSign },
       { href: "/gastos", label: "Gastos", icon: Receipt },
       { href: "/aportes", label: "Aportes de capital", icon: HandCoins },
+      { href: "/equipo", label: "Retribuciones", icon: Wallet, soloComision: true },
       { href: "/deudas", label: "Deudas", icon: AlertCircle },
     ],
   },

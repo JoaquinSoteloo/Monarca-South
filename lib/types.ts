@@ -72,9 +72,6 @@ export interface Genetica {
   precio_enrolado_miembro: number
   precio_gramo_vip: number
   precio_enrolado_vip: number
-  /** Precio para las retribuciones del equipo en producto (scripts/072). */
-  precio_gramo_staff: number
-  precio_enrolado_staff: number
   activo: boolean
   created_at: string
   updated_at: string

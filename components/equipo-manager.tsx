@@ -4,7 +4,7 @@
  * Retribuciones del equipo (scripts/072). Cada persona tiene su retribución
  * mensual y si la cobra en dinero o en producto. "Liquidar" carga cuánta
  * plata y/o cuántos gramos sueltos y enrolados se le dan: el producto se
- * valora al precio staff de la genética y sale de su stock. Lo que no se
+ * valora al precio de miembro de la genética y sale de su stock. Lo que no se
  * retira queda pendiente en ese mes y se liquida después.
  */
 import type React from "react"
@@ -521,16 +521,16 @@ function LiquidarDialog({
   const gramos = Number.parseFloat(form.gramos) || 0
   const cantEnr = Number.parseInt(form.cantidad_enrolados, 10) || 0
   const pesoEnr = Number.parseFloat(form.peso_por_enrolado) || 0
-  const precioGramo = Number(genetica?.precio_gramo_staff || 0)
-  const precioEnrolado = Number(genetica?.precio_enrolado_staff || 0)
+  const precioGramo = Number(genetica?.precio_gramo_miembro || 0)
+  const precioEnrolado = Number(genetica?.precio_enrolado_miembro || 0)
   const valorGramos = Math.round(gramos * precioGramo * 100) / 100
   const valorEnrolados = Math.round(cantEnr * precioEnrolado * 100) / 100
   const total = Math.round((dinero + valorGramos + valorEnrolados) * 100) / 100
   const queda = Math.round((saldoMes - total) * 100) / 100
 
   const avisos: string[] = []
-  if (genetica && gramos > 0 && precioGramo <= 0) avisos.push(`${genetica.nombre} no tiene precio staff por gramo (cargalo en Stock).`)
-  if (genetica && cantEnr > 0 && precioEnrolado <= 0) avisos.push(`${genetica.nombre} no tiene precio staff por enrolado (cargalo en Stock).`)
+  if (genetica && gramos > 0 && precioGramo <= 0) avisos.push(`${genetica.nombre} no tiene precio de miembro por gramo (cargalo en Stock).`)
+  if (genetica && cantEnr > 0 && precioEnrolado <= 0) avisos.push(`${genetica.nombre} no tiene precio de miembro por enrolado (cargalo en Stock).`)
   if (genetica && gramos > Number(genetica.gramos_disponibles)) avisos.push(`Hay ${formatGramos(Number(genetica.gramos_disponibles))} sueltos de ${genetica.nombre}.`)
   if (genetica && cantEnr * pesoEnr > Number(genetica.gramos_enrolados)) avisos.push(`Hay ${formatGramos(Number(genetica.gramos_enrolados))} para enrolados de ${genetica.nombre}.`)
   if (queda < 0) avisos.push(`Supera lo que queda del mes por ${formatCurrency(-queda)}.`)
@@ -569,7 +569,7 @@ function LiquidarDialog({
         <DialogHeader>
           <DialogTitle>Liquidar a {miembro.nombre}</DialogTitle>
           <DialogDescription>
-            Cargá la plata y/o el producto. El producto se valora al precio staff y sale del stock.
+            Cargá la plata y/o el producto. El producto se valora al precio de miembro y sale del stock.
           </DialogDescription>
         </DialogHeader>
         <form id="liquidar-form" onSubmit={guardar} className="space-y-4">
@@ -635,7 +635,7 @@ function LiquidarDialog({
 
           <fieldset className="space-y-3 rounded-lg border p-3">
             <legend className="flex items-center gap-1.5 px-1 text-sm font-semibold text-primary">
-              <Leaf className="h-4 w-4" /> Producto (precio staff)
+              <Leaf className="h-4 w-4" /> Producto (precio de miembro)
             </legend>
             <Select value={form.genetica_id} onValueChange={(v) => setForm({ ...form, genetica_id: v })}>
               <SelectTrigger aria-label="Genética" className="w-full bg-white">
@@ -652,7 +652,7 @@ function LiquidarDialog({
             </Select>
             {genetica && (
               <p className="text-xs text-muted-foreground">
-                Staff: {precioGramo > 0 ? `${formatCurrency(precioGramo)}/g` : "sin precio por gramo"} ·{" "}
+                Precio de miembro: {precioGramo > 0 ? `${formatCurrency(precioGramo)}/g` : "sin precio por gramo"} ·{" "}
                 {precioEnrolado > 0 ? `${formatCurrency(precioEnrolado)}/enrolado` : "sin precio por enrolado"}
               </p>
             )}

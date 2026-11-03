@@ -10,6 +10,13 @@ import {
   numeroOnull,
   personajeDe,
   PLANO_SEDE,
+  esSalaVege,
+  filasMedicion,
+  marcar,
+  objetivosSala,
+  proximosHitos,
+  rangoDeTexto,
+  resumenCiclo,
   resumenDia,
   ultimaPorSala,
 } from "./sede"
@@ -132,5 +139,69 @@ describe("resumenDia", () => {
     expect(resumenDia([22, null, 26, 24, undefined])).toEqual({ min: 22, max: 26, prom: 24 })
     expect(resumenDia([null, undefined])).toBeNull()
     expect(resumenDia([])).toBeNull()
+  })
+})
+
+describe("ficha de la sala", () => {
+  const hoy = "2026-11-03"
+  const lectura = { sala_id: 5, temperatura_c: 24.64, humedad_rh: 59.6, vpd: 1.263, luz_lux: 96, leido_en: "2026-11-03T19:43:00Z" }
+  const dia = { t: { min: 22.2, max: 25.4, prom: 23.4 }, h: { min: 51, max: 73, prom: 60 }, vpd: { min: 0.74, max: 1.41, prom: 1.17 } }
+
+  it("rangos escritos como en los manuales", () => {
+    expect(rangoDeTexto("24–28 °C")).toEqual([24, 28])
+    expect(rangoDeTexto("0,8–1,1 kPa")).toEqual([0.8, 1.1])
+    expect(rangoDeTexto("5,8", 0.1)?.map((x) => +x.toFixed(2))).toEqual([5.7, 5.9])
+    expect(rangoDeTexto("~10 %", 2)).toEqual([5, 15])
+    expect(rangoDeTexto("Solo agua de ósmosis")).toEqual([0, 0.2])
+    expect(rangoDeTexto("sin números")).toBeNull()
+  })
+
+  it("compara con lo que se muestra y respeta el pH máximo de 6,0", () => {
+    expect(marcar("humedad", "60–70 %", 59.6)).toBe("ok")
+    expect(marcar("humedad", "60–70 %", 59.4)).toBe("bajo")
+    expect(marcar("vpd", "0,8–1,1 kPa", 1.263)).toBe("alto")
+    expect(marcar("phEntrada", "6,0", 6.1)).toBe("alto")
+    expect(marcar("phEntrada", "5,8", 5.9)).toBe("ok")
+    expect(marcar("temperatura", null, 25)).toBeNull()
+    expect(marcar("temperatura", "24–28 °C", null)).toBeNull()
+  })
+
+  it("Sala 5 (vege): objetivo y medición del día", () => {
+    const o = objetivosSala(ciclo("2026-09-22", 44, 60), hoy, false)
+    const filas = filasMedicion(o, lectura, dia, null)
+    expect(filas.map((f) => f.que)).toEqual(["Temperatura", "Humedad", "VPD", "Luz", "EC de entrada", "pH de entrada", "Drenaje", "PPFD"])
+    expect(filas[0]).toMatchObject({ objetivo: "24–28 °C", valor: "Ahora 24,6 °C", marca: "ok", detalle: "Hoy de 22,2 °C a 25,4 °C · prom. 23,4 °C" })
+    expect(filas[1]).toMatchObject({ valor: "Ahora 60 %", marca: "ok" })
+    expect(filas[2]).toMatchObject({ valor: "Ahora 1,26 kPa", marca: "alto" })
+    expect(filas[3]).toMatchObject({ objetivo: "18/6", valor: "Ahora prendida" })
+    expect(filas[4]).toMatchObject({ valor: null, nota: "Sin riegos cargados" })
+    expect(filas[7].nota).toContain("No se mide")
+  })
+
+  it("con un riego cargado usa sus valores y su fecha", () => {
+    const o = objetivosSala(ciclo("2026-09-22", 44, 60), hoy, false)
+    const riego = { fecha: "2026-11-01", ec_entrada: 1.5, ph_entrada: 5.9, drenaje_pct: null }
+    const filas = filasMedicion(o, null, null, riego)
+    const ec = filas.find((f) => f.que === "EC de entrada")
+    expect(ec).toMatchObject({ valor: "Último riego 1,5", marca: "ok", detalle: "del 1/11" })
+    expect(filas.find((f) => f.que === "Drenaje")?.nota).toBe("No se anotó en el riego del 1/11")
+    expect(filas.find((f) => f.que === "Temperatura")?.nota).toBe("Sin lectura reciente de Pulse")
+  })
+
+  it("la sala de vege sin ciclo usa sus objetivos; otra sala sin ciclo, solo lo medido", () => {
+    expect(esSalaVege("Sala 3")).toBe(true)
+    expect(esSalaVege("Sala 1")).toBe(false)
+    expect(objetivosSala(null, hoy, true)?.humedad).toBe("60–75 %")
+    const sinObjetivo = filasMedicion(objetivosSala(null, hoy, false), lectura, null, null)
+    expect(sinObjetivo.map((f) => f.que)).toEqual(["Temperatura", "Humedad", "VPD", "Luz"])
+    expect(sinObjetivo.every((f) => f.marca === null)).toBe(true)
+  })
+
+  it("lo que viene, según el protocolo de Ciclos", () => {
+    const hitos = proximosHitos(ciclo("2026-09-22", 44, 60), "Sala 5", hoy)
+    expect(hitos[0]).toMatchObject({ titulo: "Mapa de PPFD y altura de luces antes de flora", enDias: 1 })
+    expect(hitos[1]).toMatchObject({ fecha: "2026-11-05", titulo: "Pasar a 12/12", enDias: 2 })
+    expect(hitos).toHaveLength(4)
+    expect(resumenCiclo(ciclo("2026-09-22", 44, 60), hoy)).toMatchObject({ flip: "2026-11-05", cosecha: "2027-01-04" })
   })
 })

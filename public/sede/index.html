@@ -20,6 +20,9 @@ if (new URLSearchParams(location.search).get('modo') === 'sistema') document.doc
   .tag .n{display:inline-block;background:#ffffffee;border:1px solid #00000022;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:600}
   .tag .b{display:block;margin-top:3px;background:#13201aee;color:#f4f1e8;border-radius:8px;padding:2px 7px;font-size:11px}
   .sign{position:absolute;transform:translate(-50%,-100%);background:#13201ae0;color:#f4f1e8;border-radius:8px;padding:4px 8px;font-size:10.5px;line-height:1.3;white-space:nowrap;border-left:4px solid #6fbf4f}
+  .sign{pointer-events:auto;cursor:pointer}
+  .sign:hover,.sign:focus-visible{outline:2px solid #f4f1e8;outline-offset:1px}
+  .tag{pointer-events:auto;cursor:pointer}
   .sign b{font-family:Archivo,sans-serif;font-size:12px;letter-spacing:.3px}
   .sign .x{color:#a9b5ad}
   .sign.alert{border-left-color:#e24b4a}
@@ -592,6 +595,7 @@ function makePerson(p) {
   g.traverse(o => { o.userData.person = p.id; });
   world.add(g);
   const el = document.createElement('div'); el.className = 'tag'; el.innerHTML = `<span class="n">${p.id}</span><span class="b"></span>`; labelsEl.appendChild(el);
+  el.addEventListener('click', () => { selected = p.id; renderPanel(); });
   Object.assign(p, { g, legL, legR, armL, armR, gem, el, path: [], busy: null, done: {}, prob: {}, bubble: 'Libre' });
 }
 people.forEach(makePerson);
@@ -605,6 +609,7 @@ function route(from, to) {
   const pts = []; let c = to; while (prev[c]) { const [p, x, z] = prev[c]; pts.unshift(center(c)); pts.unshift(new THREE.Vector3(x, 0, z)); c = p; }
   return pts;
 }
+function salaEn(pos) { for (const [k, r] of Object.entries(rooms)) if (pos.x >= r.x0 && pos.x <= r.x1 && pos.z >= r.z0 && pos.z <= r.z1) return k; return null; }
 function roomOf(pos) { for (const [k, r] of Object.entries(rooms)) if (pos.x >= r.x0 && pos.x <= r.x1 && pos.z >= r.z0 && pos.z <= r.z1) return k; return 'patio'; }
 function spot(k) { // lugar libre cerca del centro de la sala, en zona de circulación
   const r = rooms[k]; const c = center(k);
@@ -778,7 +783,13 @@ function renderSigns() {
   const hoy = hoyStr();
   for (const [k, r] of Object.entries(rooms)) {
     if (!['s1', 's2', 's3', 's4', 's5', 'agua', 'aten', 'ofi', 'bano'].includes(k)) continue;
-    let el = signEls[k]; if (!el) { el = signEls[k] = document.createElement('div'); el.className = 'sign'; labelsEl.appendChild(el); }
+    let el = signEls[k]; if (!el) {
+      el = signEls[k] = document.createElement('div'); el.className = 'sign'; labelsEl.appendChild(el);
+      // Tocar el cartel abre su sala; antes el toque pasaba al 3D y caía en el piso de atrás.
+      const abrir = () => { roomOpen = k; renderRoom(); };
+      el.setAttribute('role', 'button'); el.tabIndex = 0; el.addEventListener('click', abrir);
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } });
+    }
     let html = `<b>${r.name.toUpperCase()}</b>`; let cls = 'sign';
     if (r.ciclo) {
       const m = momento(r.ciclo, hoy);
@@ -1191,6 +1202,12 @@ canvas.addEventListener('pointerup', e => {
   ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ptr, cam);
   const hit = ray.intersectObjects(people.map(p => p.g), true)[0];
   if (hit) { selected = hit.object.userData.person; renderPanel(); return; }
+  // La sala de lo primero que se toca (cama, planta, pared o piso), no la del piso
+  // que queda detrás: desde arriba en diagonal, ese piso suele ser el de otra sala.
+  const visible = o => { for (let x = o; x; x = x.parent) if (!x.visible) return false; return true; };
+  const primero = ray.intersectObjects(world.children, true).find(h => visible(h.object));
+  const k = primero && salaEn(primero.point);
+  if (k) { roomOpen = k; renderRoom(); return; }
   const fh = ray.intersectObjects(floorMeshes, false)[0];
   if (fh) { roomOpen = fh.object.userData.room; renderRoom(); }
 });

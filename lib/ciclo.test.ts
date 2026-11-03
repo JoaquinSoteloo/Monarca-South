@@ -114,4 +114,15 @@ describe("ciclos por sala", () => {
     expect(solapamientos([ciclo({ id: 1 }), ciclo({ id: 2, fecha_inicio: "2026-12-29" })])).toHaveLength(1)
     expect(solapamientos([ciclo({ id: 1 }), ciclo({ id: 2, fecha_inicio: "2026-12-30" })])).toHaveLength(0)
   })
+  it("defoliación: limpieza 3 días antes del 12/12, día 21 de flora y preparación 2 días antes", () => {
+    const c = ciclo()
+    const p = protocoloMonarca(c, "Sala 2")
+    const fecha = (clave: string) => p.find((t) => t.clave === clave)?.fecha
+    const flip = p.find((t) => t.clave === "flip")!.fecha
+    expect(fecha("limpieza_bajos")).toBe(sumarDias(flip, -3))
+    expect(fecha("prep_limpieza_bajos")).toBe(sumarDias(flip, -5))
+    expect(fecha("poda_bajos")).toBe(sumarDias(flip, 21))
+    expect(fecha("prep_defoliacion")).toBe(sumarDias(flip, 19))
+    expect(p.find((t) => t.clave === "prep_defoliacion")?.rol).toBe("mantenimiento")
+  })
 })

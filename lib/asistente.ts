@@ -3,7 +3,7 @@
  *
  * Lo usan Vilela, Pato, Demian y el resto del equipo desde la pantalla Sede
  * para sacarse dudas de cultivo y de los procedimientos de Monarca. Responde
- * el servidor (app/api/asistente) con la API de Anthropic: nadie necesita
+ * el servidor (app/api/asistente) con la clave de IA de Vercel (OpenAI hoy): nadie necesita
  * cuenta de Claude. Acá viven las partes puras (prompt, herramientas,
  * historial) para poder probarlas.
  */

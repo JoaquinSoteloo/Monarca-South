@@ -167,6 +167,9 @@ export function objetivos(m: Momento, c: Pick<CicloSala, "dias_flora">): Objetiv
 
 // --- Protocolo: tareas del ciclo ----------------------------------------------
 
+/** Tareas de defoliación (03/11/2026): se suman también a los ciclos que ya tenían tareas. */
+export const CLAVES_DEFOLIACION = ["prep_limpieza_bajos", "limpieza_bajos", "prep_defoliacion", "repaso_defoliacion"]
+
 export interface TareaCiclo {
   clave: string
   fecha: string

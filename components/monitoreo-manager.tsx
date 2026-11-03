@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { PulseDevice } from "@/lib/types"
 import type { PulseDeviceConnectionStatus, PulseDeviceSnapshot } from "@/lib/pulse-grow/types"
-import { formatMinutesAgo } from "@/lib/pulse-grow/format"
+import { formatMinutesAgo, STALE_AFTER_MINUTES } from "@/lib/pulse-grow/format"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -252,9 +252,9 @@ export function MonitoreoManager({ initialDevices, salas, minutosSinHistorial }:
         </Alert>
       )}
 
-      {/* El historial lo guarda el motor cada 1 minuto (scripts/085): si hace
-          rato que no llega nada, el programador o el Pulse se cortaron. */}
-      {(minutosSinHistorial === null || minutosSinHistorial > 10) && (
+      {/* El historial lo guarda el motor cada 5 minutos (scripts/087): pasado el
+          umbral de dato viejo sin lecturas, el programador o el Pulse se cortaron. */}
+      {(minutosSinHistorial === null || minutosSinHistorial > STALE_AFTER_MINUTES) && (
         <Alert className="border-amber-300 bg-amber-50 text-amber-900">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>El historial no se está guardando</AlertTitle>

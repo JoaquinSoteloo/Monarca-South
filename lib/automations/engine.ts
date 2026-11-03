@@ -61,6 +61,11 @@ async function getUltimaLectura(supabase: SupabaseClient, pulseDeviceId: number)
   return data ?? null
 }
 
+/** Cada cuánto llama Supabase al motor (pg_cron, scripts/087). */
+export const CADENCIA_MOTOR_MS = 5 * 60_000
+/** Hasta dónde se busca la lectura anterior al arranque de una ventana. */
+const MARGEN_LECTURA_ANTERIOR_MS = CADENCIA_MOTOR_MS + 2 * 60_000
+
 /**
  * ¿Se cumplió la condición de forma sostenida durante `duracionSegundos`?
  * Si duracionSegundos <= 0, solo mira la lectura más reciente (condición
@@ -82,25 +87,35 @@ async function condicionSostenida(
   }
 
   const desde = new Date(ahora.getTime() - duracionSegundos * 1000)
+  // También se trae la lectura anterior al arranque de la ventana: con el
+  // motor cada CADENCIA_MOTOR_MS (scripts/087) entre lecturas pueden pasar
+  // varios minutos, y esa lectura es la que dice cómo estaba la sala al
+  // empezar la ventana.
   const { data: lecturas } = await supabase
     .from("lecturas_ambientales")
     .select("*")
     .eq("pulse_device_id", pulseDeviceId)
-    .gte("leido_en", desde.toISOString())
+    .gte("leido_en", new Date(desde.getTime() - MARGEN_LECTURA_ANTERIOR_MS).toISOString())
     .lte("leido_en", ahora.toISOString())
     .order("leido_en", { ascending: true })
 
   if (!lecturas || lecturas.length === 0) return false
 
-  // Tolerancia proporcional a la duración pedida, no a una cadencia fija:
-  // así la corrección no depende de cada cuánto se invoque el motor.
-  // Sin una lectura razonablemente cerca del arranque de la ventana, todavía
-  // no hay suficiente historial para decir "sostenido durante X minutos".
-  const toleranciaMs = Math.max(60_000, duracionSegundos * 1000 * 0.2)
-  const primera = new Date(lecturas[0].leido_en)
-  if (primera.getTime() - desde.getTime() > toleranciaMs) return false
+  const enVentana = lecturas.filter((l: any) => new Date(l.leido_en).getTime() >= desde.getTime())
+  const anterior = lecturas.filter((l: any) => new Date(l.leido_en).getTime() < desde.getTime()).at(-1)
 
-  return lecturas.every((l: any) => {
+  if (!anterior) {
+    // Sin lectura previa a la ventana, la primera tiene que estar cerca del
+    // arranque: si no, todavía no hay historial para decir "sostenido".
+    if (enVentana.length === 0) return false
+    const toleranciaMs = Math.max(60_000, duracionSegundos * 1000 * 0.2)
+    if (new Date(enVentana[0].leido_en).getTime() - desde.getTime() > toleranciaMs) return false
+  } else if (enVentana.length === 0 && ahora.getTime() - new Date(anterior.leido_en).getTime() > MARGEN_LECTURA_ANTERIOR_MS) {
+    // Sólo hay una lectura vieja: no alcanza para saber cómo siguió.
+    return false
+  }
+
+  return [...(anterior ? [anterior] : []), ...enVentana].every((l: any) => {
     const v = l[variable]
     return v !== null && v !== undefined && compara(Number(v), operador, valorObjetivo)
   })

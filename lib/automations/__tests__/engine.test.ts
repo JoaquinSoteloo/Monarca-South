@@ -140,6 +140,32 @@ describe("evaluateAutomations", () => {
     expect(resumen.comandosEncolados).toBe(1)
   })
 
+  it("con lecturas cada 5 minutos, usa la lectura anterior a la ventana como arranque", async () => {
+    const supabase = createFakeSupabase()
+    supabase.seed("dispositivos_controlables", [makeDispositivo()])
+    supabase.seed("automatizaciones", [makeAutomatizacion({ duracion_minima_segundos: 300 })])
+    // Motor cada 5 min: lecturas hace 6 y hace 1 minuto, las dos sobre el umbral.
+    for (const min of [6, 1]) {
+      seedLectura(supabase, { leido_en: new Date(AHORA.getTime() - min * 60_000).toISOString(), temperatura_c: 26 })
+    }
+
+    const resumen = await evaluateAutomations(db(supabase))
+
+    expect(resumen.comandosEncolados).toBe(1)
+  })
+
+  it("con lecturas cada 5 minutos, no dispara si la lectura anterior a la ventana no cumplía", async () => {
+    const supabase = createFakeSupabase()
+    supabase.seed("dispositivos_controlables", [makeDispositivo()])
+    supabase.seed("automatizaciones", [makeAutomatizacion({ duracion_minima_segundos: 300 })])
+    seedLectura(supabase, { leido_en: new Date(AHORA.getTime() - 6 * 60_000).toISOString(), temperatura_c: 20 })
+    seedLectura(supabase, { leido_en: new Date(AHORA.getTime() - 1 * 60_000).toISOString(), temperatura_c: 26 })
+
+    const resumen = await evaluateAutomations(db(supabase))
+
+    expect(resumen.comandosEncolados).toBe(0)
+  })
+
   it("no dispara nada en la zona muerta entre la condición de encendido y la de histéresis", async () => {
     const supabase = createFakeSupabase()
     supabase.seed("dispositivos_controlables", [makeDispositivo()])

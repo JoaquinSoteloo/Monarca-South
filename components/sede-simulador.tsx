@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { Perfil, Tarea } from "@/lib/equipo"
+import { puedeEditarTarea } from "@/lib/hoy"
 import type { SalaCultivo } from "@/lib/types"
 import { cicloActual, etapaRiegoDe, momentoCiclo, type CicloSala } from "@/lib/ciclo"
 import {
@@ -31,7 +32,7 @@ interface Props {
 }
 
 /** Pantallas a las que el simulador puede mandar a quien lo usa. */
-const RUTAS_PERMITIDAS = ["/equipo", "/chat", "/riego", "/ciclos", "/monitoreo", "/sede/oficina"]
+const RUTAS_PERMITIDAS = ["/equipo", "/chat", "/riego", "/ciclos", "/monitoreo", "/procesos", "/sede/oficina"]
 
 interface Pedido {
   tipo: string
@@ -62,6 +63,8 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
     [nombres],
   )
   const miNombre = yo ? nombres.get(yo.id) ?? yo.nombre : null
+  // Para saber qué tareas puede marcar quien usa la Sede (las suyas o las de quien supervisa).
+  const yoPerfil = useMemo(() => (yo ? (perfiles.find((p) => p.id === yo.id) ?? null) : null), [yo, perfiles])
 
   const hora = (iso: string) =>
     new Date(iso).toLocaleString("es-AR", {
@@ -170,7 +173,7 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
               .not("sala_id", "is", null)
               .order("leido_en", { ascending: false })
               .limit(4000),
-            supabase.from("tareas").select("responsable_id, titulo, estado, orden").eq("fecha", hoy),
+            supabase.from("tareas").select("id, responsable_id, titulo, estado, nota, orden, proceso_paso_id").eq("fecha", hoy),
             supabase
               .from("registros_riego")
               .select("id, sala_id, fecha, ec_entrada, ph_entrada, drenaje_pct")
@@ -189,7 +192,7 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
               hourCycle: "h23",
             })
           const masNueva = [...ultimas.values()].reduce<string | null>((u, l) => (!u || l.leido_en > u ? l.leido_en : u), null)
-          const deHoy = (tareas.data ?? []) as Pick<Tarea, "responsable_id" | "titulo" | "estado" | "orden">[]
+          const deHoy = (tareas.data ?? []) as Pick<Tarea, "id" | "responsable_id" | "titulo" | "estado" | "nota" | "orden" | "proceso_paso_id">[]
           type Riego = { sala_id: number; fecha: string; ec_entrada: number | null; ph_entrada: number | null; drenaje_pct: number | null }
           const ultimoRiego = new Map<number, Riego>()
           for (const r of (riegos.data ?? []) as Riego[]) if (!ultimoRiego.has(r.sala_id)) ultimoRiego.set(r.sala_id, r)
@@ -223,10 +226,41 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
                 total: suyas.length,
                 hechas: suyas.filter((t) => t.estado === "hecha").length,
                 problemas: suyas.filter((t) => t.estado === "problema").length,
-                tareas: suyas.map((t) => ({ titulo: t.titulo, estado: t.estado })),
+                tareas: suyas.map((t) => ({
+                  id: t.id,
+                  titulo: t.titulo,
+                  estado: t.estado,
+                  nota: t.nota,
+                  // Un paso de un procedimiento se completa con su formulario (pantalla Procedimientos).
+                  paso: Boolean(t.proceso_paso_id),
+                  puede: yoPerfil ? puedeEditarTarea(t as Tarea, yoPerfil, perfiles) : false,
+                })),
               }
             }),
           }
+        }
+
+        // Marcar una tarea desde la Sede: hecha, de vuelta a pendiente o con un problema.
+        case "tarea:estado": {
+          if (!yoPerfil) throw new Error("Tu usuario no está en el equipo.")
+          const estado = String(p.estado ?? "")
+          if (estado !== "hecha" && estado !== "pendiente" && estado !== "problema") throw new Error("Estado desconocido")
+          const { data: t } = await supabase.from("tareas").select("*").eq("id", Number(p.tarea)).maybeSingle()
+          if (!t) throw new Error("No encuentro la tarea.")
+          const tarea = t as Tarea
+          if (!puedeEditarTarea(tarea, yoPerfil, perfiles)) throw new Error("Esa tarea no la podés marcar vos.")
+          if (tarea.proceso_paso_id && estado === "hecha" && tarea.estado === "pendiente") {
+            throw new Error("Este paso se completa con su formulario, en Procedimientos.")
+          }
+          const nota = estado === "problema" ? String(p.nota ?? "").trim().slice(0, 500) : tarea.nota
+          if (estado === "problema" && !nota) throw new Error("Contá qué pasó.")
+          const cambios =
+            estado === "pendiente"
+              ? { estado, nota: null, completada_at: null, completada_por: null }
+              : { estado, nota, completada_at: new Date().toISOString(), completada_por: yoPerfil.id }
+          const { error } = await supabase.from("tareas").update(cambios).eq("id", tarea.id)
+          if (error) throw new Error("No se pudo guardar: " + error.message)
+          return { estado }
         }
 
         case "navegar": {
@@ -238,7 +272,7 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
       }
       throw new Error("Pedido desconocido: " + p.tipo)
     },
-    [yo, miNombre, nombres, supabase, idDeNombre, salas, ciclos, perfiles, router],
+    [yo, miNombre, nombres, supabase, idDeNombre, salas, ciclos, perfiles, router, yoPerfil],
   )
 
   useEffect(() => {
@@ -255,11 +289,15 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
       }
     }
     window.addEventListener("message", onMessage)
+    // Si el simulador cargó antes que esta página, sus primeros pedidos se perdieron:
+    // se le avisa que ya hay quien conteste y los vuelve a hacer.
+    iframe.current?.contentWindow?.postMessage({ fuente: "monarca-sistema", tipo: "listo" }, window.location.origin)
     return () => window.removeEventListener("message", onMessage)
   }, [atender])
 
   return (
-    <main className="h-[calc(100dvh-4rem)] w-full lg:h-dvh">
+    // En el celular entra justo entre la barra de arriba (3,75rem) y el espacio de la de abajo (6rem).
+    <main className="h-[calc(100dvh-9.75rem)] w-full lg:h-dvh">
       <iframe
         ref={iframe}
         src={modo === "sistema" ? "/sede/index.html?modo=sistema" : "/sede/index.html"}

@@ -14,7 +14,7 @@ if (new URLSearchParams(location.search).get('modo') === 'sistema') document.doc
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:#1b2620;font-family:Inter,system-ui,sans-serif;color:#1c2620}
-  #c{position:fixed;inset:0;display:block}
+  #c{position:fixed;inset:0;display:block;width:100%;height:100%} /* sin el tamaño, en pantallas de alta densidad (celulares, Retina) el lienzo se veía al doble */
   #labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
   .tag{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;text-align:center}
   .tag .n{display:inline-block;background:#ffffffee;border:1px solid #00000022;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:600}
@@ -112,6 +112,26 @@ if (new URLSearchParams(location.search).get('modo') === 'sistema') document.doc
   #room .mal{color:#b3261e;font-weight:600}
   #room .nd{color:#8a948d}
   #room .x{color:#5b665f;font-size:11px}
+  /* Tareas de hoy en la Sede: ✓ hecha, ! problema (con «¿Qué pasó?»), ↩ deshacer. */
+  .sistema .task button{min-width:34px;min-height:32px;font-size:14px;font-weight:600}
+  .sistema .task button[data-a="abrir-problema"]{color:#b3261e}
+  #tasks .problema{display:flex;flex-direction:column;gap:6px;padding:6px 0 8px}
+  #tasks .problema label{font-size:12px;font-weight:600}
+  #tasks .problema textarea{font:inherit;font-size:14px;border:1px solid #1c262033;border-radius:8px;padding:6px 8px;resize:vertical;min-height:56px}
+  #tasks .problema .row{margin:0}
+  #tasks .problema button.ok{background:#13201a;color:#f4f1e8;border-color:#13201a}
+  #tasks .aviso{font-size:12px;border-radius:8px;padding:6px 8px;margin-bottom:6px}
+  #tasks .aviso.ok{background:#dcefd6;color:#1f5130}
+  #tasks .aviso.mal{background:#f8e1df;color:#8a1f1f}
+  /* Panel del equipo plegable (en el celular arranca plegado: se ve la sede). */
+  #bPanel{margin-left:auto;align-self:center}
+  #hud.plegado .sub, #hud.plegado .row, #hud.plegado #equipoT, #hud.plegado #people, #hud.plegado #tasks, #hud.plegado .links{display:none}
+  @media (max-width:700px){
+    .ficha-abierta #status{display:none}
+    .sistema #hud{max-height:60%}
+    .sistema #room{top:auto;bottom:12px;max-height:62%}
+    .sistema #hud button, .sistema #room button, .sistema .links button{min-height:44px;padding:8px 12px;font-size:13px}
+  }
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head>
@@ -134,7 +154,7 @@ if (new URLSearchParams(location.search).get('modo') === 'sistema') document.doc
     <button id="bSalas">Salas</button>
     <button id="bHome">Ver todo</button>
   </div>
-  <div style="font-size:12px;font-weight:600;margin:6px 0 4px">El equipo</div>
+  <div id="equipoT" style="font-size:12px;font-weight:600;margin:6px 0 4px">El equipo</div>
   <div class="people" id="people"></div>
   <div id="tasks" style="margin-top:8px"></div>
   <div id="iaT" style="font-size:12px;font-weight:600;margin-top:10px">Ayudantes de IA</div>
@@ -157,6 +177,14 @@ if (new URLSearchParams(location.search).get('modo') === 'sistema') {
   document.querySelector('#hud .sub').textContent = 'Sede Balbastro + Sala 4 Itaquí · plano de Facundo · datos del sistema';
   document.getElementById('help').textContent = 'Arrastrá para mover la vista · rueda para zoom · tocá una sala para ver su ficha o a una persona para ver sus tareas de hoy.';
   document.getElementById('tasks').innerHTML = '<div class="task"><span class="t" style="color:#5b665f">Cargando las tareas de hoy…</span></div>';
+  // Panel plegable: en el celular arranca plegado para que se vea la sede.
+  const hud = document.getElementById('hud'), boton = document.createElement('button');
+  boton.id = 'bPanel'; boton.type = 'button';
+  const pintar = () => { const plegado = hud.classList.contains('plegado'); boton.textContent = plegado ? 'Ver tareas' : 'Ocultar'; boton.setAttribute('aria-expanded', String(!plegado)); };
+  boton.addEventListener('click', () => { hud.classList.toggle('plegado'); pintar(); });
+  document.getElementById('clock').parentElement.appendChild(boton);
+  if (matchMedia('(max-width: 700px)').matches) hud.classList.add('plegado');
+  pintar();
 }
 </script>
 
@@ -192,7 +220,8 @@ function home() { cam.position.set(1 + 22, 24, -3 + 22); cam.zoom = 1.45; contro
 function all() { cam.position.set(3 + 22, 24, 4 + 22); cam.zoom = 0.85; controls.target.set(3, 0, 4); cam.updateProjectionMatrix(); }
 home();
 function resize() {
-  const w = innerWidth, h = innerHeight, a = w / h, s = 13.5;
+  // En vertical (celular) se mantiene el ancho visible; si no, la sede queda cortada a los costados.
+  const w = innerWidth, h = innerHeight, a = w / h, s = 13.5 * Math.max(1, 1 / a);
   cam.left = -s * a; cam.right = s * a; cam.top = s; cam.bottom = -s; cam.updateProjectionMatrix();
   renderer.setSize(w, h, false);
 }
@@ -783,6 +812,8 @@ function renderSigns() {
   const hoy = hoyStr();
   for (const [k, r] of Object.entries(rooms)) {
     if (!['s1', 's2', 's3', 's4', 's5', 'agua', 'aten', 'ofi', 'bano'].includes(k)) continue;
+    const compacto = MODO_SISTEMA && matchMedia('(max-width: 700px)').matches;
+    if (compacto && r.kind !== 'sala' && r.kind !== 'vege') { if (signEls[k]) signEls[k].style.display = 'none'; continue; }
     let el = signEls[k]; if (!el) {
       el = signEls[k] = document.createElement('div'); el.className = 'sign'; labelsEl.appendChild(el);
       // Tocar el cartel abre su sala; antes el toque pasaba al 3D y caía en el piso de atrás.
@@ -803,7 +834,8 @@ function renderSigns() {
     if (clima[k]) html += `<br><span class="x">${clima[k][0].toFixed(1).replace('.', ',')} °C · ${Math.round(clima[k][1])} % · luz ${lightsOn(k) ? 'on' : 'off'}</span>`;
     if (r.alert) { html += `<br>⚠ ${r.alert}`; cls += ' alert'; }
     if (r.climaAlert) { html += `<br>⚠ Nubi: ${r.climaAlert}`; cls += ' alert'; }
-    el.className = cls; el.innerHTML = html;
+    if (compacto) html = `<b>${r.name.toUpperCase()}</b>`;
+    el.style.display = ''; el.className = cls; el.innerHTML = html;
   }
   renderStatus(); renderRoom();
 }
@@ -833,6 +865,7 @@ function hitos(k) {
 }
 let roomOpen = null;
 function renderRoom() {
+  document.documentElement.classList.toggle('ficha-abierta', !!roomOpen);
   const el = document.getElementById('room'); if (!roomOpen) { el.style.display = 'none'; return; }
   const k = roomOpen, r = rooms[k], hoy = hoyStr(); el.style.display = 'block';
   let h = `<div style="display:flex;justify-content:space-between;align-items:start"><h2>${r.name}</h2><button id="roomX" aria-label="Cerrar">✕</button></div>`;
@@ -914,6 +947,7 @@ function pedir(tipo, datos = {}, espera = 90000) {
 window.addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== window.parent) return;
   const d = e.data; if (!d || d.fuente !== 'monarca-sistema') return;
+  if (d.tipo === 'listo') { alSistemaListo(); return; }
   const p = _pend[d.id]; if (!p) return; delete _pend[d.id];
   d.ok ? p.res(d.datos) : p.rej(new Error(d.error || 'Error'));
 });
@@ -972,14 +1006,19 @@ async function enviarChat(yo, t, c) {
   catch (err) { m.txt += ' ⚠ no se envió: ' + err.message; m._pendiente = false; pintarChat(); }
 }
 // Al abrir dentro del sistema: quién soy, el equipo y el chat guardado.
+let chatCadaTanto = null;
+function alSistemaListo() { saludar(); if (MODO_SISTEMA) cargarDatosSistema(); }
+function saludar() {
 pedir('hola', {}, 6000).then(d => {
   sistema = d;
   _g('chatQuien').innerHTML = `<option>${esc(d.yo)}</option>`; _g('chatQuien').disabled = true;
   if (people.some(p => p.id === d.yo)) { selected = d.yo; renderPanel(); }
   document.querySelector('#chat header small').textContent = `Entraste como ${d.yo}. «Todos» lo lee el equipo, los privados solo esa persona, y el 🤖 Asistente es tuyo.`;
   // En modo sistema el chat está en su pantalla: no se consulta acá.
-  if (!MODO_SISTEMA) { recargarChat(); setInterval(recargarChat, 8000); }
+  if (!MODO_SISTEMA) { recargarChat(); if (!chatCadaTanto) chatCadaTanto = setInterval(recargarChat, 8000); }
 }).catch(() => {});
+}
+saludar();
 pintarChat();
 // ---------- Asistente de cultivo con IA (dentro del chat) ----------
 // Usa Claude desde la página (capacidad «sample»). Cada persona tiene su propio canal «🤖 Asistente».
@@ -1354,20 +1393,57 @@ function bloqueMedicion(k, ob) {
   return h + `<div class="x" style="margin-top:4px">${l ? `Pulse, ${l.hora}` : 'Sin lecturas de Pulse en las últimas 2 horas'} · EC, pH y drenaje se miden a mano en cada riego (pantalla Riego).</div>`;
 }
 function irA(ruta) { pedir('navegar', { ruta }, 5000).catch(() => {}); }
+// Marcar tareas desde la Sede (pedido de Facundo: sin pestaña «Hoy»). Cada uno
+// marca las suyas, y quien supervisa también las de su gente; el sistema dice
+// cuáles (t.puede) y guarda el cambio (pedido «tarea:estado»).
+let problemaDe = null, notaBorrador = '', guardandoTarea = null, avisoTareas = null;
 function renderPanelSistema() {
   const pe = document.getElementById('people');
   pe.innerHTML = people.map(p => { const [c] = gemColor(p); return `<button data-p="${p.id}" class="${p.id === selected ? 'on' : ''}"><span class="dot" style="background:${c}"></span>${p.id}</button>`; }).join('');
-  pe.querySelectorAll('button').forEach(b => b.onclick = () => { selected = b.dataset.p; focusPerson(selected); renderPanel(); });
+  pe.querySelectorAll('button').forEach(b => b.onclick = () => { selected = b.dataset.p; problemaDe = null; avisoTareas = null; focusPerson(selected); renderPanel(); });
   const e = equipoDe(selected), ico = { hecha: '✓', problema: '⚠', pendiente: '○' };
-  let h;
-  if (!equipoReal) h = '<div class="task"><span class="t" style="color:#5b665f">Cargando las tareas de hoy…</span></div>';
-  else if (!e || !e.total) h = `<div class="task"><span class="t" style="color:#5b665f">${esc(selected)} no tiene tareas hoy.</span></div>`;
-  else h = `<div style="font-size:12px;color:#5b665f;margin-bottom:4px">${e.hechas} de ${e.total} hechas hoy${e.problemas ? ` · <span style="color:#b3261e">${e.problemas} con problema</span>` : ''}</div>`
-    + e.tareas.map(t => `<div class="task ${t.estado === 'hecha' ? 'done' : t.estado === 'problema' ? 'prob' : ''}"><span style="width:14px">${ico[t.estado] || '○'}</span><span class="t">${esc(t.titulo)}</span></div>`).join('');
-  h += '<div class="links"><button data-ir="/equipo">Abrir Hoy</button><button data-ir="/chat" class="sec">Chat</button></div>';
+  let h = avisoTareas ? `<div class="aviso ${avisoTareas.ok ? 'ok' : 'mal'}" role="status">${esc(avisoTareas.texto)}</div>` : '';
+  if (!equipoReal) h += '<div class="task"><span class="t" style="color:#5b665f">Cargando las tareas de hoy…</span></div>';
+  else if (!e || !e.total) h += `<div class="task"><span class="t" style="color:#5b665f">${esc(selected)} no tiene tareas hoy.</span></div>`;
+  else {
+    h += `<div style="font-size:12px;color:#5b665f;margin-bottom:4px">${e.hechas} de ${e.total} hechas hoy${e.problemas ? ` · <span style="color:#b3261e">${e.problemas} con problema</span>` : ''}</div>`;
+    h += e.tareas.map(t => {
+      const titulo = esc(t.titulo), ocupado = guardandoTarea === t.id ? ' disabled' : '';
+      let acciones = '';
+      if (t.puede && t.estado === 'pendiente' && t.paso) acciones = `<button data-ir="/procesos" title="Se completa con su formulario">Completar</button>`;
+      else if (t.puede && t.estado === 'pendiente') acciones = `<button data-t="${t.id}" data-a="hecha" aria-label="Marcar como hecha: ${titulo}" title="Hecha"${ocupado}>✓</button><button data-t="${t.id}" data-a="abrir-problema" aria-label="Avisar un problema: ${titulo}" title="Problema"${ocupado}>!</button>`;
+      else if (t.puede && t.estado === 'problema') acciones = `<button data-t="${t.id}" data-a="hecha" aria-label="Marcar como resuelto: ${titulo}"${ocupado}>Resuelto</button>`;
+      else if (t.puede && !t.paso) acciones = `<button data-t="${t.id}" data-a="pendiente" aria-label="Volver a pendiente: ${titulo}" title="Deshacer"${ocupado}>↩</button>`;
+      const nota = t.estado === 'problema' && t.nota ? `<br><span style="color:#b3261e">«${esc(t.nota)}»</span>` : '';
+      let fila = `<div class="task ${t.estado === 'hecha' ? 'done' : t.estado === 'problema' ? 'prob' : ''}"><span style="width:14px">${ico[t.estado] || '○'}</span><span class="t">${titulo}${nota}</span>${acciones}</div>`;
+      if (problemaDe === t.id) fila += `<div class="problema"><label for="notaProblema">¿Qué pasó?</label><textarea id="notaProblema" rows="2" placeholder="Contá qué viste y dónde: sala, planta, qué tiene."></textarea><div class="row"><button data-t="${t.id}" data-a="problema" class="ok"${ocupado}>Avisar el problema</button><button data-a="cancelar">Cancelar</button></div></div>`;
+      return fila;
+    }).join('');
+  }
+  h += '<div class="links"><button data-ir="/chat" class="sec">Chat</button><button data-ir="/equipo" class="sec">Ver en Equipo</button></div>';
   const ts = document.getElementById('tasks'); ts.innerHTML = h;
   ts.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
+  ts.querySelectorAll('[data-a]').forEach(b => b.onclick = () => accionTarea(b.dataset.a, Number(b.dataset.t)));
+  const area = document.getElementById('notaProblema');
+  if (area) { area.value = notaBorrador; area.oninput = () => { notaBorrador = area.value; }; if (guardandoTarea === null) area.focus(); }
   renderStatus();
+}
+async function accionTarea(a, id) {
+  if (a === 'abrir-problema') { problemaDe = id; notaBorrador = ''; avisoTareas = null; renderPanel(); return; }
+  if (a === 'cancelar') { problemaDe = null; renderPanel(); return; }
+  const nota = notaBorrador.trim();
+  if (a === 'problema' && !nota) { avisoTareas = { ok: false, texto: 'Contá qué pasó antes de avisar.' }; renderPanel(); return; }
+  guardandoTarea = id; renderPanel();
+  try {
+    await pedir('tarea:estado', { tarea: id, estado: a, nota }, 15000); // «id» es el del pedido: la tarea va aparte
+    avisoTareas = { ok: true, texto: a === 'problema' ? 'Listo: quedó avisado el problema.' : a === 'hecha' ? 'Listo, quedó hecha.' : 'Volvió a pendiente.' };
+    if (a === 'problema') { problemaDe = null; notaBorrador = ''; }
+  } catch (err) {
+    avisoTareas = { ok: false, texto: (err && err.message) || 'No se pudo guardar. Probá de nuevo.' };
+  }
+  guardandoTarea = null;
+  await cargarDatosSistema(); // trae el estado nuevo de la base y repinta
+  renderPanel();
 }
 function renderStatusSistema() {
   const hoy = hoyStr();

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getServerSession } from "@/lib/auth/session"
+import { tienePermiso } from "@/lib/permisos"
 import { HERRAMIENTAS, historialParaApi, promptSistema, textoDeRespuesta, type MensajeGuardado } from "@/lib/asistente"
 import { etapaRiegoDe, momentoCiclo, sumarDias, type CicloSala } from "@/lib/ciclo"
 
@@ -8,7 +9,7 @@ import { etapaRiegoDe, momentoCiclo, sumarDias, type CicloSala } from "@/lib/cic
 // de Vercel (nunca va al navegador):
 //   - OPENAI_API_KEY (lo que cargó Joaquín, 03/11/2026) → OpenAI, modelo OPENAI_MODEL.
 //   - Si no está, ANTHROPIC_API_KEY → Anthropic, modelo ANTHROPIC_MODEL.
-// Cada persona tiene su conversación en public.asistente_mensajes (script 087).
+// Cada persona tiene su conversación en public.asistente_mensajes (script 088).
 
 const MODELO_OPENAI = process.env.OPENAI_MODEL || "gpt-5.4-mini"
 const MODELO_ANTHROPIC = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5"
@@ -57,19 +58,29 @@ async function ejecutar(supabase: Supabase, nombre: string, input: Record<string
 export async function GET() {
   const session = await getServerSession()
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  // El asistente es de la pantalla Sede (permiso sede.ver, lib/permisos.ts):
+  // cada pregunta tiene costo en la cuenta de OpenAI.
+  if (!tienePermiso(session.permisos, "sede.ver")) {
+    return NextResponse.json({ error: "Tu rol no tiene acceso a la Sede" }, { status: 403 })
+  }
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("asistente_mensajes")
     .select("rol, cuerpo, created_at")
     .order("created_at", { ascending: false })
     .limit(60)
-  if (error) return NextResponse.json({ mensajes: [], aviso: "Falta correr el script 087." })
+  if (error) return NextResponse.json({ mensajes: [], aviso: "Falta correr el script 088." })
   return NextResponse.json({ mensajes: (data ?? []).reverse() })
 }
 
 export async function POST(request: Request) {
   const session = await getServerSession()
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  // El asistente es de la pantalla Sede (permiso sede.ver, lib/permisos.ts):
+  // cada pregunta tiene costo en la cuenta de OpenAI.
+  if (!tienePermiso(session.permisos, "sede.ver")) {
+    return NextResponse.json({ error: "Tu rol no tiene acceso a la Sede" }, { status: 403 })
+  }
 
   const body = (await request.json().catch(() => null)) as { mensaje?: string } | null
   const pregunta = body?.mensaje?.trim().slice(0, 4000)

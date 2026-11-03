@@ -152,12 +152,12 @@ export function EquipoManager({ yo, hoy, perfiles, initialTareas, initialPlantil
   const cargarChat = useCallback(async () => {
     const consulta = (sinPrivados: boolean) => {
       let q = supabase.from("mensajes").select("*").is("tarea_id", null)
-      // Los privados (script 087) se ven en la pantalla Sede, no en el chat general.
+      // Los privados (script 088) se ven en la pantalla Sede, no en el chat general.
       if (sinPrivados) q = q.is("para_id", null)
       return q.order("created_at", { ascending: false }).limit(100)
     }
     let { data, error } = await consulta(true)
-    // Sin el script 087 todavía no existe para_id: se lee como antes.
+    // Sin el script 088 todavía no existe para_id: se lee como antes.
     if (error) ({ data, error } = await consulta(false))
     if (data) setChat((data as Mensaje[]).reverse())
   }, [supabase])

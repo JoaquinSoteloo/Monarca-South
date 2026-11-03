@@ -94,7 +94,7 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos }: Props) {
           const paraId = para ? idDeNombre(para) : null
           if (para && !paraId) throw new Error(`${para} todavía no tiene usuario en el sistema.`)
           const { error } = await supabase.from("mensajes").insert({ cuerpo: txt, autor_id: yo.id, ...(paraId ? { para_id: paraId } : {}) })
-          if (error) throw new Error(paraId ? "Los privados necesitan el script 087." : "No se pudo enviar.")
+          if (error) throw new Error(paraId ? "Los privados necesitan el script 088." : "No se pudo enviar.")
           return null
         }
 

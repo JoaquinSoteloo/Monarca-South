@@ -10,7 +10,8 @@
 --     quien lo recibe.
 --   - Asistente: cada persona tiene su conversación privada con el asistente
 --     de cultivo (tabla asistente_mensajes). La respuesta la genera el
---     servidor (app/api/asistente) con la clave ANTHROPIC_API_KEY de Vercel.
+--     servidor (app/api/asistente) con la clave OPENAI_API_KEY de Vercel
+--     (ANTHROPIC_API_KEY queda de respaldo).
 --
 -- Script idempotente, envuelto en una transacción.
 

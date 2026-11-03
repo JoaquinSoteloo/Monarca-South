@@ -8,7 +8,7 @@
  */
 import type React from "react"
 import { useEffect, useState } from "react"
-import { KeyRound, Plus, ShieldCheck, UserCheck, UserX } from "lucide-react"
+import { KeyRound, Pencil, Plus, ShieldCheck, UserCheck, UserX } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { ConfigEntregas, Perfil, RolUsuario } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -45,6 +45,8 @@ export function UsuariosManager({ usuarioActualId, initialConfig }: Props) {
   const [nuevoOpen, setNuevoOpen] = useState(false)
   const [nuevo, setNuevo] = useState({ nombre: "", email: "", password: "", rol: "operador" as RolUsuario })
   const [passwordPara, setPasswordPara] = useState<Usuario | null>(null)
+  const [nombrePara, setNombrePara] = useState<Usuario | null>(null)
+  const [nuevoNombre, setNuevoNombre] = useState("")
   const [nuevaPassword, setNuevaPassword] = useState("")
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -126,6 +128,24 @@ export function UsuariosManager({ usuarioActualId, initialConfig }: Props) {
       setPasswordPara(null)
       setNuevaPassword("")
       setAviso({ ok: true, texto: `Contraseña de ${passwordPara.nombre} actualizada.` })
+    }
+  }
+
+  const cambiarNombre = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!nombrePara) return
+    setError(null)
+    const nombre = nuevoNombre.trim()
+    if (!nombre) {
+      setError("Escribí el nombre")
+      return
+    }
+    setEnviando(true)
+    const ok = await actualizar(nombrePara.user_id, { nombre })
+    setEnviando(false)
+    if (ok) {
+      setNombrePara(null)
+      setAviso({ ok: true, texto: `Ahora se llama ${nombre}. Se ve así en tareas, chats y registros nuevos.` })
     }
   }
 
@@ -234,6 +254,19 @@ export function UsuariosManager({ usuarioActualId, initialConfig }: Props) {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Cambiar nombre"
+                          aria-label={`Cambiar el nombre de ${u.nombre}`}
+                          onClick={() => {
+                            setError(null)
+                            setNuevoNombre(u.nombre)
+                            setNombrePara(u)
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -367,6 +400,30 @@ export function UsuariosManager({ usuarioActualId, initialConfig }: Props) {
               </Button>
               <Button type="submit" disabled={enviando}>
                 {enviando ? "Creando..." : "Crear usuario"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!nombrePara} onOpenChange={(o) => !enviando && !o && setNombrePara(null)}>
+        <DialogContent className="monarca-theme sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cambiar nombre</DialogTitle>
+            <DialogDescription>{nombrePara?.email}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={cambiarNombre} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="nuevo-nombre">Nombre</Label>
+              <Input id="nuevo-nombre" value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} autoFocus />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setNombrePara(null)} disabled={enviando} className="bg-card">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={enviando}>
+                {enviando ? "Guardando..." : "Guardar"}
               </Button>
             </DialogFooter>
           </form>

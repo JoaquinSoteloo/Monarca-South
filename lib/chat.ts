@@ -53,7 +53,7 @@ export function contarSinLeer(
  * Las tareas con un problema que le importan a `yo`: las suyas, las de quienes
  * supervisa, las que lo afectan, o todas si ve todas las tareas.
  */
-export function teInvolucra(t: Tarea, yo: Perfil, perfiles: Perfil[]): boolean {
+export function teInvolucra(t: Pick<Tarea, "responsable_id" | "afecta_a">, yo: Perfil, perfiles: Perfil[]): boolean {
   if (yo.ve_todas_las_tareas || t.responsable_id === yo.id || t.afecta_a.includes(yo.id)) return true
   return perfiles.find((p) => p.id === t.responsable_id)?.supervisor_id === yo.id
 }

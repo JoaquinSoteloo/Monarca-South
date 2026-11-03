@@ -2,8 +2,10 @@
 // cada request vía cookies SSR (@supabase/ssr). Cada persona tiene su propia
 // cuenta y un perfil con rol (public.perfiles, scripts/066). `usuario` queda
 // fijo en "admin" a propósito: push_subscriptions usa ese valor como clave
-// (lib/push/subscriptions.ts) y las notificaciones son del club, no de una
-// persona. Para registrar "quién" hizo algo se usa `nombre`.
+// (lib/push/subscriptions.ts) y los avisos del club (Modo Ausente) van a
+// todos los aparatos. Los push del Chat van a la persona: para eso cada
+// aparato guarda `id` (script 090). Para registrar "quién" hizo algo se usa
+// `nombre`.
 import { createClient } from "@/lib/supabase/server"
 import type { RolUsuario } from "@/lib/types"
 import { ROL_COMISION, TODOS_LOS_PERMISOS } from "@/lib/permisos"

@@ -32,6 +32,26 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)))
 }
 
+// Guarda la suscripción en el servidor, a nombre de quien está logueado.
+async function guardarEnServidor(subscription: PushSubscription) {
+  const response = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      subscription: subscription.toJSON(),
+      deviceLabel: `${navigator.platform || "Dispositivo"}`,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error("No se pudo guardar la suscripción en el servidor")
+  }
+}
+
+// La suscripción que ya se volvió a guardar en esta carga de la página: la
+// campana se monta dos veces (barra lateral y barra del celular).
+let sincronizada: string | null = null
+
 export function usePushSubscription(): UsePushSubscriptionResult {
   const [isSupported, setIsSupported] = useState(false)
   const [requiresStandalone, setRequiresStandalone] = useState(false)
@@ -64,6 +84,15 @@ export function usePushSubscription(): UsePushSubscriptionResult {
         const registration = await navigator.serviceWorker.ready
         const subscription = await registration.pushManager.getSubscription()
         if (!cancelled) setIsSubscribed(!!subscription)
+        // Un aparato que ya tenía las notificaciones activadas se vuelve a
+        // guardar a nombre de quien entró (script 090: los push del Chat van a
+        // cada persona). No pide permiso ni crea una suscripción nueva.
+        if (subscription && Notification.permission === "granted" && sincronizada !== subscription.endpoint) {
+          sincronizada = subscription.endpoint
+          guardarEnServidor(subscription).catch(() => {
+            sincronizada = null
+          })
+        }
       } catch {
         // sin service worker listo todavía, se considera no suscripto
       } finally {
@@ -98,18 +127,8 @@ export function usePushSubscription(): UsePushSubscriptionResult {
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       })
 
-      const response = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subscription: subscription.toJSON(),
-          deviceLabel: `${navigator.platform || "Dispositivo"}`,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("No se pudo guardar la suscripción en el servidor")
-      }
+      await guardarEnServidor(subscription)
+      sincronizada = subscription.endpoint
 
       setIsSubscribed(true)
     } catch (err: any) {

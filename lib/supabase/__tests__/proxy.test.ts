@@ -55,7 +55,15 @@ describe("updateSession (proxy)", () => {
     await expect(response.json()).resolves.toEqual({ error: "No autorizado" })
   })
 
-  it.each(["/login", "/reservar", "/api/auth/login", "/api/auth/logout", "/api/auth/session", "/api/automations/evaluate"])(
+  it.each([
+    "/login",
+    "/reservar",
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/session",
+    "/api/automations/evaluate",
+    "/api/chat/notificar",
+  ])(
     "deja pasar la ruta pública %s sin sesión",
     async (path) => {
       getUserMock.mockResolvedValue({ data: { user: null } })

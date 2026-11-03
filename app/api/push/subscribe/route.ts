@@ -21,6 +21,8 @@ export async function POST(request: Request) {
     keys: { p256dh: subscription.keys.p256dh, auth: subscription.keys.auth },
     userAgent: request.headers.get("user-agent"),
     deviceLabel,
+    // El aparato queda a nombre de quien lo activó: le llegan sus push del Chat.
+    userId: session.id,
   })
 
   return NextResponse.json({ ok: true })

@@ -1,5 +1,10 @@
 import { getWebPush } from "@/lib/push/config"
-import { listActiveSubscriptions, disableSubscription, type PushSubscriptionRow } from "@/lib/push/subscriptions"
+import {
+  listActiveSubscriptions,
+  listActiveSubscriptionsOf,
+  disableSubscription,
+  type PushSubscriptionRow,
+} from "@/lib/push/subscriptions"
 
 export interface PushPayload {
   title: string
@@ -16,14 +21,29 @@ export interface SendPushResult {
   failed: number
 }
 
-// Capa reutilizable: cualquier alerta o automatización futura solo necesita
-// importar esta función. Hoy no está conectada a ninguna regla real — queda
-// disponible para cuando se decida disparar notificaciones desde
-// lib/automations/**.
+// Capa reutilizable: cualquier alerta nueva solo necesita importar una de
+// estas dos funciones.
+// - sendPushNotification: a todos los dispositivos activos. Para los avisos
+//   del club, como Modo Ausente (lib/modo-ausente/engine.ts).
+// - sendPushToUsers: solo a los aparatos de esas personas. Para el Chat
+//   (app/api/chat/notificar, script 090).
 export async function sendPushNotification(payload: PushPayload): Promise<SendPushResult> {
   const webpush = getWebPush()
-  const subscriptions = await listActiveSubscriptions()
+  return sendToAll(webpush, await listActiveSubscriptions(), payload)
+}
 
+export async function sendPushToUsers(userIds: string[], payload: PushPayload): Promise<SendPushResult> {
+  const ids = [...new Set(userIds)]
+  if (ids.length === 0) return { sent: 0, removed: 0, failed: 0 }
+  const webpush = getWebPush()
+  return sendToAll(webpush, await listActiveSubscriptionsOf(ids), payload)
+}
+
+async function sendToAll(
+  webpush: ReturnType<typeof getWebPush>,
+  subscriptions: PushSubscriptionRow[],
+  payload: PushPayload,
+): Promise<SendPushResult> {
   const results = await Promise.allSettled(
     subscriptions.map((subscription) => sendToOne(webpush, subscription, payload)),
   )

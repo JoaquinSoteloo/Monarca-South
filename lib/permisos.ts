@@ -103,8 +103,14 @@ export const PANTALLAS: PantallaPermisos[] = [
 
 export const TODOS_LOS_PERMISOS: string[] = PANTALLAS.flatMap((p) => [p.ver, ...p.acciones.map((a) => a.clave)])
 
+/** Rutas que no son una pantalla del catálogo y usan el permiso de otra (el Chat es parte de Equipo). */
+const RUTAS_CON_PERMISO_DE: Record<string, string> = { "/chat": "/equipo" }
+
 /** Permiso "ver" de la pantalla de una ruta (el prefijo más largo que coincide). */
 export function permisoDeRuta(pathname: string): string | null {
+  for (const [ruta, de] of Object.entries(RUTAS_CON_PERMISO_DE)) {
+    if (pathname === ruta || pathname.startsWith(`${ruta}/`)) return permisoDeRuta(de)
+  }
   let mejor: PantallaPermisos | null = null
   for (const p of PANTALLAS) {
     const coincide = p.ruta === "/" ? pathname === "/" : pathname === p.ruta || pathname.startsWith(`${p.ruta}/`)

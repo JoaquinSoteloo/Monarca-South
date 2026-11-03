@@ -33,11 +33,15 @@ import {
   Wallet,
   Scissors,
   Building2,
+  MessageCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PushNotificationsBell } from "@/components/push-notifications-bell"
 import type { RolUsuario } from "@/lib/types"
 import { permisoDeRuta, tienePermiso } from "@/lib/permisos"
+
+/** Lo dispara el botón «Más» de la barra de abajo (components/app-bottom-nav.tsx) para abrir este menú. */
+export const EVENTO_ABRIR_MENU = "monarca:abrir-menu"
 
 export interface UsuarioNav {
   nombre: string
@@ -60,6 +64,7 @@ const navGroups: {
     items: [
       { href: "/", label: "Inicio", icon: Home },
       { href: "/equipo", label: "Equipo", icon: ListChecks },
+      { href: "/chat", label: "Chat", icon: MessageCircle },
       { href: "/sede", label: "Sede", icon: Building2 },
       { href: "/ventas", label: "Entregas", icon: ShoppingCart },
       { href: "/historial", label: "Historial", icon: History },
@@ -307,6 +312,15 @@ export function AppMobileNav({ usuario }: { usuario: UsuarioNav | null }) {
   useEffect(() => {
     setOpen(false)
   }, [pathname])
+
+  useEffect(() => {
+    const abrir = () => {
+      setOpen(true)
+      window.scrollTo({ top: 0 })
+    }
+    window.addEventListener(EVENTO_ABRIR_MENU, abrir)
+    return () => window.removeEventListener(EVENTO_ABRIR_MENU, abrir)
+  }, [])
 
   return (
     <div className="bg-primary lg:hidden">

@@ -1,57 +1,36 @@
 import { createClient } from "@/lib/supabase/server"
 import { getPerfilActual } from "@/lib/auth/perfil"
 import { getArgentinaDateString } from "@/lib/timezone"
-import { EquipoManager } from "@/components/equipo-manager"
-import type { Mensaje, Notificacion, Perfil, Tarea, TareaPlantilla } from "@/lib/equipo"
+import { HoyManager } from "@/components/hoy/hoy-manager"
+import { SinEquipo } from "@/components/equipo/sin-equipo"
+import type { Notificacion, Perfil, Tarea } from "@/lib/equipo"
 
 export const dynamic = "force-dynamic"
 
+// Pantalla Hoy (rediseño de Equipo, 03/11/2026): las tareas del día, una por
+// vez. La pantalla anterior sigue en /equipo/anterior para volver atrás.
 export default async function EquipoPage() {
   const { perfil, tablaFaltante } = await getPerfilActual()
-
-  if (tablaFaltante || !perfil) {
-    return (
-      <main className="container mx-auto px-4 py-8">
-        <div className="mx-auto max-w-xl rounded-lg border p-6 text-sm">
-          <h1 className="mb-2 text-lg font-semibold">Equipo</h1>
-          {tablaFaltante ? (
-            <p>
-              Falta crear las tablas del equipo. Correr <code>scripts/077_create_equipo_tareas.sql</code> y después{" "}
-              <code>scripts/078_seed_equipo.sql</code> en el SQL Editor de Supabase.
-            </p>
-          ) : (
-            <p>
-              Tu usuario todavía no está en el equipo. Cada persona se crea en la pantalla Usuarios y después se suma al
-              equipo (área y quién supervisa) corriendo <code>scripts/078_seed_equipo.sql</code>.
-            </p>
-          )}
-        </div>
-      </main>
-    )
-  }
+  if (tablaFaltante || !perfil) return <SinEquipo titulo="Hoy" tablaFaltante={tablaFaltante} />
 
   const supabase = await createClient()
   const hoy = getArgentinaDateString()
   await supabase.rpc("generar_tareas_del_dia", { p_fecha: hoy })
 
-  const [perfiles, tareas, plantillas, avisos, chat] = await Promise.all([
+  const [perfiles, tareas, avisos] = await Promise.all([
     supabase.from("equipo_perfiles").select("*").order("nombre"),
     supabase.from("tareas").select("*").eq("fecha", hoy),
-    supabase.from("tareas_plantilla").select("*").order("orden"),
     supabase.from("notificaciones").select("*").order("created_at", { ascending: false }).limit(60),
-    supabase.from("mensajes").select("*").is("tarea_id", null).order("created_at", { ascending: false }).limit(100),
   ])
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <EquipoManager
+    <main className="container mx-auto px-4 py-6">
+      <HoyManager
         yo={perfil}
         hoy={hoy}
         perfiles={(perfiles.data || []) as Perfil[]}
         initialTareas={(tareas.data || []) as Tarea[]}
-        initialPlantillas={(plantillas.data || []) as TareaPlantilla[]}
         initialAvisos={(avisos.data || []) as Notificacion[]}
-        initialChat={((chat.data || []) as Mensaje[]).reverse()}
       />
     </main>
   )

@@ -1,18 +1,37 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
-import type { Perfil } from "@/lib/equipo"
+import type { Perfil, Tarea } from "@/lib/equipo"
 import type { SalaCultivo } from "@/lib/types"
 import { cicloActual, etapaRiegoDe, momentoCiclo, type CicloSala } from "@/lib/ciclo"
-import { canalDe, destinatarioDe, etapaDesdeSimulador, numeroOnull, personajeDe } from "@/lib/sede"
+import {
+  canalDe,
+  destinatarioDe,
+  etapaDesdeSimulador,
+  numeroOnull,
+  personajeDe,
+  resumenDia,
+  ultimaPorSala,
+  type LecturaSala,
+} from "@/lib/sede"
 
 interface Props {
   yo: { id: string; nombre: string } | null
   perfiles: Perfil[]
   salas: SalaCultivo[]
   ciclos: CicloSala[]
+  /**
+   * "sistema" (la Sede en la compu desde el rediseño del 03/11/2026): sin
+   * controles de demo, con el clima, los ciclos y las tareas reales.
+   * "original": el simulador tal cual lo dejó Facundo (/sede/oficina).
+   */
+  modo?: "sistema" | "original"
 }
+
+/** Pantallas a las que el simulador puede mandar a quien lo usa. */
+const RUTAS_PERMITIDAS = ["/equipo", "/chat", "/riego", "/ciclos", "/monitoreo", "/sede/oficina"]
 
 interface Pedido {
   tipo: string
@@ -26,8 +45,9 @@ interface Pedido {
  * con la sesión de quien lo usa: el chat y los riegos van a la base y el
  * asistente al servidor. Así el simulador sigue siendo un solo archivo.
  */
-export function SedeSimulador({ yo, perfiles, salas, ciclos }: Props) {
+export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }: Props) {
   const iframe = useRef<HTMLIFrameElement>(null)
+  const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
   // Nombre que se ve en el simulador para cada usuario (Lucho, Vilela… o su nombre).
@@ -134,10 +154,91 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos }: Props) {
           if (error) throw new Error("No se pudo guardar el riego: " + error.message)
           return { sala: sala.nombre }
         }
+
+        // Modo sistema: clima de Pulse (ahora y el día), último riego, ciclos y
+        // tareas de hoy, cada 5 minutos.
+        case "sede:datos": {
+          const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })
+          const medianoche = new Date(`${hoy}T00:00:00-03:00`).toISOString()
+          const hace2horas = new Date(Date.now() - 2 * 3600_000).toISOString()
+          const desde = medianoche < hace2horas ? medianoche : hace2horas
+          const [lecturas, tareas, riegos] = await Promise.all([
+            supabase
+              .from("lecturas_ambientales")
+              .select("sala_id, temperatura_c, humedad_rh, vpd, luz_lux, leido_en")
+              .gte("leido_en", desde)
+              .not("sala_id", "is", null)
+              .order("leido_en", { ascending: false })
+              .limit(4000),
+            supabase.from("tareas").select("responsable_id, titulo, estado, orden").eq("fecha", hoy),
+            supabase
+              .from("registros_riego")
+              .select("id, sala_id, fecha, ec_entrada, ph_entrada, drenaje_pct")
+              .order("fecha", { ascending: false })
+              .order("id", { ascending: false })
+              .limit(200),
+          ])
+          const filas = (lecturas.data ?? []) as LecturaSala[]
+          // «Ahora» solo si la lectura tiene menos de 2 horas: si no, el sensor está sin conexión.
+          const ultimas = ultimaPorSala(filas.filter((l) => l.leido_en >= hace2horas))
+          const horaDe = (iso: string) =>
+            new Date(iso).toLocaleTimeString("es-AR", {
+              timeZone: "America/Argentina/Buenos_Aires",
+              hour: "2-digit",
+              minute: "2-digit",
+              hourCycle: "h23",
+            })
+          const masNueva = [...ultimas.values()].reduce<string | null>((u, l) => (!u || l.leido_en > u ? l.leido_en : u), null)
+          const deHoy = (tareas.data ?? []) as Pick<Tarea, "responsable_id" | "titulo" | "estado" | "orden">[]
+          type Riego = { sala_id: number; fecha: string; ec_entrada: number | null; ph_entrada: number | null; drenaje_pct: number | null }
+          const ultimoRiego = new Map<number, Riego>()
+          for (const r of (riegos.data ?? []) as Riego[]) if (!ultimoRiego.has(r.sala_id)) ultimoRiego.set(r.sala_id, r)
+          return {
+            actualizado: masNueva ? horaDe(masNueva) : null,
+            salas: salas.map((s) => {
+              const c = cicloActual(ciclos, s.id, hoy)
+              const l = ultimas.get(s.id)
+              const delDia = filas.filter((x) => x.sala_id === s.id && x.leido_en >= medianoche)
+              const r = ultimoRiego.get(s.id)
+              return {
+                nombre: s.nombre,
+                ciclo: c ? { inicio: c.fecha_inicio, vege: c.dias_vege, flora: c.dias_flora, m2: c.m2 } : null,
+                lectura: l
+                  ? { t: l.temperatura_c, h: l.humedad_rh, vpd: l.vpd, lux: l.luz_lux ?? null, hora: horaDe(l.leido_en) }
+                  : null,
+                dia: delDia.length
+                  ? {
+                      t: resumenDia(delDia.map((x) => x.temperatura_c)),
+                      h: resumenDia(delDia.map((x) => x.humedad_rh)),
+                      vpd: resumenDia(delDia.map((x) => x.vpd)),
+                    }
+                  : null,
+                riego: r ? { fecha: r.fecha, ec: r.ec_entrada, ph: r.ph_entrada, drenaje: r.drenaje_pct } : null,
+              }
+            }),
+            equipo: perfiles.map((perfil) => {
+              const suyas = deHoy.filter((t) => t.responsable_id === perfil.id).sort((a, b) => a.orden - b.orden)
+              return {
+                nombre: nombres.get(perfil.id) ?? perfil.nombre,
+                total: suyas.length,
+                hechas: suyas.filter((t) => t.estado === "hecha").length,
+                problemas: suyas.filter((t) => t.estado === "problema").length,
+                tareas: suyas.map((t) => ({ titulo: t.titulo, estado: t.estado })),
+              }
+            }),
+          }
+        }
+
+        case "navegar": {
+          const ruta = String(p.ruta ?? "")
+          if (!RUTAS_PERMITIDAS.includes(ruta)) throw new Error("Pantalla desconocida")
+          router.push(ruta)
+          return null
+        }
       }
       throw new Error("Pedido desconocido: " + p.tipo)
     },
-    [yo, miNombre, nombres, supabase, idDeNombre, salas, ciclos],
+    [yo, miNombre, nombres, supabase, idDeNombre, salas, ciclos, perfiles, router],
   )
 
   useEffect(() => {
@@ -158,8 +259,14 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos }: Props) {
   }, [atender])
 
   return (
-    <main className="h-[calc(100dvh-4rem)] w-full">
-      <iframe ref={iframe} src="/sede/index.html" title="Sede Monarca" className="h-full w-full border-0" allow="fullscreen" />
+    <main className="h-[calc(100dvh-4rem)] w-full lg:h-dvh">
+      <iframe
+        ref={iframe}
+        src={modo === "sistema" ? "/sede/index.html?modo=sistema" : "/sede/index.html"}
+        title="Sede Monarca en 3D"
+        className="h-full w-full border-0"
+        allow="fullscreen"
+      />
     </main>
   )
 }

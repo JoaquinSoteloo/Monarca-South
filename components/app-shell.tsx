@@ -1,9 +1,12 @@
 import type React from "react"
+import { Suspense } from "react"
 import { headers } from "next/headers"
 import { ShieldX } from "lucide-react"
 import { AppSidebar, AppMobileNav } from "@/components/app-nav"
+import { AppBottomNav } from "@/components/app-bottom-nav"
 import { getServerSession } from "@/lib/auth/session"
 import { permisoDeRuta, tienePermiso } from "@/lib/permisos"
+import { cn } from "@/lib/utils"
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const session = await getServerSession()
@@ -15,6 +18,8 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = (await headers()).get("x-pathname") ?? "/"
   const permiso = permisoDeRuta(pathname)
   const sinPermiso = !!session && !!permiso && !tienePermiso(session.permisos, permiso)
+  // Barra de abajo en el celular para quien usa Equipo o Sede.
+  const conBarra = !!session && (tienePermiso(session.permisos, "equipo.ver") || tienePermiso(session.permisos, "sede.ver"))
 
   return (
     <div className="monarca-theme flex min-h-screen w-full bg-background text-foreground">
@@ -25,7 +30,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         {/* Cada pantalla trae su propio <main> con el padding/container que ya
             tenía; este div sólo aporta el espacio disponible al lado del
             sidebar, para no anidar dos <main> ni duplicar el padding. */}
-        <div className="min-w-0 flex-1">
+        <div className={cn("min-w-0 flex-1", conBarra && "pb-24 lg:pb-0")}>
           {sinPermiso ? (
             <main className="container mx-auto px-4 py-16">
               <div className="mx-auto flex max-w-md flex-col items-center gap-3 rounded-lg border bg-card p-8 text-center">
@@ -42,6 +47,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </div>
+
+      {conBarra && session && (
+        <Suspense>
+          <AppBottomNav permisos={session.permisos} yoId={session.id} />
+        </Suspense>
+      )}
     </div>
   )
 }

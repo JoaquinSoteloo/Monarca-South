@@ -25,6 +25,7 @@ export interface PantallaPermisos {
 export const PANTALLAS: PantallaPermisos[] = [
   { ruta: "/", nombre: "Inicio", grupo: "Principal", ver: "inicio.ver", acciones: [] },
   { ruta: "/equipo", nombre: "Equipo", grupo: "Principal", ver: "equipo.ver", acciones: [] },
+  { ruta: "/sede", nombre: "Sede", grupo: "Principal", ver: "sede.ver", acciones: [] },
   {
     ruta: "/ventas",
     nombre: "Entregas",

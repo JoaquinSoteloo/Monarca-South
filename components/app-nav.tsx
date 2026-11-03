@@ -32,6 +32,7 @@ import {
   HandCoins,
   Wallet,
   Scissors,
+  Building2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PushNotificationsBell } from "@/components/push-notifications-bell"
@@ -59,6 +60,7 @@ const navGroups: {
     items: [
       { href: "/", label: "Inicio", icon: Home },
       { href: "/equipo", label: "Equipo", icon: ListChecks },
+      { href: "/sede", label: "Sede", icon: Building2 },
       { href: "/ventas", label: "Entregas", icon: ShoppingCart },
       { href: "/historial", label: "Historial", icon: History },
     ],

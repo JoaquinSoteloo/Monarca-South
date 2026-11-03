@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monarca virtual — Sede Balbastro (v0.6)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#1b2620;font-family:Inter,system-ui,sans-serif;color:#1c2620}
+  #c{position:fixed;inset:0;display:block}
+  #labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+  .tag{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;text-align:center}
+  .tag .n{display:inline-block;background:#ffffffee;border:1px solid #00000022;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:600}
+  .tag .b{display:block;margin-top:3px;background:#13201aee;color:#f4f1e8;border-radius:8px;padding:2px 7px;font-size:11px}
+  .sign{position:absolute;transform:translate(-50%,-100%);background:#13201ae0;color:#f4f1e8;border-radius:8px;padding:4px 8px;font-size:10.5px;line-height:1.3;white-space:nowrap;border-left:4px solid #6fbf4f}
+  .sign b{font-family:Archivo,sans-serif;font-size:12px;letter-spacing:.3px}
+  .sign .x{color:#a9b5ad}
+  .sign.alert{border-left-color:#e24b4a}
+  .sign.flora{border-left-color:#9b7fe0}
+  .sign.agua{border-left-color:#378add}
+  .sign.aten{border-left-color:#e2b55a}
+  #hud{position:fixed;left:12px;top:12px;width:300px;max-height:calc(100% - 24px);overflow:auto;background:#f4f1e8f2;border-radius:14px;padding:12px 14px;box-shadow:0 6px 24px #0005}
+  #hud h1{font-family:Archivo,sans-serif;font-size:18px;margin:0 0 2px}
+  #hud .sub{font-size:11px;color:#5b665f;margin-bottom:8px}
+  #clock{font-family:Archivo,sans-serif;font-size:26px;font-weight:800}
+  .row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  button{font:inherit;font-size:12px;border:1px solid #1c262033;background:#fff;border-radius:8px;padding:5px 9px;cursor:pointer}
+  button:hover{background:#e9e5da}
+  button.on{background:#13201a;color:#f4f1e8}
+  .people{display:flex;gap:5px;flex-wrap:wrap}
+  .people button{display:flex;align-items:center;gap:5px}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .task{display:flex;align-items:flex-start;gap:6px;font-size:12px;padding:5px 0;border-top:1px solid #00000012}
+  .task .t{flex:1}
+  .task.done .t{color:#5b665f;text-decoration:line-through}
+  .task.prob .t{color:#b3261e}
+  .task button{padding:2px 6px;font-size:11px}
+  #log{font-size:11px;color:#3b463f;margin-top:8px}
+  #log div{padding:3px 0;border-top:1px dashed #00000018}
+  .demo{font-size:10px;background:#e2b55a;color:#13201a;border-radius:6px;padding:1px 6px;font-weight:700;vertical-align:middle}
+  #chatBtn{position:fixed;right:12px;bottom:64px;z-index:5;background:#13201a;color:#f4f1e8;border:none;border-radius:20px;padding:8px 14px;font-weight:600;box-shadow:0 6px 18px #0006}
+  #chatBtn .n{background:#e24b4a;border-radius:9px;padding:0 6px;margin-left:6px;font-size:11px}
+  #chat{position:fixed;right:12px;bottom:108px;width:320px;height:420px;max-height:60%;display:none;flex-direction:column;background:#f4f1e8f6;border-radius:14px;box-shadow:0 6px 24px #0006;z-index:5;overflow:hidden}
+  #chat header{padding:9px 12px;background:#13201a;color:#f4f1e8;font-family:Archivo,sans-serif;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+  #chat header small{font-family:Inter,sans-serif;font-size:10px;color:#a9b5ad;display:block}
+  #chatMsgs{flex:1;overflow:auto;padding:8px 10px;font-size:12.5px}
+  #chatMsgs .m{margin:0 0 8px}
+  #chatMsgs .m b{font-size:12px}
+  #chatMsgs .m .h{color:#5b665f;font-size:10.5px;margin-left:4px}
+  #chatMsgs .m .x{background:#fff;border-radius:9px;padding:5px 8px;margin-top:2px;display:inline-block;max-width:100%;word-wrap:break-word}
+  #chatMsgs .m.yo{text-align:right}
+  #chatMsgs .m.yo .x{background:#dcefd6}
+  #chat form{display:flex;gap:5px;padding:8px;border-top:1px solid #00000014;flex-wrap:wrap}
+  #chat select{font:inherit;font-size:12px;border:1px solid #1c262033;border-radius:8px;padding:4px}
+  #chatCanales{display:flex;gap:4px;padding:6px 8px;overflow-x:auto;border-bottom:1px solid #00000014;background:#ece8dc}
+  #chatCanales button{flex:none;font:inherit;font-size:11.5px;border:1px solid #1c262026;background:#fff;border-radius:12px;padding:3px 9px;cursor:pointer;white-space:nowrap}
+  #chatCanales button.on{background:#13201a;color:#f4f1e8;border-color:#13201a}
+  #chatCanales button .n{background:#e24b4a;color:#fff;border-radius:8px;padding:0 5px;margin-left:4px;font-size:10px}
+  #chatPara{font-size:11px;color:#5b665f;padding:4px 10px 0}
+  #ftBg{position:fixed;inset:0;background:#0008;z-index:9;display:none;align-items:center;justify-content:center}
+  #ft{background:#f4f1e8;border-radius:14px;padding:14px 16px;width:min(420px,92vw);max-height:88vh;overflow:auto;font-size:13px;box-shadow:0 10px 30px #0008}
+  #ft h3{font-family:Archivo,sans-serif;font-size:16px;margin:0 0 2px}
+  #ft .sub{color:#5b665f;font-size:11.5px;margin-bottom:8px}
+  #ft .g{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+  #ft label{display:flex;flex-direction:column;font-size:11.5px;color:#3d4a42;gap:2px;min-width:0}
+  #ft input,#ft select{width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1px solid #1c262033;border-radius:8px;padding:5px 7px;background:#fff}
+  #ft .full{grid-column:1/-1}
+  #ft .bt{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+  #ft .bt button{font:inherit;border-radius:9px;padding:6px 12px;border:1px solid #1c262033;background:#fff}
+  #ft .bt button.ok{background:#13201a;color:#f4f1e8;border-color:#13201a}
+  #ft .rg{font-size:11px;color:#3f7d3a;margin-top:4px}
+  .asesor .ok{color:#3f7d3a} .asesor .mal{color:#b3261e} .asesor .ojo{color:#a36a00}
+  #chat input{flex:1;min-width:120px;font:inherit;font-size:13px;border:1px solid #1c262033;border-radius:8px;padding:6px 8px}
+  @media (max-width:700px){#chat{left:12px;right:12px;width:auto;bottom:100px;height:50%}#chatBtn{bottom:auto;top:12px;right:12px}}
+  #help{position:fixed;right:12px;bottom:12px;background:#13201ad9;color:#c9d2cb;font-size:11px;border-radius:10px;padding:7px 10px;max-width:260px}
+  #status{position:fixed;left:50%;top:12px;transform:translateX(-50%);display:flex;gap:6px;background:#13201ae8;color:#f4f1e8;border-radius:12px;padding:6px 8px;font-size:12px;box-shadow:0 6px 24px #0005}
+  #status .k{padding:3px 9px;border-radius:8px;background:#ffffff10;white-space:nowrap}
+  #status .k b{font-family:Archivo,sans-serif;font-size:13px}
+  #status .k.warn{background:#e24b4a33;color:#ffd0cc}
+  #room{position:fixed;right:12px;top:12px;width:290px;max-height:calc(100% - 80px);overflow:auto;background:#f4f1e8f2;border-radius:14px;padding:12px 14px;box-shadow:0 6px 24px #0005;display:none;font-size:12px}
+  #room h2{font-family:Archivo,sans-serif;font-size:17px;margin:0}
+  #room .grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:8px 0}
+  #room .grid div{background:#fff;border-radius:7px;padding:4px 7px}
+  #room .grid span{display:block;font-size:10px;color:#5b665f}
+  #room .hit{display:flex;gap:6px;padding:3px 0;border-top:1px solid #00000012}
+  #room .bar{height:6px;background:#00000014;border-radius:4px;overflow:hidden;margin:6px 0 2px}
+  #room .bar i{display:block;height:100%;background:#3f7d3a}
+  @media (max-width:700px){#hud{width:auto;right:12px;max-height:45%}#help{display:none}#status{top:auto;bottom:12px;flex-wrap:wrap;max-width:94%}#room{top:auto;bottom:70px;left:12px;right:12px;width:auto;max-height:40%}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="labels"></div>
+<div id="hud">
+  <h1>Monarca virtual <span class="demo">DEMO v0.9</span></h1>
+  <div class="sub">Sede Balbastro + Sala 4 Itaquí · plano dibujado por Facundo (31/10) con medidas de las salas · datos de ejemplo</div>
+  <div style="display:flex;align-items:baseline;gap:8px"><span id="clock">--:--</span><span id="day" style="font-size:12px;color:#5b665f"></span></div>
+  <div class="row">
+    <button id="bPlay">▶ Simular el día</button>
+    <button id="bSpeed">x60</button>
+    <button id="bNow">Hora real</button>
+  </div>
+  <div class="row">
+    <button id="bWalls">Paredes abajo</button>
+    <button id="bLights">Luces</button>
+    <button id="bRot">↻ Girar</button>
+    <button id="bSalas">Salas</button>
+    <button id="bHome">Ver todo</button>
+  </div>
+  <div style="font-size:12px;font-weight:600;margin:6px 0 4px">El equipo</div>
+  <div class="people" id="people"></div>
+  <div id="tasks" style="margin-top:8px"></div>
+  <div style="font-size:12px;font-weight:600;margin-top:10px">Ayudantes de IA</div>
+  <div id="ia" style="font-size:12px"></div>
+  <div style="font-size:12px;font-weight:600;margin-top:10px">Avisos</div>
+  <div id="log"></div>
+</div>
+<div id="status"></div>
+<div id="room"></div>
+<div id="ftBg"><form id="ft"></form></div>
+<button id="chatBtn">💬 Chat del equipo<span class="n" id="chatN" style="display:none"></span></button>
+<div id="chat"><header><div>Chat del equipo<small>Canal «Todos» para el equipo, un chat privado con cada uno y el 🤖 Asistente de cultivo con IA. Al conectar el simulador al sistema, es el mismo chat de Equipo.</small></div><button id="chatX" style="background:none;border:none;color:#f4f1e8;font-size:16px">✕</button></header><div id="chatCanales"></div><div id="chatPara"></div><div id="chatMsgs"></div><form id="chatF"><select id="chatQuien"></select><input id="chatTxt" placeholder="Escribir un mensaje" autocomplete="off"><button>Enviar</button></form></div>
+<div id="help">Arrastrá para mover la vista · rueda o pellizco para zoom · tocá a una persona para ver sus tareas o una sala para ver su ficha · ✓ la hace (las de riego piden EC y pH), ! marca un problema.</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+// ---------- Escena ----------
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#1b2620');
+
+const cam = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 200);
+const controls = new OrbitControls(cam, canvas);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI * 0.42;
+controls.minPolarAngle = Math.PI * 0.18;
+controls.minZoom = 0.5; controls.maxZoom = 4;
+controls.target.set(2.5, 0, 4);
+function home() { cam.position.set(1 + 22, 24, -3 + 22); cam.zoom = 1.45; controls.target.set(1, 0, -3); cam.updateProjectionMatrix(); }
+function all() { cam.position.set(3 + 22, 24, 4 + 22); cam.zoom = 0.85; controls.target.set(3, 0, 4); cam.updateProjectionMatrix(); }
+home();
+function resize() {
+  const w = innerWidth, h = innerHeight, a = w / h, s = 13.5;
+  cam.left = -s * a; cam.right = s * a; cam.top = s; cam.bottom = -s; cam.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+}
+addEventListener('resize', resize); resize();
+
+const hemi = new THREE.HemisphereLight('#fff8ee', '#3a2a20', 1.1); scene.add(hemi);
+const sun = new THREE.DirectionalLight('#ffffff', 1.6);
+sun.position.set(14, 22, 10); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18, near: 1, far: 60 });
+scene.add(sun);
+
+// ---------- Materiales ----------
+const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, ...o });
+const mat = {
+  wall: M('#efece4'), wallTop: M('#d9d4c6'),
+  terracota: M('#b5532f'), beige: M('#d8cdb6'), marmol: M('#e6e1d8'), madera: M('#8a4a2e'), ladrillo: M('#9c4a32'), baldosa: M('#8d877c'), pasillo: M('#7c776d'),
+  bedTop: M('#b9bdc1', { metalness: .5, roughness: .4 }), leg: M('#1f1f1f'), pot: M('#161616'), soil: M('#5a3a24'),
+  led: new THREE.MeshStandardMaterial({ color: '#fbf3ff', emissive: '#e9c7ff', emissiveIntensity: 1.6, transparent: true, opacity: 0.55 }),
+  ledOff: M('#9a9a9a', { transparent: true, opacity: 0.45 }), frame: M('#222'),
+  split: M('#ffffff'), duct: M('#c7cbd0', { metalness: .6, roughness: .35 }), tank: M('#2f3133'), drum: M('#1d4fbf'), white: M('#f6f6f2'),
+  sofa: M('#7d7f80'), counter: M('#f3f2ee'), shelf: M('#9ea3a8', { metalness: .4 }), green: M('#3fae49', { emissive: '#1e7a28', emissiveIntensity: .6 }),
+  sign: M('#e2b55a', { emissive: '#a7741f', emissiveIntensity: .5 }), door: M('#222'), doorW: M('#f2f0ea'), doorR: M('#c4502e'), wood: M('#6e4a2c'),
+};
+
+// ---------- Plano (metros; x este, z sur; calle al sur) ----------
+// Aproximado según fotos y videos del 31/10/2026 (recorrido completo confirmado por Facundo).
+// Calle → atención → pasillito interno → pasillo exterior largo → patio → puerta blanca → Sala 1 (centro).
+const rooms = {
+  aten:  { name: 'Atención al socio', x0: 1.2, x1: 5.0, z0: 12, z1: 20.5, floor: mat.madera, kind: 'aten' },
+  pas:   { name: 'Pasillo', x0: 3.8, x1: 5.0, z0: 3.2, z1: 12, floor: mat.pasillo, kind: 'pas' },
+  patio: { name: 'Patio de entrada al cultivo', x0: 0.6, x1: 5.0, z0: 0, z1: 3.2, floor: mat.baldosa, kind: 'patio' },
+  s1:    { name: 'Sala 1', x0: 0, x1: 5, z0: -4, z1: 0, floor: mat.terracota, kind: 'sala', ciclo: { inicio: '2026-10-30', vege: 48, m2: 10 } },
+  s2:    { name: 'Sala 2', x0: -3, x1: 0, z0: -3, z1: 0, floor: mat.terracota, kind: 'sala', ciclo: { inicio: '2026-09-22', vege: 32, flora: 52, m2: 6 } },
+  s3:    { name: 'Sala 3 · Vege', x0: -3.4, x1: 0.6, z0: 0, z1: 3, floor: mat.terracota, kind: 'vege' },
+  ofi:   { name: 'Patio de trabajo', x0: -3, x1: 0, z0: -6, z1: -4, floor: mat.pasillo, kind: 'ofi' },
+  p5:    { name: 'Pasillo a Sala 5', x0: 0, x1: 1.1, z0: -6, z1: -4, floor: mat.terracota, kind: 'pas' },
+  agua:  { name: 'Sala de agua', x0: 1.1, x1: 5, z0: -6, z1: -4, floor: mat.baldosa, kind: 'agua' },
+  s5:    { name: 'Sala 5', x0: -2.6, x1: 2.4, z0: -10, z1: -6, floor: mat.marmol, kind: 'sala', ciclo: { inicio: '2026-09-22', vege: 44, m2: 10 } },
+  bano:  { name: 'Baño', x0: 2.4, x1: 5, z0: -9, z1: -6, floor: mat.pasillo, kind: 'bano' },
+  s4:    { name: 'Sala 4 · Itaquí', x0: 8, x1: 11.6, z0: 4.0, z1: 7.4, floor: mat.terracota, kind: 'sala', ciclo: { inicio: '2026-10-20', vege: 37, m2: 6 }, remota: true },
+};
+// Plano dibujado por Facundo (31/10/2026). Medidas: Sala 1 5×4, Sala 2 3×3, Sala 3 4×3, Sala 5 5×4 m.
+// Patio de trabajo: 3×2, patiecito techado que es extensión de la Sala 2 (arriba de ella).
+// Del patio se entra a la Sala 1. Sala 2 a la izquierda de la 1; Sala 3 (vege) abajo de la 2, con ventana al patio;
+// a las dos se entra desde la Sala 1 (puertas marrones). La puerta blanca con stickers da al pasillo entre el patio de
+// trabajo (izquierda) y la sala de agua (derecha), que lleva a la Sala 5. Desde la Sala 5: patio de trabajo, sala de agua
+// y, a la derecha, el baño.
+const doors = [ // [x,z] puntos de paso en paredes compartidas
+  ['aten', 'pas', 4.4, 12], ['pas', 'patio', 4.4, 3.2], ['patio', 's1', 1.6, 0],
+  ['s1', 's3', 0.3, 0], ['s1', 's2', 0, -1.8], ['s1', 'p5', 0.55, -4], ['p5', 's5', 0.55, -6],
+  ['s5', 'ofi', -0.5, -6], ['s5', 'agua', 2.0, -6], ['s5', 'bano', 2.4, -7.4],
+];
+
+const world = new THREE.Group(); scene.add(world);
+const wallMeshes = [];
+let wallH = 0.7;
+
+const floorMeshes = [];
+function floor(r) {
+  const g = new THREE.Mesh(new THREE.BoxGeometry(r.x1 - r.x0, 0.1, r.z1 - r.z0), r.floor);
+  g.position.set((r.x0 + r.x1) / 2, -0.05, (r.z0 + r.z1) / 2); g.receiveShadow = true; g.userData.room = Object.keys(rooms).find(k => rooms[k] === r);  floorMeshes.push(g); world.add(g);
+  // juntas de cerámico
+  if (r.floor === mat.terracota || r.floor === mat.beige || r.floor === mat.marmol || r.floor === mat.baldosa) {
+    const pts = []; const step = r.floor === mat.marmol ? 0.6 : 0.4;
+    for (let x = r.x0 + step; x < r.x1; x += step) pts.push(x, 0.002, r.z0, x, 0.002, r.z1);
+    for (let z = r.z0 + step; z < r.z1; z += step) pts.push(r.x0, 0.002, z, r.x1, 0.002, z);
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    world.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#000000', transparent: true, opacity: 0.13 })));
+  }
+}
+Object.values(rooms).forEach(floor);
+// zona de ladrillo en la entrada de la atención
+{ const g = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.11, 3.5), mat.ladrillo); g.position.set(3.1, -0.045, 18.75); g.receiveShadow = true; world.add(g); }
+
+// paredes: cada borde de cada sala, salvo donde hay puerta
+function wallSeg(x0, z0, x1, z1) {
+  const len = Math.hypot(x1 - x0, z1 - z0); if (len < 0.05) return;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(len, 1, 0.12), mat.wall);
+  m.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2); m.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
+  m.castShadow = true; m.receiveShadow = true; m.userData.wall = true; world.add(m); wallMeshes.push(m);
+}
+const DW = 0.9;
+function edgeWithDoors(x0, z0, x1, z1) {
+  const cuts = doors.filter(([, , dx, dz]) => (x0 === x1 ? Math.abs(dx - x0) < .01 && dz > Math.min(z0, z1) && dz < Math.max(z0, z1)
+                                                     : Math.abs(dz - z0) < .01 && dx > Math.min(x0, x1) && dx < Math.max(x0, x1)));
+  if (x0 === x1) {
+    const ts = cuts.map(d => d[3]).sort((a, b) => a - b); let s = Math.min(z0, z1); const e = Math.max(z0, z1);
+    for (const t of ts) { wallSeg(x0, s, x0, t - DW / 2); s = t + DW / 2; } wallSeg(x0, s, x0, e);
+  } else {
+    const ts = cuts.map(d => d[2]).sort((a, b) => a - b); let s = Math.min(x0, x1); const e = Math.max(x0, x1);
+    for (const t of ts) { wallSeg(s, z0, t - DW / 2, z0); s = t + DW / 2; } wallSeg(s, z0, e, z0);
+  }
+}
+const edges = new Set();
+for (const r of Object.values(rooms)) {
+  for (const [a, b, c, d] of [[r.x0, r.z0, r.x1, r.z0], [r.x1, r.z0, r.x1, r.z1], [r.x0, r.z1, r.x1, r.z1], [r.x0, r.z0, r.x0, r.z1]]) {
+    const k = [a, b, c, d].map(v => v.toFixed(2)).join(',');
+    if (!edges.has(k)) { edges.add(k); edgeWithDoors(a, b, c, d); }
+  }
+}
+function setWalls(h) { wallH = h; for (const m of wallMeshes) { m.scale.y = h; m.position.y = h / 2; } }
+setWalls(0.7);
+
+// ---------- Utilidades ----------
+const box = (w, h, d, m, x, y, z, parent = world) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; parent.add(o); return o; };
+const cyl = (r, h, m, x, y, z, seg = 16, parent = world) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), m); o.position.set(x, y, z); o.castShadow = true; parent.add(o); return o; };
+
+// ---------- Ciclo (misma lógica que lib/ciclo.ts) ----------
+const HOY0 = new Date();
+const addD = (s, d) => { const t = new Date(s + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10); };
+const diffD = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 864e5);
+// Semanas en vez de días: el plan tiene margen (Facundo, 01/11).
+const sem = d => d < 7 ? 'esta semana' : `~${Math.round(d / 7)} sem`;
+const semDel = f => { const t = new Date(f + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return 'semana del ' + t.toISOString().slice(8, 10) + '/' + t.toISOString().slice(5, 7); };
+const hoyStr = () => new Date(simNow()).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+function momento(c, hoy) {
+  const ci = typeof c === 'string' ? { inicio: c } : c, inicio = ci.inicio, V = ci.vege ?? 21, F = ci.flora ?? 60;
+  const flip = addD(inicio, V), cos = addD(flip, F), lav = addD(cos, -7), fs = addD(cos, 6), lib = addD(fs, 2);
+  const d = diffD(inicio, hoy);
+  if (d < 0) return { fase: 'planificado', label: 'Entra el ' + inicio.slice(8) + '/' + inicio.slice(5, 7), g: 0.15 };
+  if (hoy < flip) return { fase: 'vege', label: `Vege día ${d + 1} · sem ${Math.floor(d / 7) + 1}`, g: 0.25 + 0.35 * Math.min(1, d / 21) + 0.15 * Math.min(1, Math.max(0, d - 21) / 21), cos };
+  const df = diffD(flip, hoy);
+  if (hoy < cos) return { fase: hoy >= lav ? 'lavado' : 'flora', label: `${hoy >= lav ? 'Lavado' : 'Flora'} día ${df + 1} · sem ${Math.floor(df / 7) + 1}`, g: Math.min(1, 0.6 + 0.4 * df / 30), bud: Math.max(0, (df - 14) / (F - 14)), cos };
+  if (hoy < fs) return { fase: 'secado', label: 'Secado', g: 0, cos };
+  return { fase: 'libre', label: 'Limpieza / libre', g: 0, cos };
+}
+
+// ---------- Camas y plantas ----------
+const plantSlots = {}; // room -> [{x,z,base}]
+function bed(x, z, w, d, room, rows, cols, h = 0.72) {
+  for (const [lx, lz] of [[0, 0], [w, 0], [0, d], [w, d]]) box(0.05, h, 0.05, mat.leg, x + lx, h / 2, z + lz);
+  box(w, 0.06, d, mat.bedTop, x + w / 2, h, z + d / 2);
+  // tutores
+  for (const [lx, lz] of [[0, 0], [w, 0], [0, d], [w, d]]) box(0.03, 1.1, 0.03, mat.leg, x + lx, h + 0.55, z + lz);
+  plantSlots[room] = plantSlots[room] || [];
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++)
+    plantSlots[room].push({ x: x + (i + 0.5) * w / cols, z: z + (j + 0.5) * d / rows, base: h + 0.03 });
+}
+// Sala 1 (5×4): 4 camas de 1×2 juntas, pegadas a la pared de la derecha, y la quinta en perpendicular delante;
+// a la izquierda queda el paso libre del patio a la puerta del pasillo (Facundo, 31/10)
+for (let i = 0; i < 4; i++) bed(1.35 + i * 0.9, -3.85, 0.9, 2.0, 's1', 8, 4);
+bed(2.9, -1.75, 2.0, 1.0, 's1', 4, 8);
+// Sala 2 (3×3): 3 camas 1×2
+for (let i = 0; i < 3; i++) bed(-2.85 + i * 0.95, -2.85, 0.95, 2.0, 's2', 8, 4);
+// Sala 5 (5×4): 5 camas 1×2 en bloque
+for (let i = 0; i < 5; i++) bed(-2.4 + i * 0.95, -9.75, 0.95, 2.0, 's5', 8, 4);
+// Sala 4 (Itaquí, casa de Lucho): 3 camas 1×2, tanque propio de 300 L
+for (let i = 0; i < 3; i++) bed(8.3 + i * 1.0, 4.8, 1.0, 2.0, 's4', 8, 4);
+// Sala 3 (vege, 4×3, techo de madera): 2 camas con madres, mesa plegable, estanterías de esquejes con tubos LED, ventana al patio
+// 2 camas de 2×1 enfrentadas (con estante de madres arriba) y una cama simple de 1×1 en el medio, pegada a la pared
+const S3BEDS = [[-3.35, 0.05, 2.0, 1.0, true], [-3.35, 1.95, 2.0, 1.0, true], [-3.35, 1.05, 0.9, 0.9, false]];
+for (const [x, z, w, d, estante] of S3BEDS) {
+  bed(x, z, w, d, 's3', w > 1 ? 3 : 3, w > 1 ? 6 : 3, 0.55);
+  if (!estante) continue;
+  box(w, 0.04, d, mat.shelf, x + w / 2, 1.55, z + d / 2);
+  for (const [lx, lz] of [[0, 0], [w, 0], [0, d], [w, d]]) box(0.04, 1.6, 0.04, mat.leg, x + lx, 0.8, z + lz);
+  for (let k = 0; k < 4; k++) { cyl(0.11, 0.22, mat.pot, x + (k + 0.5) * w / 4, 1.68, z + d / 2, 10); const b = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), M('#3e8a2e')); b.position.set(x + (k + 0.5) * w / 4, 1.88, z + d / 2); world.add(b); }
+}
+for (const x of [-0.9, -0.25]) { for (let k = 0; k < 5; k++) { box(0.6, 0.03, 0.45, mat.shelf, x, 0.3 + k * 0.38, 2.7); box(0.55, 0.02, 0.42, mat.led, x, 0.3 + k * 0.38 + 0.33, 2.7); } }
+cyl(0.28, 0.8, mat.drum, -3.05, 0.4, 2.65);
+box(0.04, 0.9, 1.6, M('#bfe3ff', { transparent: true, opacity: .55 }), 0.62, 1.3, 1.5); // ventana al patio
+
+const potGeo = new THREE.CylinderGeometry(0.1, 0.08, 0.2, 10);
+// --- Planta de cannabis procedural: tallo, hojas palmeadas y cogollos ---
+function mergeGeos(list) {
+  const pos = [], nor = [];
+  for (const g0 of list) { const g = g0.index ? g0.toNonIndexed() : g0; g.computeVertexNormals(); pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array); }
+  const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); return out;
+}
+function leaflet(len, wid) {
+  const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.quadraticCurveTo(wid, len * 0.42, 0, len); sh.quadraticCurveTo(-wid, len * 0.42, 0, 0);
+  return new THREE.ShapeGeometry(sh, 3);
+}
+function fanLeaf(L, n = 7) {
+  const parts = []; const lens = n === 7 ? [.45, .7, .9, 1, .9, .7, .45] : [.6, .9, 1, .9, .6];
+  lens.forEach((k, i) => { const g = leaflet(L * k, L * k * 0.2); g.rotateZ((i - (n - 1) / 2) * (n === 7 ? 0.42 : 0.5)); parts.push(g); });
+  return mergeGeos(parts);
+}
+function plantGeo() { // altura unitaria (~1 m) con base en y=0
+  const parts = [];
+  const stem = new THREE.CylinderGeometry(0.008, 0.016, 1, 5); stem.translate(0, 0.5, 0); parts.push(stem);
+  const levels = 6;
+  for (let l = 0; l < levels; l++) {
+    const y = 0.15 + l * 0.14, size = 0.42 - l * 0.045;
+    for (let k = 0; k < 3; k++) {
+      const f = fanLeaf(size, l < 4 ? 7 : 5);
+      f.rotateX(-Math.PI / 2 + 0.35);            // casi horizontal, un poco caída
+      f.translate(0, 0, 0.02);
+      f.rotateY(l * 1.05 + k * 2.094);           // tres hojas por nudo, alternadas
+      f.translate(0, y, 0); parts.push(f);
+      const br = new THREE.CylinderGeometry(0.005, 0.006, size * 0.8, 4); br.rotateZ(Math.PI / 2 - 0.5); br.translate(size * 0.3, y + 0.05, 0); br.rotateY(l * 1.05 + k * 2.094 + 0.6); parts.push(br);
+    }
+  }
+  for (let k = 0; k < 5; k++) { const f = fanLeaf(0.18, 5); f.rotateX(-Math.PI / 2 + 0.9); f.rotateY(k * 1.256 + 0.4); f.translate(0, 0.98, 0); parts.push(f); }
+  return mergeGeos(parts);
+}
+function colaGeo() { // cogollo principal + colas laterales
+  const parts = [];
+  const top = new THREE.IcosahedronGeometry(1, 1); top.scale(0.05, 0.16, 0.05); top.translate(0, 1.02, 0); parts.push(top);
+  for (let l = 2; l < 6; l++) for (let k = 0; k < 2; k++) {
+    const c = new THREE.IcosahedronGeometry(1, 0); c.scale(0.03, 0.07, 0.03);
+    c.translate(0.14 - l * 0.012, 0.15 + l * 0.14 + 0.1, 0); c.rotateY(l * 1.57 + k * Math.PI + 0.6); parts.push(c);
+  }
+  return mergeGeos(parts);
+}
+const PLANT = plantGeo(), COLA = colaGeo();
+const leafMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .8, side: THREE.DoubleSide });
+const budMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .6 });
+const plantMeshes = {};
+const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+for (const [room, slots] of Object.entries(plantSlots)) {
+  const pots = new THREE.InstancedMesh(potGeo, mat.pot, slots.length);
+  const leaves = new THREE.InstancedMesh(PLANT, leafMat, slots.length);
+  const buds = new THREE.InstancedMesh(COLA, budMat, slots.length);
+  pots.castShadow = leaves.castShadow = true; leaves.receiveShadow = true;
+  slots.forEach(s => { s.r = 0.85 + rnd() * 0.3; s.rot = rnd() * 6.28; s.w = 0.9 + rnd() * 0.25; });
+  world.add(pots, leaves, buds);
+  plantMeshes[room] = { pots, leaves, buds, slots };
+}
+const tmp = new THREE.Object3D(), col = new THREE.Color();
+function updatePlants() {
+  const hoy = hoyStr();
+  for (const [room, pm] of Object.entries(plantMeshes)) {
+    const r = rooms[room];
+    let g = 0.75, bud = 0, empty = false, late = 0;
+    if (r.ciclo) {
+      const m = momento(r.ciclo, hoy); g = m.g; bud = m.bud || 0; late = m.fase === 'lavado' ? 1 : Math.max(0, bud - 0.6) / 0.4;
+      if (m.fase === 'secado' || m.fase === 'libre') empty = true;
+      if (m.fase === 'planificado') g = 0.18;
+    }
+    pm.slots.forEach((s, i) => {
+      tmp.position.set(s.x, s.base + 0.1, s.z); tmp.rotation.set(0, 0, 0); tmp.scale.set(1, 1, 1); tmp.updateMatrix(); pm.pots.setMatrixAt(i, tmp.matrix);
+      const h = empty ? 0.0001 : 0.95 * g * s.r;              // metros de planta
+      const sx = empty ? 0.0001 : Math.min(h * 1.6, 0.4) * s.w;   // ancho del follaje (no pisa a la vecina)
+      const w = sx / Math.max(h, 0.0001);
+      tmp.position.set(s.x, s.base + 0.2, s.z); tmp.rotation.set(0, s.rot, 0); tmp.scale.set(sx, h, sx); tmp.updateMatrix();
+      pm.leaves.setMatrixAt(i, tmp.matrix);
+      const sick = r.alert && (i % 4 === 0);
+      col.set(sick ? '#b9a63e' : late > 0.5 && i % 3 === 0 ? '#6f9a3a' : (i % 3 ? '#3e8a2e' : '#4f9b36')); pm.leaves.setColorAt(i, col);
+      const b = empty ? 0.0001 : Math.max(bud, 0.0001);
+      tmp.scale.set(h * w * (0.6 + b * 0.8), h * (0.4 + b * 0.6), h * w * (0.6 + b * 0.8)); tmp.updateMatrix(); pm.buds.setMatrixAt(i, tmp.matrix);
+      col.set(late > 0 ? (i % 2 ? '#d8c27a' : '#c9a35c') : '#cfe6b2'); pm.buds.setColorAt(i, col);
+      if (bud < 0.02 || empty) { tmp.scale.setScalar(0.0001); tmp.updateMatrix(); pm.buds.setMatrixAt(i, tmp.matrix); }
+    });
+    pm.pots.instanceMatrix.needsUpdate = pm.leaves.instanceMatrix.needsUpdate = pm.buds.instanceMatrix.needsUpdate = true;
+    if (pm.leaves.instanceColor) pm.leaves.instanceColor.needsUpdate = true;
+    if (pm.buds.instanceColor) pm.buds.instanceColor.needsUpdate = true;
+  }
+}
+
+// ---------- Equipos ----------
+const ledBars = {}; // room -> meshes
+var glows;
+function ledGrid(room, x0, z0, w, d, along = 'x', n = 10) {
+  ledBars[room] = ledBars[room] || [];
+  for (let i = 0; i < n; i++) {
+    const m = along === 'x'
+      ? box(w, 0.025, 0.06, mat.led, x0 + w / 2, 1.95, z0 + (i + 0.5) * d / n)
+      : box(0.06, 0.025, d, mat.led, x0 + (i + 0.5) * w / n, 1.95, z0 + d / 2);
+    m.castShadow = false; ledBars[room].push(m);
+  }
+  box(w, 0.03, 0.04, mat.frame, x0 + w / 2, 1.98, z0); box(w, 0.03, 0.04, mat.frame, x0 + w / 2, 1.98, z0 + d);
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(w, 1.1, d), new THREE.MeshBasicMaterial({ color: '#d9a2ff', transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.position.set(x0 + w / 2, 1.38, z0 + d / 2); world.add(glow); (glows[room] = glows[room] || []).push(glow);
+}
+glows = glows || {};
+ledGrid('s1', 1.35, -3.85, 3.6, 2, 'z', 14); ledGrid('s1', 2.9, -1.75, 2.0, 1.0, 'x', 6);
+ledGrid('s2', -2.85, -2.85, 2.85, 2, 'z', 12);
+ledGrid('s5', -2.4, -9.75, 4.75, 2, 'z', 18);
+for (const [x, z, w, d] of S3BEDS) ledGrid('s3', x, z, w, d, 'z', 4);
+ledGrid('s4', 8.3, 4.8, 3, 2, 'z', 12);
+cyl(0.38, 1.0, mat.tank, 11.15, 0.5, 4.45); // tanque propio de 300 L
+{ // marco punteado: es otra dirección
+  const pts = [7.6, 3.6, 12.0, 3.6, 12.0, 7.8, 7.6, 7.8, 7.6, 3.6];
+  const arr = []; for (let i = 0; i < pts.length - 2; i += 2) arr.push(pts[i], 0.02, pts[i + 1], pts[i + 2], 0.02, pts[i + 3]);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+  const l = new THREE.LineSegments(g, new THREE.LineDashedMaterial({ color: '#e2b55a', dashSize: 0.3, gapSize: 0.2 })); l.computeLineDistances(); world.add(l);
+}
+const roomLights = {};
+for (const k of ['s1', 's2', 's3', 's4', 's5']) {
+  const r = rooms[k]; const pl = new THREE.PointLight('#d9a2ff', 0, 7, 1.4);
+  pl.position.set((r.x0 + r.x1) / 2, 1.7, (r.z0 + r.z1) / 2); world.add(pl); roomLights[k] = pl;
+}
+// splits, ventiladores y ductos
+const fans = [];
+function split(x, z, rotY) { const g = new THREE.Group(); box(0.9, 0.3, 0.2, mat.split, 0, 0, 0, g); box(0.8, 0.03, 0.02, M('#9aa0a6'), 0, -0.1, 0.11, g); g.position.set(x, 2.0, z); g.rotation.y = rotY; world.add(g); }
+function fan(x, y, z, rotY) { const g = new THREE.Group(); const blades = new THREE.Group(); for (let i = 0; i < 3; i++) { const b = box(0.04, 0.18, 0.02, M('#2b2b2b'), 0, 0.1, 0, blades); b.position.set(Math.cos(i * 2.09) * 0.1, Math.sin(i * 2.09) * 0.1, 0); b.rotation.z = i * 2.09 + 1.57; } g.add(blades); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.012, 6, 20), M('#333')); g.add(ring); g.position.set(x, y, z); g.rotation.y = rotY; world.add(g); fans.push(blades); }
+function duct(x0, z0, x1, z1, y = 2.15) { const len = Math.hypot(x1 - x0, z1 - z0); const m = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, len, 12), mat.duct); m.rotation.z = Math.PI / 2; const g = new THREE.Group(); g.add(m); g.position.set((x0 + x1) / 2, y, (z0 + z1) / 2); g.rotation.y = -Math.atan2(z1 - z0, x1 - x0); world.add(g); }
+split(4.85, -2.5, -Math.PI / 2); fan(4.85, 1.5, -3.6, -Math.PI / 2); duct(1.4, -3.85, 4.8, -3.85);
+split(-2.85, -1.5, Math.PI / 2); fan(-0.2, 1.5, -2.6, -Math.PI / 2); duct(-2.8, -2.9, -0.2, -2.9);
+split(-2.45, -8.0, Math.PI / 2); fan(2.25, 1.6, -9.5, -Math.PI / 2); duct(-2.3, -9.85, 2.2, -9.85);
+fan(-3.25, 1.4, 1.2, Math.PI / 2); duct(-3.2, 0.1, 0.4, 0.1, 2.25);
+// Pulse
+for (const [x, z] of [[2.5, -2.6], [-1.5, -1.8], [0, -8.7], [-2.4, 0.7]]) { box(0.08, 0.12, 0.04, mat.white, x, 1.35, z); }
+// manguera Sala 2
+{ const t = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.025, 6, 18), M('#1f4fa8')); t.position.set(-0.2, 1.0, -0.8); world.add(t); }
+// Sala de agua (video del 31/10): 4 tanques beige con bomba y cañería verde, estantes con nutrientes, claraboya
+for (let i = 0; i < 4; i++) cyl(0.34, 1.15, M('#d9cdb4'), 2.3 + i * 0.72, 0.575, -4.42);
+box(2.4, 0.04, 0.05, M('#2e9b4f'), 3.4, 0.35, -4.85); cyl(0.12, 0.2, M('#2a7fd0'), 4.7, 0.12, -5.0);
+for (const y of [1.55, 1.9]) box(0.3, 0.04, 1.6, mat.wood, 4.83, y, -5.1);
+for (let i = 0; i < 8; i++) cyl(0.05, 0.18, M(['#e07a5f', '#f2c14e', '#8ab6f9', '#7fbf5a', '#eeeeee'][i % 5]), 4.83, 1.66, -5.75 + i * 0.19, 8);
+box(0.5, 0.6, 0.3, mat.white, 4.0, 1.0, -5.83); cyl(0.26, 0.7, mat.drum, 1.95, 0.35, -4.4);
+box(2.6, 0.03, 1.6, M('#cfe8ff', { transparent: true, opacity: .35 }), 3.3, 2.3, -5); // claraboya
+// Patio de trabajo (explicación de Facundo, 31/10): la puerta (desde la Sala 5) va pegada al pasillo. Entrando,
+// a la derecha el mueble marrón con el microondas; los lockers siempre de frente a la puerta; en la esquina del
+// fondo a la derecha, el pallet con las bolsas de tierra; en el espacio libre, la mesa perpendicular al locker.
+for (let i = 0; i < 3; i++) box(0.4, 1.8, 0.45, M('#9aa5a8'), -0.98 + i * 0.42, 0.9, -4.28);
+box(0.6, 0.8, 0.45, M('#5a3b22'), -1.5, 0.4, -5.72); box(0.4, 0.26, 0.32, mat.white, -1.5, 0.93, -5.72); cyl(0.07, 0.28, M('#222'), -1.2, 0.94, -5.72, 10);
+box(1.0, 0.14, 0.8, mat.wood, -2.45, 0.07, -4.5);
+for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) for (let k = 0; k < 2; k++) box(0.42, 0.14, 0.34, M(k ? '#cdb58c' : '#bfa57a'), -2.7 + i * 0.47, 0.22 + k * 0.15, -4.7 + j * 0.38);
+box(0.7, 0.05, 1.2, mat.white, -1.6, 0.75, -4.8); for (const [x, z] of [[-1.9, -5.35], [-1.3, -5.35], [-1.9, -4.25], [-1.3, -4.25]]) cyl(0.025, 0.75, M('#333'), x, 0.375, z, 6);
+box(0.03, 0.6, 0.9, mat.white, -2.97, 1.4, -5.3);
+// Baño: lavatorio y ducha con cortina
+cyl(0.22, 0.12, mat.white, 4.7, 0.8, -8.7); cyl(0.06, 0.75, mat.white, 4.7, 0.37, -8.7, 8);
+box(1.0, 1.8, 0.03, M('#f4f4f4', { transparent: true, opacity: .85 }), 3.2, 0.9, -7.9);
+// Patio: escalera, barriles, arcón
+box(0.06, 2.2, 0.5, mat.wood, 0.85, 1.1, 2.6).rotation.z = 0.25;
+cyl(0.3, 0.85, M('#3c6fb5'), 2.6, 0.42, 0.55); cyl(0.3, 0.85, M('#3c6fb5'), 3.3, 0.42, 0.55);
+box(1.3, 0.85, 0.7, mat.white, 1.6, 0.42, 2.7);
+// Atención: sillón, mural, mostrador sobre tarima, frascos, TV, planta
+box(3.6, 0.15, 3.0, mat.madera, 3.1, 0.075, 13.6); // tarima
+box(0.9, 1.0, 2.2, mat.counter, 3.9, 0.65, 13.9); box(1.6, 1.0, 0.6, mat.counter, 3.0, 0.65, 14.9);
+box(0.6, 0.4, 0.3, mat.green, 2.0, 1.35, 12.3); box(0.3, 0.3, 0.3, M('#c0392b'), 2.6, 1.3, 12.3);
+{ const s = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.04, 24), mat.sign); s.rotation.x = Math.PI / 2; s.position.set(3.1, 1.9, 12.08); world.add(s); }
+box(0.9, 0.45, 2.6, mat.sofa, 1.75, 0.25, 16.6); box(0.25, 0.4, 2.6, mat.sofa, 1.4, 0.6, 16.6);
+cyl(0.25, 0.05, M('#d9c9a3'), 2.5, 0.35, 16.6);
+box(0.45, 0.5, 1.6, M('#8f9499'), 4.7, 0.45, 16.0);
+for (let i = 0; i < 5; i++) cyl(0.05, 0.12, M('#e8f2f0', { transparent: true, opacity: .8 }), 4.7, 0.76, 15.4 + i * 0.3, 10);
+box(0.05, 0.5, 0.9, M('#111'), 4.93, 1.2, 18.0);
+cyl(0.12, 0.3, M('#3a3a3a'), 4.65, 0.15, 17.6); { const p = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), M('#2f7d3a')); p.position.set(4.65, 0.55, 17.6); world.add(p); }
+// mural: textura con el nombre en la pared este de la atención
+{
+  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 256; const g = cv.getContext('2d');
+  g.fillStyle = '#f4f2ec'; g.fillRect(0, 0, 1024, 256);
+  g.font = '900 120px Archivo, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const gr = g.createLinearGradient(0, 0, 1024, 0); gr.addColorStop(0, '#5b3fa0'); gr.addColorStop(.5, '#2f8f4f'); gr.addColorStop(1, '#c9922e');
+  g.fillStyle = gr; g.fillText('MONARCA SOUTH', 512, 140);
+  g.fillStyle = '#d4a63a'; g.beginPath(); g.moveTo(452, 60); g.lineTo(472, 20); g.lineTo(492, 50); g.lineTo(512, 12); g.lineTo(532, 50); g.lineTo(552, 20); g.lineTo(572, 60); g.closePath(); g.fill();
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const mural = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.25), new THREE.MeshStandardMaterial({ map: tex }));
+  mural.position.set(1.27, 0.75, 16.6); mural.rotation.y = Math.PI / 2; mural.scale.set(0.9, 0.72, 1); world.add(mural); mural.userData.mural = true;
+}
+// puerta de calle
+box(1.8, 2.1, 0.08, mat.door, 3.1, 1.05, 20.5);
+
+// ---------- Personas ----------
+const people = [
+  { id: 'Vilela', pants: '#33507a', look: { cap: '#2f7d5c' }, start: 'patio', role: 'Mantenimiento y limpieza de apertura · reporta a Lucho', sup: 'Lucho',
+    tasks: [ [10.0, 's1', 'Revisar el monitoreo de la noche'], [10.2, 'aten', 'Atención al socio: limpiar y dejar todo listo para Demian'], [10.6, 's3', 'Limpieza de salas al iniciar el día'], [11.0, 's5', 'Recorrer las salas: plagas'], [11.3, 's3', 'Preventivos en vege que indicó Lucho'], [11.5, 's2', 'Controlar aires y extractores'], [12.0, 'agua', 'Llenar el tanque de ósmosis'], [15.9, 's1', 'Regar Sala 1 y medir runoff (con Lucho)'], [16.9, 'aten', 'Lo que retiré hoy quedó registrado'] ] },
+  { id: 'Lucho', pants: '#4a4a4a', look: { hair: '#1a120c', beard: true }, start: 'pas', role: 'Cultivo · criterio técnico', sup: 'Facundo',
+    tasks: [ [15.0, 'patio', 'Leer el reporte de Vilela'], [15.3, 'agua', 'Preparar el tanque de solución'], [15.8, 's2', 'Regar Sala 2 y medir runoff'], [16.5, 's5', 'Regar Sala 5 y medir runoff'], [17.3, 's3', 'Revisar madres y esquejes'], [19.7, 'aten', 'Lo que retiré hoy quedó registrado'] ] },
+  { id: 'Demian', pants: '#2c3e5c', look: { hair: '#120d09', glasses: true }, start: 'aten', role: 'Atención y stock · reporta a Facundo', sup: 'Facundo',
+    tasks: [ [12.0, 'aten', 'Control de stock del día'], [12.15, 'aten', 'Consumo del equipo: entregado y registrado por mí'], [12.3, 'aten', 'Stock bajo: avisar y mirar los próximos cortes'], [12.5, 'aten', 'Empaquetado de flor'], [12.9, 'aten', 'Armado de enrolados'], [13.2, 'aten', 'Rosin y hash: preparar la manicura y registrar lo que entra'], [13.5, 'aten', 'Frasco de exhibición: armarlo y rotar genéticas'], [13.65, 's3', 'Sala de vege: semillas y madres (supervisa Lucho)'], [13.8, 'aten', 'Apertura de caja'], [14.0, 'aten', 'Revisar los turnos del día'], [14.2, 'aten', 'Atender socios y anotar cada movimiento en el sistema'], [19.5, 'aten', 'Control de stock de cierre: todo cargado en el sistema'], [19.65, 'aten', 'Lo que retiré hoy quedó registrado'], [19.8, 'aten', 'Cierre de caja'] ] },
+  { id: 'Pato', pants: '#6b6b6b', look: { cap: '#2d6fd0' }, start: 'patio', role: 'Apoyo y limpieza de cierre · cubre a Vilela', sup: 'Lucho',
+    tasks: [ [17.0, 's1', 'Cubrir a Vilela: limpieza Sala 1'], [17.6, 'patio', 'Sacar la basura'], [19.5, 's5', 'Limpieza de salas al cerrar el día'], [19.85, 'aten', 'Lo que retiré hoy quedó registrado'] ] },
+  { id: 'Facundo', pants: '#b8a78a', look: { hair: '#2a1d14' }, start: 'aten', role: 'Dirección · ve todo', sup: null,
+    tasks: [ [11.0, 'aten', 'Mirar el monitoreo y los avisos'], [12.0, 'aten', 'Autorizar y pagar gastos'], [12.4, 'aten', 'Hacer el pedido de insumos'], [20.0, 'aten', 'Controlar el cierre de caja'], [20.1, 'aten', 'Lo que retiré hoy quedó registrado'] ] },
+];
+const labelsEl = document.getElementById('labels');
+const SKIN = M('#c99a76', { roughness: .7 }), TEE = M('#141414'), WHITE = M('#f2f2f2'), EYE = M('#1b1b1b'), GOLD = M('#d4a63a', { emissive: '#6b4d10', emissiveIntensity: .4 });
+function limb(r1, r2, len, m) { const g = new THREE.CylinderGeometry(r1, r2, len, 10); g.translate(0, -len / 2, 0); const o = new THREE.Mesh(g, m); o.castShadow = true; return o; }
+function makePerson(p) {
+  const g = new THREE.Group(); const L = p.look;
+  const pants = M(p.pants);
+  // piernas con pivote en la cadera
+  const legL = new THREE.Group(), legR = new THREE.Group();
+  for (const [leg, x] of [[legL, -0.085], [legR, 0.085]]) {
+    leg.position.set(x, 0.82, 0); leg.add(limb(0.075, 0.06, 0.74, pants));
+    const shoe = box(0.11, 0.08, 0.2, WHITE, 0, -0.78, 0.035, leg); g.add(leg);
+  }
+  // torso con remera de staff
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.32, 6, 14), TEE); torso.scale.set(1.15, 1, 0.8); torso.position.y = 1.1; torso.castShadow = true; g.add(torso);
+  const logo = new THREE.Mesh(new THREE.CircleGeometry(0.035, 12), GOLD); logo.position.set(-0.07, 1.2, 0.14); g.add(logo);
+  // brazos con pivote en el hombro (manga corta + antebrazo)
+  const armL = new THREE.Group(), armR = new THREE.Group();
+  for (const [arm, x] of [[armL, -0.25], [armR, 0.25]]) {
+    arm.position.set(x, 1.33, 0); arm.add(limb(0.065, 0.058, 0.22, TEE));
+    const fore = limb(0.045, 0.04, 0.34, SKIN); fore.position.y = -0.2; arm.add(fore);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8), SKIN); hand.position.y = -0.56; arm.add(hand);
+    arm.rotation.z = x < 0 ? 0.08 : -0.08; g.add(arm);
+  }
+  // cuello y cabeza
+  cyl(0.05, 0.08, SKIN, 0, 1.43, 0, 10, g);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 20, 16), SKIN); head.scale.set(1, 1.12, 1.02); head.position.y = 1.6; head.castShadow = true; g.add(head);
+  for (const x of [-0.05, 0.05]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), EYE); e.position.set(x, 1.62, 0.128); g.add(e); box(0.045, 0.01, 0.01, M('#2a1d14'), x, 1.665, 0.13, g); }
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), SKIN); nose.position.set(0, 1.585, 0.145); g.add(nose);
+  box(0.06, 0.008, 0.01, M('#8a4b3a'), 0, 1.54, 0.135, g);
+  if (L.hair) { const h = new THREE.Mesh(new THREE.SphereGeometry(0.148, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), M(L.hair)); h.scale.set(1, 1.1, 1.05); h.position.set(0, 1.62, -0.01); g.add(h); }
+  if (L.cap) {
+    const c = new THREE.Mesh(new THREE.SphereGeometry(0.152, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), M(L.cap)); c.position.y = 1.64; g.add(c);
+    const visor = box(0.2, 0.015, 0.14, M(L.cap), 0, 1.65, 0.16, g); visor.rotation.x = 0.12;
+  }
+  if (L.beard) { const bd = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 8, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45), M('#1a120c')); bd.position.set(0, 1.6, 0.012); bd.scale.set(1, 1.15, 1.05); g.add(bd); }
+  if (L.glasses) { for (const x of [-0.05, 0.05]) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 6, 14), M('#111')); r.position.set(x, 1.62, 0.14); g.add(r); } box(0.04, 0.006, 0.006, M('#111'), 0, 1.625, 0.145, g); }
+  // rombo de estado tipo Sims
+  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.1), new THREE.MeshStandardMaterial({ color: '#43c35a', emissive: '#1f8a33', emissiveIntensity: .9, transparent: true, opacity: .92 }));
+  gem.scale.y = 1.7; gem.position.y = 2.1; g.add(gem);
+  const r = rooms[p.start]; const idx = people.indexOf(p); g.position.set((r.x0 + r.x1) / 2 + (idx % 3 - 1) * 0.8, 0, (r.z0 + r.z1) / 2 + (idx % 2 ? 0.5 : -0.5));
+  g.traverse(o => { o.userData.person = p.id; });
+  world.add(g);
+  const el = document.createElement('div'); el.className = 'tag'; el.innerHTML = `<span class="n">${p.id}</span><span class="b"></span>`; labelsEl.appendChild(el);
+  Object.assign(p, { g, legL, legR, armL, armR, gem, el, path: [], busy: null, done: {}, prob: {}, bubble: 'Libre' });
+}
+people.forEach(makePerson);
+
+// grafo de recorrido entre ambientes
+const center = k => { const r = rooms[k]; return new THREE.Vector3((r.x0 + r.x1) / 2, 0, (r.z0 + r.z1) / 2); };
+const adj = {}; for (const [a, b, x, z] of doors) { (adj[a] = adj[a] || []).push([b, x, z]); (adj[b] = adj[b] || []).push([a, x, z]); }
+function route(from, to) {
+  const prev = { [from]: null }, q = [from];
+  while (q.length) { const c = q.shift(); if (c === to) break; for (const [n, x, z] of adj[c] || []) if (!(n in prev)) { prev[n] = [c, x, z]; q.push(n); } }
+  const pts = []; let c = to; while (prev[c]) { const [p, x, z] = prev[c]; pts.unshift(center(c)); pts.unshift(new THREE.Vector3(x, 0, z)); c = p; }
+  return pts;
+}
+function roomOf(pos) { for (const [k, r] of Object.entries(rooms)) if (pos.x >= r.x0 && pos.x <= r.x1 && pos.z >= r.z0 && pos.z <= r.z1) return k; return 'patio'; }
+function spot(k) { // lugar libre cerca del centro de la sala, en zona de circulación
+  const r = rooms[k]; const c = center(k);
+  const off = { s1: [-1.8, 0.4], s2: [0, 1.0], s5: [0, 1.1], s3: [1.0, -0.2], agua: [0, -0.4], ofi: [1.0, -0.6], aten: [0, 0], patio: [0, 0], pas: [0, 0] }[k] || [0, 0];
+  return new THREE.Vector3(c.x + off[0] + (Math.random() - .5) * .6, 0, c.z + off[1] + (Math.random() - .5) * .6);
+}
+function doTask(p, i, problem = false) {
+  if (p.done[i] || p.prob[i]) return;
+  const [, room, title] = p.tasks[i];
+  const from = roomOf(p.g.position);
+  p.path = from === room ? [] : route(from, room);
+  p.path.push(spot(room));
+  p.busy = { i, room, title, problem, t: 0 };
+  p.bubble = 'Yendo a ' + rooms[room].name;
+  renderPanel();
+}
+function finishTask(p) {
+  const { i, room, title, problem } = p.busy; p.busy = null;
+  if (problem) {
+    p.prob[i] = true; rooms[room].alert = title; p.bubble = '⚠ ' + title;
+    log(`<b>${p.id}</b> marcó un problema en ${rooms[room].name}: ${title}. Aviso a ${[p.sup, p.sup === 'Facundo' ? null : 'Facundo'].filter(Boolean).join(' y ')}.`, true);
+  } else {
+    p.done[i] = true; p.bubble = '✓ ' + title;
+    if (/pedido de insumos/i.test(title)) pedidoHecho();
+    if (rooms[room].climaAlert && (p.id === 'Lucho' || p.id === 'Vilela')) { log(`<b>${p.id}</b> ajustó el clima de ${rooms[room].name}. Nubi lo confirma ✓`); rooms[room].climaAlert = null; clima[room] = [...base[room]]; }
+    if (playing && p.id === 'Vilela' && /Limpieza/.test(title)) setTimeout(() => faltaAlgo('Guantes', 'Vilela'), 300);
+    if (p.id === 'Demian' && /^Stock bajo/.test(title)) avisoStock();
+    if (playing && p.id === 'Demian' && /Empaquetado/.test(title)) setTimeout(() => faltaAlgo('Bolsas de 5 g y stickers', 'Demian'), 300);
+    if (playing && p.id === 'Lucho' && /tanque de solución/.test(title)) setTimeout(() => faltaAlgo('Regulador de pH', 'Lucho'), 300);
+    log(`<b>${p.id}</b> completó: ${title}${p.sup ? ` · aviso a ${p.sup}` : ''}`);
+  }
+  updatePlants(); renderSigns(); renderPanel();
+}
+function avisoStock() {
+  const hoy = hoyStr();
+  const cortes = Object.values(rooms).filter(r => r.ciclo).map(r => momento(r.ciclo, hoy).cos).filter(c => c && c >= hoy).sort();
+  const d = cortes.length ? diffD(hoy, cortes[0]) : null;
+  if (d === null || d > 14) log(`<b>Demian</b>: stock de flor bajo y ${d === null ? 'no hay cortes cargados' : `el próximo corte es en ${d} días`}. Aviso a <b>Facundo</b>: hay que comprar material para cubrir hasta la cosecha.`, true);
+  else log(`<b>Demian</b>: stock justo, pero el próximo corte es en ${d} días. Alcanza si se cuida la entrega.`);
+}
+function gemColor(p) {
+  const total = p.tasks.length, d = Object.keys(p.done).length, pr = Object.keys(p.prob).length;
+  const h = simHour();
+  const due = p.tasks.filter((t, i) => t[0] <= h && !p.done[i] && !p.prob[i]).length;
+  if (pr) return ['#e24b4a', '#8a1f1f'];
+  if (due) return ['#f2c14e', '#a77c12'];
+  return ['#43c35a', '#1f8a33'];
+}
+
+
+// ---------- Ayudantes de IA ----------
+const clima = {};
+const INSUMOS = { 'Coco JuaniJuana': 'patio', 'Ryanodine A/B/C': 'agua', 'Regulador de pH': 'agua', 'Macetas de 5 L': 'patio', 'Bolsas de 5 g y stickers': 'aten', 'Guantes': 's3', 'Alcohol': 's3', 'Trampas amarillas': 's3', 'Filtro de carbón (ósmosis)': 'agua' };
+const compras = [];
+const RANGOS = { vege: [24, 28, 60, 70], flora: [22, 26, 45, 55], lavado: [20, 24, 40, 50], madres: [24, 28, 60, 75] };
+const base = { s1: [24.6, 63], s2: [24.1, 52], s3: [25.2, 70], s4: [24.9, 62], s5: [25.8, 64] };
+for (const k in base) clima[k] = [...base[k]];
+function rangoDe(k) { if (k === 's3') return RANGOS.madres; const m = momento(rooms[k].ciclo, hoyStr()); return RANGOS[m.fase] || RANGOS.vege; }
+function helperLabel(name) { const el = document.createElement('div'); el.className = 'tag'; el.innerHTML = `<span class="n" style="background:#d9f3ff">${name} · IA</span><span class="b"></span>`; labelsEl.appendChild(el); return el; }
+// Nubi: dron del clima
+const nubi = { g: new THREE.Group(), el: helperLabel('Nubi'), bubble: 'Vigilando el clima', target: null, idx: 0, wait: 0, checks: 0 };
+{
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.18, 20, 14), M('#f4f7fb', { roughness: .3 })); nubi.g.add(body);
+  const visor = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.03, 8, 24, Math.PI), new THREE.MeshStandardMaterial({ color: '#39c6ff', emissive: '#1aa4e0', emissiveIntensity: 1.2 })); visor.rotation.z = Math.PI; visor.position.set(0, 0.03, 0.09); visor.rotation.y = 0; nubi.g.add(visor);
+  const ant = cyl(0.008, 0.16, M('#999'), 0, 0.24, 0, 6, nubi.g); const tip = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), new THREE.MeshStandardMaterial({ color: '#39c6ff', emissive: '#39c6ff' })); tip.position.y = 0.33; nubi.g.add(tip); nubi.tip = tip;
+  const rotor = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.015, 6, 28), M('#c9d1d9')); rotor.rotation.x = Math.PI / 2; rotor.position.y = 0.05; nubi.g.add(rotor);
+  nubi.g.position.set(3, 2.4, -2.5); world.add(nubi.g);
+}
+// Changuito: carrito de compras
+const chango = { g: new THREE.Group(), el: helperLabel('Changuito'), bubble: 'Lista de compras: vacía', path: [], job: null, wheels: [] };
+{
+  const basket = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.28, 0.55), new THREE.MeshStandardMaterial({ color: '#e2b55a', metalness: .3, roughness: .5, wireframe: false, transparent: true, opacity: .9 })); basket.position.y = 0.42; basket.castShadow = true; chango.g.add(basket);
+  const inner = box(0.36, 0.02, 0.49, M('#7a5a1c'), 0, 0.3, 0, chango.g);
+  for (const [x, z] of [[-0.17, -0.22], [0.17, -0.22], [-0.17, 0.22], [0.17, 0.22]]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 12), M('#222')); w.rotation.z = Math.PI / 2; w.position.set(x, 0.05, z); chango.g.add(w); chango.wheels.push(w); }
+  for (const x of [-0.17, 0.17]) box(0.02, 0.25, 0.02, M('#666'), x, 0.17, 0, chango.g);
+  const handle = box(0.46, 0.03, 0.03, M('#444'), 0, 0.72, -0.3, chango.g);
+  const screen = box(0.22, 0.14, 0.02, new THREE.MeshStandardMaterial({ color: '#122', emissive: '#39c6ff', emissiveIntensity: .6 }), 0, 0.82, -0.3, chango.g);
+  chango.items = new THREE.Group(); chango.g.add(chango.items);
+  const r = rooms.aten; chango.g.position.set(2.2, 0, 13.0); world.add(chango.g);
+}
+function nubiCheck(k) {
+  nubi.checks++;
+  const c = clima[k]; c[0] += (Math.random() - .5) * 0.6; c[1] += (Math.random() - .5) * 3;
+  if (nubi.checks === 3) { k = 's5'; clima.s5[1] = 73; }
+  const [tmin, tmax, hmin, hmax] = rangoDe(k); const [t, h] = clima[k];
+  const name = rooms[k].name;
+  let msg = null;
+  if (h > hmax) msg = `humedad ${Math.round(h)} % (máx ${hmax})`; else if (h < hmin) msg = `humedad ${Math.round(h)} % (mín ${hmin})`;
+  else if (t > tmax) msg = `${t.toFixed(1).replace('.', ',')} °C (máx ${tmax})`; else if (t < tmin) msg = `${t.toFixed(1).replace('.', ',')} °C (mín ${tmin})`;
+  if (msg) {
+    rooms[k].climaAlert = msg; nubi.bubble = `⚠ ${name}: ${msg}`;
+    log(`<b>Nubi</b> (IA): ${name} con ${msg}. Aviso a Lucho y Facundo; propone subir la extracción o el deshumidificador.`, true);
+  } else { if (rooms[k].climaAlert && k !== 's5') rooms[k].climaAlert = null; nubi.bubble = `${name}: ${t.toFixed(1).replace('.', ',')} °C · ${Math.round(h)} % ✓`; }
+  renderSigns();
+}
+const changoQueue = [];
+function faltaAlgo(item, who) {
+  if (chango.job) { changoQueue.push([item, who]); return; }
+  const room = INSUMOS[item];
+  chango.job = { item, who, stage: 'ir' };
+  chango.path = route(roomOf(chango.g.position), room); chango.path.push(spot(room));
+  chango.bubble = `Yendo a ver: ${item}`;
+}
+function changoArrived() {
+  const j = chango.job; if (!j) return;
+  if (j.stage === 'ir') {
+    if (!compras.includes(j.item)) compras.push(j.item);
+    const cube = box(0.12, 0.1, 0.12, M(['#7fbf5a', '#e07a5f', '#8ab6f9', '#f2c14e'][compras.length % 4]), (compras.length % 3 - 1) * 0.12, 0.38, (Math.floor(compras.length / 3) % 3 - 1) * 0.14, chango.items);
+    log(`<b>Changuito</b> (IA): ${j.who} avisó que falta <b>${j.item}</b>. Sumado a la lista de compras de Facundo (${compras.length}).`);
+    j.stage = 'volver'; chango.path = route(roomOf(chango.g.position), 'aten'); chango.path.push(new THREE.Vector3(2.2, 0, 13.0));
+    chango.bubble = `Llevando la lista a Facundo`;
+  } else { chango.job = null; chango.bubble = compras.length ? `Lista de compras: ${compras.length}` : 'Lista de compras: vacía'; if (changoQueue.length) { const [it, w] = changoQueue.shift(); faltaAlgo(it, w); } }
+  renderPanel();
+}
+function pedidoHecho() {
+  if (!compras.length) return;
+  log(`<b>Facundo</b> hizo el pedido: ${compras.join(', ')}. <b>Changuito</b> vació la lista.`);
+  compras.length = 0; chango.items.clear(); chango.bubble = 'Lista de compras: vacía'; renderPanel();
+}
+
+// ---------- Tiempo ----------
+let playing = false, speed = 60, simOffset = 0, last = performance.now();
+const simNow = () => Date.now() + simOffset;
+const simHour = () => { const s = new Date(simNow()).toLocaleTimeString('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour12: false }); const [h, m] = s.split(':').map(Number); return h + m / 60; };
+// Horarios reales de luces (Facundo, 01/11/2026). Hora de encendido; vege 18 h, flora 12 h.
+// Sala 1: apagada 03:40–09:40 · Sala 2: apagada 22:20–10:20 · Sala 3: apagada 08:00–14:00 · Sala 5: apagada 03:30–09:30.
+// Sala 4: prende 09:00 y apaga 03:00. Al pasar a flora se toma el mismo encendido con 12 h, hasta que Lucho cargue el real.
+const LUZ = { s1: 9 + 40 / 60, s2: 10 + 20 / 60, s3: 14, s4: 9, s5: 9.5 };
+const hhmm = x => { const t = ((x % 24) + 24) % 24; return String(Math.floor(t)).padStart(2, '0') + ':' + String(Math.round((t % 1) * 60)).padStart(2, '0'); };
+const hl = (k, horas) => LUZ[k] === undefined ? '' : ` · ${hhmm(LUZ[k])} a ${hhmm(LUZ[k] + horas)}`;
+function lightsOn(room) {
+  const h = simHour(); const r = rooms[room];
+  const on = LUZ[room]; if (on === undefined) return false;
+  const dentro = horas => ((h - on + 24) % 24) < horas;
+  if (room === 's3') return dentro(18);
+  if (!r.ciclo) return false;
+  const m = momento(r.ciclo, hoyStr());
+  if (m.fase === 'vege') return dentro(18);
+  if (m.fase === 'flora' || m.fase === 'lavado') return dentro(12);
+  return false;
+}
+let forceLights = null;
+function applyLights() {
+  for (const k of Object.keys(ledBars)) {
+    const on = forceLights === null ? lightsOn(k) : forceLights;
+    for (const m of ledBars[k]) m.material = on ? mat.led : mat.ledOff;
+    if (roomLights[k]) roomLights[k].intensity = on ? 10 : 0;
+    for (const gl of (glows[k] || [])) gl.visible = on;
+  }
+}
+
+// ---------- Carteles ----------
+
+const signEls = {};
+function renderSigns() {
+  const hoy = hoyStr();
+  for (const [k, r] of Object.entries(rooms)) {
+    if (!['s1', 's2', 's3', 's4', 's5', 'agua', 'aten', 'ofi', 'bano'].includes(k)) continue;
+    let el = signEls[k]; if (!el) { el = signEls[k] = document.createElement('div'); el.className = 'sign'; labelsEl.appendChild(el); }
+    let html = `<b>${r.name.toUpperCase()}</b>`; let cls = 'sign';
+    if (r.ciclo) {
+      const m = momento(r.ciclo, hoy);
+      html += `<br>${m.label}`; if (m.cos && m.fase !== 'secado' && m.fase !== 'libre') html += ` · corte ${sem(diffD(hoy, m.cos))}`;
+      if (m.fase === 'flora' || m.fase === 'lavado') cls += ' flora';
+    } else if (k === 's3') html += '<br>Madres y esquejes';
+    else if (k === 'agua') { html += '<br>4 tanques · ósmosis'; cls += ' agua'; }
+    else if (k === 'ofi') html += '<br>Equipo · elaborados';
+    else if (k === 'bano') html = '<b>BAÑO</b>';
+    else if (k === 'aten') { html += '<br>Lun, mié y vie · 14 a 20 h'; cls += ' aten'; }
+    if (clima[k]) html += `<br><span class="x">${clima[k][0].toFixed(1).replace('.', ',')} °C · ${Math.round(clima[k][1])} % · luz ${lightsOn(k) ? 'on' : 'off'}</span>`;
+    if (r.alert) { html += `<br>⚠ ${r.alert}`; cls += ' alert'; }
+    if (r.climaAlert) { html += `<br>⚠ Nubi: ${r.climaAlert}`; cls += ' alert'; }
+    el.className = cls; el.innerHTML = html;
+  }
+  renderStatus(); renderRoom();
+}
+
+// ---------- Ficha de sala y barra de estado ----------
+const fd = s => s.slice(8, 10) + '/' + s.slice(5, 7);
+function fechas(c) { const ci = typeof c === 'string' ? { inicio: c } : c, inicio = ci.inicio; const flip = addD(inicio, ci.vege ?? 21), cos = addD(flip, ci.flora ?? 60); return { inicio, flip, poda: addD(flip, 21), lav: addD(cos, -7), hig: addD(cos, -3), cos, fs: addD(cos, 6), lib: addD(cos, 8), esqC: addD(cos, 8 - 44), esqV: addD(cos, 8 - 30) }; }
+function objetivos(k) {
+  const r = rooms[k]; const hoy = hoyStr();
+  if (k === 's3') return { Luz: '18/6' + hl('s3', 18), 'EC entrada': '0,8–1,4', 'pH entrada': '5,8', Temperatura: '24–28 °C', Humedad: '60–75 %', PPFD: '300–500' };
+  if (!r.ciclo) return null;
+  const f = fechas(r.ciclo), m = momento(r.ciclo, hoy);
+  if (m.fase === 'vege') { const w = Math.min(3, Math.floor(diffD(f.inicio, hoy) / 7) + 1); return { Luz: '18/6' + hl(k, 18), 'EC entrada': ['1,0', '1,2', '1,4'][w - 1], 'pH entrada': '5,8', Drenaje: w === 1 ? '~10 %' : '10–20 %', Temperatura: '24–28 °C', Humedad: '60–70 %', PPFD: '300–500' }; }
+  if (m.fase === 'flora' || m.fase === 'lavado') {
+    const w = Math.floor(diffD(f.flip, hoy) / 7) + 1; const ult = diffD(hoy, f.cos) <= 14;
+    const ec = m.fase === 'lavado' ? 'Solo agua' : w === 1 ? '1,6' : w === 2 ? '1,7' : w <= 6 ? '1,8–1,9' : '1,6–1,7';
+    return { Luz: '12/12' + hl(k, 12), 'EC entrada': ec, 'pH entrada': w === 1 ? '5,8–6,0' : '6,0', Drenaje: m.fase === 'lavado' ? '20–30 %' : '15–20 %', Temperatura: ult ? '20–24 °C' : '22–26 °C', Humedad: ult ? '40–50 %' : '45–55 %', PPFD: '600–900' };
+  }
+  if (m.fase === 'secado') return { Luz: 'Apagadas', Temperatura: '20 °C', Humedad: '55 %' };
+  return null;
+}
+function hitos(k) {
+  const r = rooms[k]; if (!r.ciclo) return [];
+  const f = fechas(r.ciclo), hoy = hoyStr();
+  return [[f.inicio, 'Entrada a la sala (18/6)', 'Lucho'], [f.flip, 'Pasar a 12/12', 'Lucho'], [f.poda, 'Poda de bajos', 'Lucho'], [f.esqC, 'Cortar esquejes para la próxima tanda', 'Lucho'], [f.esqV, 'Esquejes enraizados a vege', 'Lucho y Vilela'], [f.lav, 'Empieza el lavado', 'Lucho'], [f.hig, 'Higiene antes del corte', 'Vilela'], [f.cos, 'Cosecha: corte (todo el equipo)', 'Todos'], [f.fs, 'Fin de secado y pesaje', 'Demian y Facundo'], [f.lib, 'Sala libre', '']]
+    .filter(h => h[0] >= hoy).sort((a, b) => a[0].localeCompare(b[0])).slice(0, 5);
+}
+let roomOpen = null;
+function renderRoom() {
+  const el = document.getElementById('room'); if (!roomOpen) { el.style.display = 'none'; return; }
+  const k = roomOpen, r = rooms[k], hoy = hoyStr(); el.style.display = 'block';
+  let h = `<div style="display:flex;justify-content:space-between;align-items:start"><h2>${r.name}</h2><button id="roomX" aria-label="Cerrar">✕</button></div>`;
+  if (r.remota) h += `<div style="color:#8a6a1c">Otra dirección: casa de Lucho. Tanque propio de 300 L.</div>`;
+  if (r.ciclo) {
+    const m = momento(r.ciclo, hoy), f = fechas(r.ciclo);
+    const av = Math.max(0, Math.min(100, Math.round(diffD(f.inicio, hoy) / diffD(f.inicio, f.lib) * 100)));
+    h += `<div style="margin-top:4px"><b>${m.label}</b>${m.cos && diffD(hoy, m.cos) > 0 ? ` · corte en ${sem(diffD(hoy, m.cos))} (${semDel(m.cos)})` : ''}</div>`;
+    h += `<div class="bar"><i style="width:${av}%"></i></div><div style="display:flex;justify-content:space-between;color:#5b665f;font-size:10px"><span>Entrada ${fd(f.inicio)}</span><span>12/12 ${fd(f.flip)}</span><span>Corte ${fd(f.cos)}</span><span>Libre ${fd(f.lib)}</span></div>`;
+    h += `<div style="color:#5b665f;margin-top:4px">${r.ciclo.m2} m² · ~${Math.round(r.ciclo.m2 * 16 * 1.1)} plantas · objetivo ~${(r.ciclo.m2 * 0.275).toFixed(1).replace('.', ',')} kg en seco</div>`;
+  }
+  if (k === 's3') h += `<div style="margin-top:4px">Madres, vege y estanterías de esquejes. Acá arranca cada tanda.</div>`;
+  if (k === 'agua') h += `<div style="margin-top:4px">Ósmosis Hidrolit ROMi 400 · 3 tanques de 500 L (ósmosis, vege, flora) · tacho azul para esquejes.<br><b>15/12:</b> cambio del filtro de carbón.</div><div style="color:#8a6a1c">Ubicación a confirmar con el video.</div>`;
+  if (k === 'aten') h += `<div style="margin-top:4px">Lunes, miércoles y viernes de 14 a 20 h · turnos de 30 min.<br>Lista de compras: ${compras.length ? compras.join(', ') : 'vacía'}.</div>`;
+  const ob = objetivos(k);
+  if (ob) h += `<div style="font-weight:600;margin-top:8px">Valores de hoy</div><div class="grid">${Object.entries(ob).map(([a, b]) => `<div><span>${a}</span>${b}</div>`).join('')}</div>`;
+  if (clima[k]) h += `<div>Ahora: <b>${clima[k][0].toFixed(1).replace('.', ',')} °C · ${Math.round(clima[k][1])} %</b> · luces ${lightsOn(k) ? 'prendidas' : 'apagadas'} <span style="color:#8a948d">(Pulse, ejemplo)</span></div>`;
+  if (r.alert) h += `<div style="color:#b3261e;margin-top:4px">⚠ ${r.alert}</div>`;
+  if (r.climaAlert) h += `<div style="color:#b3261e;margin-top:4px">⚠ Nubi: ${r.climaAlert}</div>`;
+  const hs = hitos(k);
+  if (hs.length) h += `<div style="font-weight:600;margin-top:8px">Lo que viene</div>` + hs.map(x => `<div class="hit"><span style="width:44px;color:#5b665f">${fd(x[0])}</span><span style="flex:1">${x[1]}${x[2] ? `<br><span style="color:#8a948d">${x[2]}</span>` : ''}</span><span style="color:#5b665f">${diffD(hoy, x[0]) === 0 ? 'hoy' : diffD(hoy, x[0]) + ' d'}</span></div>`).join('');
+  const aqui = people.filter(p => roomOf(p.g.position) === k).map(p => p.id);
+  h += `<div style="margin-top:8px"><b>Ahora acá:</b> ${aqui.length ? aqui.join(', ') : 'nadie'}</div>`;
+  const ts = []; people.forEach(p => p.tasks.forEach((t, i) => { if (t[1] === k) ts.push(`${p.done[i] ? '✓' : p.prob[i] ? '⚠' : '○'} ${p.id}: ${t[2]}`); }));
+  if (ts.length) h += `<div style="font-weight:600;margin-top:8px">Tareas de hoy en esta sala</div>` + ts.map(t => `<div class="hit">${t}</div>`).join('');
+  el.innerHTML = h; document.getElementById('roomX').onclick = () => { roomOpen = null; renderRoom(); };
+}
+function renderStatus() {
+  const hoy = hoyStr();
+  const cortes = Object.entries(rooms).filter(([, r]) => r.ciclo).map(([k, r]) => [k, momento(r.ciclo, hoy).cos]).filter(([, c]) => c && c >= hoy).sort((a, b) => a[1].localeCompare(b[1]));
+  const prox = cortes[0];
+  const probs = Object.values(rooms).filter(r => r.alert || r.climaAlert).length;
+  const alDia = people.filter(p => gemColor(p)[0] === '#43c35a').length;
+  document.getElementById('status').innerHTML =
+    (prox ? `<span class="k">Próximo corte <b>${rooms[prox[0]].name.split(' ·')[0]}</b> en <b>${sem(diffD(hoy, prox[1]))}</b></span>` : '') +
+    `<span class="k">Meta <b>2 kg</b>/mes</span>` +
+    `<span class="k">Equipo al día <b>${alDia}/${people.length}</b></span>` +
+    `<span class="k ${probs ? 'warn' : ''}">Problemas <b>${probs}</b></span>` +
+    `<span class="k">Compras <b>${compras.length}</b></span>`;
+}
+
+// ---------- Panel ----------
+let selected = 'Vilela';
+const logEl = document.getElementById('log');
+// ---------- Chat del equipo ----------
+// Canales: «todos» (el equipo entero) y un privado por cada par de personas ("dm:A|B").
+// Mientras el simulador no esté conectado al sistema, los mensajes quedan en este navegador.
+const _g = id => document.getElementById(id);
+let chat = []; try { chat = JSON.parse(localStorage.getItem('monarca-chat') || '[]'); } catch { chat = []; }
+chat.forEach(m => { if (!m.canal) m.canal = 'todos'; });
+// ---------- Puente con el sistema (pantalla /sede de monarca-south) ----------
+// Dentro del sistema, el simulador corre en un iframe y le pide los datos a la
+// página: el chat y los riegos van a la base, y el asistente al servidor.
+// Fuera del sistema (archivo suelto o claude.ai) nadie responde y todo queda
+// en este navegador, como antes.
+let sistema = null; let _pid = 0; const _pend = {};
+function pedir(tipo, datos = {}, espera = 90000) {
+  return new Promise((res, rej) => {
+    if (window.parent === window) return rej(new Error('Sin sistema'));
+    const id = ++_pid; _pend[id] = { res, rej };
+    window.parent.postMessage({ fuente: 'monarca-sede', tipo, id, ...datos }, location.origin);
+    setTimeout(() => { if (_pend[id]) { delete _pend[id]; rej(new Error('El sistema no respondió')); } }, espera);
+  });
+}
+window.addEventListener('message', e => {
+  if (e.origin !== location.origin || e.source !== window.parent) return;
+  const d = e.data; if (!d || d.fuente !== 'monarca-sistema') return;
+  const p = _pend[d.id]; if (!p) return; delete _pend[d.id];
+  d.ok ? p.res(d.datos) : p.rej(new Error(d.error || 'Error'));
+});
+async function recargarChat() {
+  if (!sistema) return;
+  try { const nuevo = await pedir('chat:listar'); if (Array.isArray(nuevo)) { const pendientes = chat.filter(m => m._pendiente || m._local); chat = [...nuevo, ...pendientes]; pintarChat(); } } catch {}
+}
+let leidos = {}; try { leidos = JSON.parse(localStorage.getItem('monarca-chat-leidos') || '{}'); } catch { leidos = {}; }
+let chatAbierto = false, canal = 'todos';
+const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const dm = (a, b) => 'dm:' + [a, b].sort().join('|');
+const yoChat = () => _g('chatQuien').value;
+const veCanal = (c, yo) => c === 'todos' || (c.startsWith('dm:') && c.slice(3).split('|').includes(yo)) || c === 'ia:' + yo;
+const otroDe = (c, yo) => c.startsWith('ia:') ? 'Asistente' : c.slice(3).split('|').find(x => x !== yo);
+const clave = (yo, c) => yo + '>' + c;
+const sinLeerDe = (yo, c) => chat.filter((m, i) => m.canal === c && m.quien !== yo && i >= (leidos[clave(yo, c)] || 0)).length;
+function marcarLeido() { if (!chatAbierto) return; leidos[clave(yoChat(), canal)] = chat.length; try { localStorage.setItem('monarca-chat-leidos', JSON.stringify(leidos)); } catch {} }
+function pintarChat() {
+  const yo = yoChat();
+  if (!veCanal(canal, yo) || canal === dm(yo, yo)) canal = 'todos';
+  marcarLeido();
+  const canales = ['ia:' + yo, 'todos', ...(sistema ? sistema.equipo : people.map(p => p.id).filter(id => id !== yo)).map(n => dm(yo, n))];
+  _g('chatCanales').innerHTML = canales.map(c => { const n = sinLeerDe(yo, c);
+    const nombre = c === 'todos' ? '👥 Todos' : c.startsWith('ia:') ? '🤖 Asistente' : otroDe(c, yo);
+    return `<button data-c="${esc(c)}" class="${c === canal ? 'on' : ''}">${esc(nombre)}${n ? `<span class="n">${n}</span>` : ''}</button>`; }).join('');
+  _g('chatCanales').querySelectorAll('button').forEach(b => b.onclick = () => { canal = b.dataset.c; pintarChat(); _g('chatTxt').focus(); });
+  _g('chatPara').textContent = canal === 'todos' ? 'Canal del equipo: lo leen todos.' : canal.startsWith('ia:') ? 'Asistente de cultivo con IA, privado. Responde dudas de cultivo y de los procedimientos de Monarca. Lo que se decide, lo confirma Lucho.' : `Privado entre ${yo} y ${otroDe(canal, yo)}.`;
+  _g('chatTxt').placeholder = canal === 'todos' ? 'Escribir a todos' : canal.startsWith('ia:') ? 'Preguntale al asistente' : `Escribir a ${otroDe(canal, yo)}`;
+  const msgs = chat.filter(m => m.canal === canal);
+  const box = _g('chatMsgs');
+  box.innerHTML = msgs.length ? msgs.map(m => { const p = people.find(x => x.id === m.quien); const col = p ? p.pants : '#13201a';
+    return `<div class="m ${m.quien === yo ? 'yo' : ''}"><b style="color:${col}">${esc(m.quien)}</b><span class="h">${m.h}</span><br><span class="x">${m.quien === 'Asistente' ? formatoIA(m.txt) : esc(m.txt)}</span></div>`; }).join('')
+    : canal.startsWith('ia:') ? `<div style="color:#5b665f">Hola ${esc(yo)} 👋 Soy el asistente de cultivo de Monarca. Preguntame lo que quieras: cómo preparar la mezcla, qué rango de EC y pH usar, cómo sacar esquejes, qué hacer si ves una plaga, o cómo es un procedimiento.<br><br>Ejemplos: «¿Qué EC uso en la Sala 5 hoy?» · «Las hojas de abajo se ponen amarillas, ¿qué puede ser?» · «¿En qué orden van los productos en el tanque?»</div>`
+    : `<div style="color:#5b665f">Todavía no hay mensajes${canal === 'todos' ? '' : ' con ' + esc(otroDe(canal, yo))}. Escribí el primero.</div>`;
+  box.scrollTop = box.scrollHeight;
+  const total = canales.reduce((t, c) => t + sinLeerDe(yo, c), 0);
+  _g('chatN').style.display = total && !chatAbierto ? '' : 'none'; _g('chatN').textContent = total;
+}
+function mensaje(quien, txt, c = 'todos') {
+  const h = new Date(simNow()).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  chat.push({ quien, txt, h, canal: c }); if (chat.length > 300) chat = chat.slice(-300);
+  try { localStorage.setItem('monarca-chat', JSON.stringify(chat)); } catch {}
+  const p = people.find(x => x.id === quien);
+  if (p) { p.bubble = c === 'todos' ? '💬 ' + (txt.length > 40 ? txt.slice(0, 40) + '…' : txt) : c.startsWith('ia:') ? '🤖 Consultando al asistente' : '🔒 Mensaje a ' + otroDe(c, quien); p._chatHasta = performance.now() + 6000; }
+  pintarChat();
+}
+_g('chatQuien').innerHTML = people.map(p => `<option>${p.id}</option>`).join('');
+_g('chatQuien').onchange = pintarChat;
+_g('chatBtn').onclick = () => { chatAbierto = !chatAbierto; _g('chat').style.display = chatAbierto ? 'flex' : 'none'; if (chatAbierto) _g('chatTxt').focus(); pintarChat(); };
+_g('chatX').onclick = () => { chatAbierto = false; _g('chat').style.display = 'none'; pintarChat(); };
+_g('chatF').onsubmit = e => { e.preventDefault(); const t = _g('chatTxt').value.trim(); if (!t) return; _g('chatTxt').value = ''; if (canal.startsWith('ia:')) preguntarIA(yoChat(), t); else enviarChat(yoChat(), t, canal); };
+async function enviarChat(yo, t, c) {
+  if (!sistema) return mensaje(yo, t, c);
+  mensaje(yo, t, c); const m = chat[chat.length - 1]; m._pendiente = true;
+  try { await pedir('chat:enviar', { canal: c, txt: t }); m._pendiente = false; await recargarChat(); }
+  catch (err) { m.txt += ' ⚠ no se envió: ' + err.message; m._pendiente = false; pintarChat(); }
+}
+// Al abrir dentro del sistema: quién soy, el equipo y el chat guardado.
+pedir('hola', {}, 6000).then(d => {
+  sistema = d;
+  _g('chatQuien').innerHTML = `<option>${esc(d.yo)}</option>`; _g('chatQuien').disabled = true;
+  if (people.some(p => p.id === d.yo)) { selected = d.yo; renderPanel(); }
+  document.querySelector('#chat header small').textContent = `Entraste como ${d.yo}. «Todos» lo lee el equipo, los privados solo esa persona, y el 🤖 Asistente es tuyo.`;
+  recargarChat(); setInterval(recargarChat, 8000);
+}).catch(() => {});
+pintarChat();
+// ---------- Asistente de cultivo con IA (dentro del chat) ----------
+// Usa Claude desde la página (capacidad «sample»). Cada persona tiene su propio canal «🤖 Asistente».
+const guardarChat = () => { try { localStorage.setItem('monarca-chat', JSON.stringify(chat)); } catch {} };
+function formatoIA(t) { return esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^#+\s*(.+)$/gm, '<b>$1</b>').replace(/^[-•]\s+/gm, '• ').replace(/\n/g, '<br>'); }
+const MANUAL_MONARCA = `
+MONARCA SOUTH — Asociación civil de cannabis medicinal en CABA (REPROCANN). Unos 80 socios.
+EQUIPO: Lucho (cultivador, criterio técnico; todo lo de cultivo se confirma con él), Vilela (mantenimiento, limpieza de apertura, preventivos en vege, aprende riego con Lucho), Demian (atención al socio, stock, sistema, sala de vege con madres y semillas, aprende esquejes con Lucho), Pato (apoyo y limpieza de cierre desde las 17 h), Facundo (presidente, compras y pagos).
+SALAS: Sala 1 (10 m², 5 camas), Sala 2 (6 m², 3 camas), Sala 5 (10 m², 5 camas), Sala 4 en Itaquí (casa de Lucho, 6 m²), Sala 3 = sala de vege (madres, esquejes, semillas; estante de esquejes de 5 pisos). Sala nueva en casa de Demian en armado (12 plantas/m², macetas de 7 L).
+SUSTRATO Y NUTRIENTES: coco JuaniJuana, agua de ósmosis, Ryanodine A+B y C. King Crab en esquejes siempre junto con nutrientes. Melaza solo al final de flora. Silicio: Rhino Skin (Advanced Nutrients) 2 ml/L en cada riego, en Sala 2 y Sala 5, semanas 1 a 6 de flora; cortar 2 semanas antes del corte.
+ORDEN DE LA MEZCLA: 1) agua de ósmosis, 2) Rhino Skin y revolver, 3) Ryanodine A, B y C revolviendo entre cada uno (nunca mezclar silicio con nutrientes concentrados), 4) medir EC y ajustar pH al final (el silicio sube el pH).
+RANGOS DE ENTRADA: Sala de vege EC 0,8–1,2 pH 5,7–5,9 · Vege en sala de flora EC 1,2–1,6 pH 5,9–6,0 · Flora EC 1,6–2,0 pH 5,8–6,0 · Lavado: solo ósmosis. pH MÁXIMO 6,0 EN TODAS LAS ETAPAS (decisión de Facundo).
+TABLA POR SEMANA (Manual 3): esqueje 0,8–1,0 pH 5,8 · vege 1: 1,0 · vege 2: 1,2 · vege 3: 1,4 · flora 1: 1,6 pH 5,8–6,0 · flora 2: 1,7 · flora 3–6: 1,8–1,9 · flora 7: 1,6–1,7 · flora 8: solo ósmosis.
+RIEGO: manual con lanza. Calibrar la lanza (litros en 10 s). Regar cuando las 2 macetas testigo perdieron ~la mitad del peso. 2–3 pasadas, moviendo la lanza por toda la superficie, hasta 10–20 % de drenaje. Orientativo por riego: maceta 1 L 100–200 ml, 5 L 0,5–0,8 L, 7 L 0,7–1 L, 15 L 1,5–2 L. Vaciar los platos. Si una maceta sigue pesada a los 3 días, no regar y revisar raíz, plato y humedad. Las 2 testigo son siempre las mismas en la tanda, una en cada punta. Cada riego se anota: EC y pH de entrada, runoff de las 2 testigo y drenaje.
+RUNOFF: EC del runoff más de 0,5 por encima de la entrada = acumulación de sales → regar con más volumen. pH del runoff menor a 5,5 = avisar a Lucho. Mayor a 6,5 = revisar pH de entrada.
+CLIMA: vege 25–28 °C y 60–70 % HR; flora 22–25 °C y 45–55 %; secado ~20 °C y 55 % HR, ~1 semana en la misma sala. PPFD: esquejes 100–300, vege y madres 300–500, flora 600–900.
+CICLO: ~4 semanas en sala de vege → sala de flora ~2 semanas de vege (18/6) → 8 y media de flora (12/12) → secado y limpieza. Un corte cada 3 semanas. Plan: Sala 2 corta semana del 14/12; Sala 5 pasa a flora semana del 02/11 y corta semana del 04/01; Sala 4 a flora semana del 23/11, corta 25/01; Sala 1 a flora 14/12, corta 15/02.
+ESQUEJES: de las madres y de la propia sala antes de terminar la vege o en las 2 primeras semanas de flora. Por tanda: m² × 16 × 1,1 (~106 para salas 2 y 4, ~176 para 1 y 5). Esquejedoras de 50, enraízan ~40.
+SANIDAD: NUNCA preventivos en flora; solo en esquejes, madres y vege, y cada aplicación se registra. Trampas amarillas. Lo que se ve mal se avisa en el momento, con foto, a Lucho. Higiene con checklist 3 días antes de cada corte.
+COSECHA: corte, colgado en redes, descocado, manicura. Demian pesa al terminar el secado y carga en stock. Cocos chicos → enrolados de 1,5 g (meta 40 por semana).
+REGLAS DEL EQUIPO: todo lo que uno retira se registra con gramos y genética; antes de retirar se le avisa a Demian sí o sí. Sin avisar: 1.ª vez advertencia, 2.ª se cobra al doble ($24.000/g) ese retiro y el de la advertencia. Sede limpia al abrir (Vilela) y al cerrar (Pato).`;
+const PROMPT_IA = `Sos el asistente de cultivo de Monarca South, dentro del simulador de la sede. Sos experto en cultivo de cannabis medicinal en interior (coco, LED, riego manual, esquejes, madres, plagas, cosecha y secado) y conocés los procedimientos de Monarca.
+Respondé en español rioplatense, claro y corto: primero la respuesta directa, después los pasos si hacen falta. Usá los datos de Monarca de abajo antes que reglas generales; si algo no está ahí, respondé con buenas prácticas y aclaralo. Podés consultar el estado de las salas y los últimos riegos con las herramientas.
+Nunca inventes datos de Monarca. Si la duda es una decisión (cambiar un rango, pasar una sala a flora, aplicar algo, descartar plantas) o hay riesgo para el cultivo, decí qué harías y que lo confirme Lucho antes. Ante plagas u hongos, pedí que manden foto a Lucho. No des consejos médicos ni de dosis de consumo.
+DATOS DE MONARCA:${MANUAL_MONARCA}`;
+const HERRAMIENTAS_IA = [
+  { name: 'estado_salas', description: 'Estado actual de cada sala del simulador: etapa, día, próximo corte y clima (el clima del simulador es de ejemplo hasta conectar el Pulse).',
+    execute: () => Object.entries(rooms).filter(([, r]) => r.ciclo || r.kind === 'sala').map(([k, r]) => { const m = r.ciclo ? momento(r.ciclo, hoyStr()) : null; return { sala: r.name, etapa: m ? m.label : (k === 's3' ? 'Sala de vege' : '—'), corte: m && m.cos || null, clima: clima[k] ? { temp_c: +clima[k][0].toFixed(1), hr: Math.round(clima[k][1]) } : null }; }) },
+  { name: 'riegos_recientes', description: 'Últimos riegos y tanques cargados en el simulador (EC y pH de entrada, runoff de las testigo, drenaje).',
+    execute: () => ({ tanques: tanques.slice(-5), riegos: riegos.slice(-12).map(r => ({ ...r, sala: rooms[r.sala_id] ? rooms[r.sala_id].name : r.sala_id })) }) },
+];
+let iaOcupada = false;
+async function preguntarIA(yo, txt) {
+  const c = 'ia:' + yo;
+  mensaje(yo, txt, c);
+  if (iaOcupada) return;
+  const h = () => new Date(simNow()).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  if (sistema) {
+    const preg = chat[chat.length - 1]; preg._pendiente = true;
+    const resp = { quien: 'Asistente', txt: 'Pensando…', h: h(), canal: c, _pendiente: true }; chat.push(resp); pintarChat(); iaOcupada = true;
+    let fallo = false;
+    try { resp.txt = await pedir('ia:preguntar', { txt }); } catch (err) { fallo = true; resp.txt = err.message || 'No pude responder ahora. Consultale a Lucho.'; }
+    finally {
+      iaOcupada = false;
+      // La conversación queda guardada en el sistema; si falló, el aviso queda solo acá.
+      preg._pendiente = false; if (fallo) resp._local = true; else resp._pendiente = false;
+      pintarChat(); await recargarChat();
+    }
+    return;
+  }
+  let sample = null; try { sample = window.claude && window.claude.use ? await window.claude.use('sample') : null; } catch { sample = null; }
+  if (!sample) { chat.push({ quien: 'Asistente', txt: 'El asistente funciona dentro del sistema (pantalla Sede) o con el simulador abierto en claude.ai.', h: h(), canal: c }); guardarChat(); pintarChat(); return; }
+  const historia = chat.filter(m => m.canal === c).slice(-14).map(m => ({ role: m.quien === 'Asistente' ? 'assistant' : 'user', content: m.txt }));
+  while (historia.length && historia[0].role === 'assistant') historia.shift();
+  const msgs = [{ role: 'user', content: PROMPT_IA + `\n\nQuien pregunta: ${yo}. Hoy es ${hoyStr()}. Entendido esto, respondé la conversación que sigue.` }, { role: 'assistant', content: 'Dale, decime.' }, ...historia];
+  const resp = { quien: 'Asistente', txt: 'Pensando…', h: h(), canal: c }; chat.push(resp); pintarChat();
+  iaOcupada = true;
+  try {
+    const r = await sample(msgs, { cache: false, tools: HERRAMIENTAS_IA, onText: ({ text }) => { resp.txt = text || 'Pensando…'; pintarChat(); } });
+    resp.txt = r.text || 'No pude armar una respuesta. Probá de nuevo.';
+  } catch (e) {
+    resp.txt = e && e.code === 'not_granted' ? 'El asistente necesita permiso para usar Claude. Volvé a preguntar y aceptá el aviso.' : e && e.code === 'rate_limited' ? 'Hay muchas consultas seguidas. Esperá un minuto y volvé a preguntar.' : 'No pude responder ahora. Probá de nuevo en un rato o consultale a Lucho.';
+  } finally { iaOcupada = false; guardarChat(); pintarChat(); }
+}
+// ---------- Riego: la planilla de papel, dentro del simulador ----------
+// Mismos campos que la tabla registros_riego del sistema (PR #20), para conectarlo sin cambios.
+let tanques = [], riegos = [];
+try { tanques = JSON.parse(localStorage.getItem('monarca-tanques') || '[]'); riegos = JSON.parse(localStorage.getItem('monarca-riegos') || '[]'); } catch { tanques = []; riegos = []; }
+const guardarRiego = () => { try { localStorage.setItem('monarca-tanques', JSON.stringify(tanques.slice(-200))); localStorage.setItem('monarca-riegos', JSON.stringify(riegos.slice(-500))); } catch {} };
+// Rangos de la planilla (pestaña Rangos). pH máximo 6,0 en todas las etapas (Facundo, 02/11).
+const RANGOS_RIEGO = {
+  'Sala de vege': { ec: [0.8, 1.2], ph: [5.7, 5.9] },
+  'Vege en sala de flora': { ec: [1.2, 1.6], ph: [5.9, 6.0] },
+  'Flora': { ec: [1.6, 2.0], ph: [5.8, 6.0] },
+  'Lavado': { ec: [0, 0.3], ph: [5.8, 6.0] },
+};
+function etapaDe(room) {
+  if (room === 's3') return 'Sala de vege';
+  const c = rooms[room] && rooms[room].ciclo; if (!c) return 'Flora';
+  const m = momento(c, hoyStr());
+  return m.fase === 'vege' ? 'Vege en sala de flora' : m.fase === 'lavado' ? 'Lavado' : 'Flora';
+}
+const pideDatos = t => /tanque de soluci[oó]n|^Regar Sala/i.test(t);
+const num = v => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
+const f1 = n => n == null ? '—' : n.toFixed(n < 10 ? 1 : 0).replace('.', ',');
+const f2 = n => n == null ? '—' : n.toFixed(2).replace(/0$/, '').replace('.', ',');
+function abrirFormulario(p, i) {
+  const t = p.tasks[i][2], room = p.tasks[i][1], f = _g('ft');
+  const ult = tanques[tanques.length - 1];
+  if (/tanque/i.test(t)) {
+    f.innerHTML = `<h3>${esc(t)}</h3><div class="sub">${esc(p.id)} · lo que sale del tanque es la entrada de cada riego.</div>
+      <div class="g"><label>Litros de mezcla<input name="litros" inputmode="decimal" required></label>
+      <label>EC de la mezcla<input name="ec" inputmode="decimal" required placeholder="1,6"></label>
+      <label>pH de la mezcla<input name="ph" inputmode="decimal" required placeholder="6,0"></label>
+      <label>Rhino Skin (ml/L)<input name="si" inputmode="decimal" placeholder="2"></label>
+      <label class="full">Productos y dosis<input name="prod" placeholder="Ryanodine A, B y C · ml/L"></label></div>
+      <div class="rg">pH máximo 6,0. El silicio va primero y sube el pH: medir al final.</div>`;
+  } else {
+    const et = etapaDe(room), r = RANGOS_RIEGO[et];
+    f.innerHTML = `<h3>${esc(t)}</h3><div class="sub">${esc(p.id)} · ${rooms[room].name} · ${et}</div>
+      <div class="g"><label>EC de entrada<input name="ec" inputmode="decimal" required value="${ult ? f2(ult.ec) : ''}"></label>
+      <label>pH de entrada<input name="ph" inputmode="decimal" required value="${ult ? f1(ult.ph) : ''}"></label>
+      <label>Litros por maceta<input name="lpm" inputmode="decimal" placeholder="0,8"></label>
+      <label>Drenaje (% aprox.)<input name="dren" inputmode="decimal" placeholder="15"></label>
+      <label>Testigo 1 · EC runoff<input name="e1" inputmode="decimal"></label>
+      <label>Testigo 1 · pH runoff<input name="p1" inputmode="decimal"></label>
+      <label>Testigo 2 · EC runoff<input name="e2" inputmode="decimal"></label>
+      <label>Testigo 2 · pH runoff<input name="p2" inputmode="decimal"></label>
+      <label class="full">Notas<input name="notas" placeholder="Algo raro, plantas que tardan en secar…"></label></div>
+      <div class="rg">Rango de ${et}: EC ${f1(r.ec[0])}–${f1(r.ec[1])} · pH ${f1(r.ph[0])}–${f1(r.ph[1])}.${ult ? ' La entrada viene del último tanque.' : ''}</div>`;
+  }
+  f.innerHTML += `<div class="bt"><button type="button" id="ftNo">Cancelar</button><button class="ok">Guardar y completar</button></div>`;
+  _g('ftBg').style.display = 'flex';
+  _g('ftNo').onclick = () => { _g('ftBg').style.display = 'none'; };
+  f.onsubmit = e => {
+    e.preventDefault(); const d = Object.fromEntries(new FormData(f)); const fecha = hoyStr();
+    if (/tanque/i.test(t)) {
+      tanques.push({ fecha, quien: p.id, litros: num(d.litros), ec: num(d.ec), ph: num(d.ph), silicio_ml_l: num(d.si), productos: d.prod || '' });
+    } else {
+      const e1 = num(d.e1), e2 = num(d.e2), p1 = num(d.p1), p2 = num(d.p2);
+      const prom = (a, b) => a != null && b != null ? (a + b) / 2 : a ?? b;
+      riegos.push({ fecha, sala_id: room, etapa: etapaDe(room), quien: p.id, ec_entrada: num(d.ec), ph_entrada: num(d.ph), litros_por_maceta: num(d.lpm),
+        ec_runoff: prom(e1, e2), ph_runoff: prom(p1, p2), testigos: [[e1, p1], [e2, p2]], drenaje_pct: num(d.dren), notas: d.notas || '' });
+    }
+    guardarRiego(); _g('ftBg').style.display = 'none';
+    if (sistema && !/tanque/i.test(t)) { const r = riegos[riegos.length - 1];
+      pedir('riego:guardar', { registro: { ...r, sala: rooms[r.sala_id].name } }).then(x => log(`📋 Riego de ${x.sala} guardado en el sistema (pantalla Riego).`)).catch(err => log('⚠ El riego no se guardó en el sistema: ' + esc(err.message), true)); }
+    const avisos = evaluar(/tanque/i.test(t) ? null : riegos[riegos.length - 1], /tanque/i.test(t) ? tanques[tanques.length - 1] : null);
+    avisos.forEach(a => log(`💧 <b>Gota</b>: ${a.txt}`, a.nivel === 'mal'));
+    if (avisos.some(a => a.nivel === 'mal')) { mensaje('Gota', avisos.filter(a => a.nivel === 'mal').map(a => a.txt.replace(/<[^>]+>/g, '')).join(' '), 'todos'); chat[chat.length - 1]._local = true; }
+    doTask(p, i);
+  };
+}
+// Reglas del Manual 3 y de la planilla. Devuelve [{nivel: ok|ojo|mal, txt}].
+function evaluar(r, tq) {
+  const out = [];
+  if (tq) {
+    if (tq.ph != null && tq.ph > 6.0) out.push({ nivel: 'mal', txt: `el tanque salió con pH ${f1(tq.ph)}: el máximo es 6,0. Corregir antes de regar.` });
+    if (tq.silicio_ml_l && tq.ph != null && tq.ph > 5.9) out.push({ nivel: 'ojo', txt: 'con silicio el pH sube con las horas: volver a medir antes del segundo riego.' });
+    if (!out.length) out.push({ nivel: 'ok', txt: `tanque listo: EC ${f2(tq.ec)}, pH ${f1(tq.ph)}.` });
+    return out;
+  }
+  const R = RANGOS_RIEGO[r.etapa], sala = rooms[r.sala_id].name;
+  if (r.ec_entrada != null && (r.ec_entrada < R.ec[0] || r.ec_entrada > R.ec[1])) out.push({ nivel: 'mal', txt: `${sala}: EC de entrada ${f2(r.ec_entrada)} fuera del rango de ${r.etapa} (${f1(R.ec[0])}–${f1(R.ec[1])}).` });
+  if (r.ph_entrada != null && (r.ph_entrada < R.ph[0] || r.ph_entrada > R.ph[1])) out.push({ nivel: 'mal', txt: `${sala}: pH de entrada ${f1(r.ph_entrada)} fuera de rango (${f1(R.ph[0])}–${f1(R.ph[1])}).` });
+  if (r.ec_runoff != null && r.ec_entrada != null) {
+    const dif = r.ec_runoff - r.ec_entrada;
+    if (dif > 0.5) out.push({ nivel: 'mal', txt: `${sala}: el runoff sale ${f2(dif)} más alto que la entrada. Se acumulan sales: regar con más volumen hasta 15–20 % de drenaje.` });
+    else if (dif < -0.3) out.push({ nivel: 'ojo', txt: `${sala}: runoff más bajo que la entrada: las plantas comen todo. Se puede subir un poco la EC.` });
+  }
+  if (r.ph_runoff != null && r.ph_runoff < 5.5) out.push({ nivel: 'mal', txt: `${sala}: pH del runoff ${f1(r.ph_runoff)}, se acidifica la raíz. Avisar a Lucho.` });
+  if (r.ph_runoff != null && r.ph_runoff > 6.5) out.push({ nivel: 'ojo', txt: `${sala}: pH del runoff ${f1(r.ph_runoff)}, sube: revisar el pH de entrada.` });
+  if (r.drenaje_pct != null && r.drenaje_pct < 10) out.push({ nivel: 'ojo', txt: `${sala}: drenaje ${r.drenaje_pct} %, poco. Si la EC del runoff sube, regar más en cada pasada.` });
+  if (r.drenaje_pct != null && r.drenaje_pct > 30) out.push({ nivel: 'ojo', txt: `${sala}: drenaje ${r.drenaje_pct} %, se tira mezcla. Bajar los litros por maceta.` });
+  const [t1, t2] = r.testigos || [];
+  if (t1 && t2 && t1[0] != null && t2[0] != null && Math.abs(t1[0] - t2[0]) > 0.4) out.push({ nivel: 'ojo', txt: `${sala}: las 2 testigo dan muy distinto (${f2(t1[0])} y ${f2(t2[0])}). Revisar si una punta de la sala recibe menos riego o más calor.` });
+  if (r.ec_runoff == null) out.push({ nivel: 'ojo', txt: `${sala}: falta el runoff de las testigo. Sin eso no puedo ver la raíz.` });
+  if (!out.length) out.push({ nivel: 'ok', txt: `${sala}: riego en rango ✓` });
+  return out;
+}
+// Lectura de varios riegos por sala: tendencia del runoff y días entre riegos.
+function textoAsesor() {
+  if (!riegos.length) return '<span style="color:#5b665f">Todavía no hay riegos cargados. Al tocar ✓ en un riego se completa la EC y el pH.</span>';
+  const salas = [...new Set(riegos.map(r => r.sala_id))];
+  return salas.map(id => {
+    const rs = riegos.filter(r => r.sala_id === id), u = rs[rs.length - 1];
+    const ultimos = rs.slice(-4).filter(r => r.ec_runoff != null);
+    let tend = '';
+    if (ultimos.length >= 3) { const d = ultimos[ultimos.length - 1].ec_runoff - ultimos[0].ec_runoff; tend = d > 0.3 ? ' · <span class="mal">runoff en subida</span>' : d < -0.3 ? ' · <span class="ojo">runoff en baja</span>' : ' · runoff estable'; }
+    const fechas = rs.slice(-5).map(r => r.fecha); let cada = '';
+    if (fechas.length >= 3) { const prom = diffD(fechas[0], fechas[fechas.length - 1]) / (fechas.length - 1); cada = ` · riega cada ${f1(prom)} días`; }
+    const dias = diffD(u.fecha, hoyStr());
+    const peor = evaluar(u)[0];
+    return `<div style="margin-top:3px"><b>${rooms[id].name}</b>: ${dias ? `hace ${dias} d` : "regada hoy"}${cada}${tend}<br><span class="${peor.nivel}">${peor.txt.replace(rooms[id].name + ': ', '')}</span></div>`;
+  }).join('') + `<span style="color:#5b665f">${riegos.length} riegos cargados · al conectar, Gota lee el historial del sistema.</span>`;
+}
+function log(html, bad) { const d = document.createElement('div'); d.innerHTML = `<span style="color:#5b665f">${new Date(simNow()).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' })}</span> ${html}`; if (bad) d.style.color = '#b3261e'; logEl.prepend(d); while (logEl.children.length > 8) logEl.lastChild.remove(); }
+function renderPanel() {
+  const pe = document.getElementById('people');
+  pe.innerHTML = people.map(p => { const [c] = gemColor(p); return `<button data-p="${p.id}" class="${p.id === selected ? 'on' : ''}"><span class="dot" style="background:${c}"></span>${p.id}</button>`; }).join('');
+  pe.querySelectorAll('button').forEach(b => b.onclick = () => { selected = b.dataset.p; focusPerson(selected); renderPanel(); });
+  const p = people.find(x => x.id === selected);
+  const fmt = h => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+  document.getElementById('tasks').innerHTML = `<div style="font-size:12px;color:#5b665f;margin-bottom:4px">${p.role}</div>` + p.tasks.map((t, i) => {
+    const st = p.done[i] ? 'done' : p.prob[i] ? 'prob' : '';
+    const busy = p.busy && p.busy.i === i;
+    return `<div class="task ${st}"><span style="width:38px;color:#5b665f">${fmt(t[0])}</span><span class="t">${t[2]}<br><span style="color:#8a948d">${rooms[t[1]].name}${busy ? ' · en curso…' : ''}</span></span>${st || busy ? '' : `<button data-i="${i}" data-a="ok" title="Hacer">✓</button><button data-i="${i}" data-a="bad" title="Problema">!</button>`}</div>`;
+  }).join('');
+  document.querySelectorAll('#tasks button').forEach(b => b.onclick = () => { const i = +b.dataset.i, bad = b.dataset.a === 'bad'; if (!bad && pideDatos(p.tasks[i][2])) abrirFormulario(p, i); else doTask(p, i, bad); });
+  renderIA(); renderStatus();
+}
+function renderIA() {
+  const opts = Object.keys(INSUMOS).map(k => `<option>${k}</option>`).join('');
+  document.getElementById('ia').innerHTML = `
+    <div class="task"><span style="width:18px">🛰</span><span class="t"><b>Nubi</b> · vigila el clima con el Pulse<br><span style="color:#5b665f" id="nubiTxt"></span></span></div>
+    <div class="task"><span style="width:18px">🛒</span><span class="t"><b>Changuito</b> · lista de compras de Facundo<br><span style="color:#5b665f">${compras.length ? compras.join(' · ') : 'Vacía'}</span></span></div>
+    <div class="task asesor"><span style="width:18px">💧</span><span class="t"><b>Gota</b> · estudia cada riego y aconseja<br>${textoAsesor()}</span></div>
+    <div class="row" style="margin:6px 0 0"><select id="falta" style="font:inherit;font-size:12px;border-radius:8px;padding:4px;flex:1">${opts}</select><button id="bFalta">Falta algo</button></div>`;
+  document.getElementById('bFalta').onclick = () => faltaAlgo(document.getElementById('falta').value, selected);
+}
+function focusPerson(id) { const p = people.find(x => x.id === id); controls.target.copy(p.g.position); }
+
+// botones
+const $ = id => document.getElementById(id);
+$('bPlay').onclick = () => { playing = !playing; $('bPlay').textContent = playing ? '❚❚ Pausa' : '▶ Simular el día'; $('bPlay').classList.toggle('on', playing); };
+$('bSpeed').onclick = () => { speed = speed === 60 ? 300 : speed === 300 ? 900 : 60; $('bSpeed').textContent = 'x' + speed; };
+$('bNow').onclick = () => { simOffset = 0; playing = false; $('bPlay').textContent = '▶ Simular el día'; $('bPlay').classList.remove('on'); };
+$('bWalls').onclick = () => { const up = wallH < 1; setWalls(up ? 2.4 : 0.7); $('bWalls').textContent = up ? 'Paredes arriba' : 'Paredes abajo'; };
+$('bLights').onclick = () => { forceLights = forceLights === null ? true : forceLights ? false : null; $('bLights').textContent = forceLights === null ? 'Luces' : forceLights ? 'Luces: todas on' : 'Luces: todas off'; applyLights(); renderSigns(); };
+$('bRot').onclick = () => { const v = cam.position.clone().sub(controls.target); v.applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2); cam.position.copy(controls.target).add(v); };
+$('bHome').onclick = all;
+$('bSalas').onclick = home;
+
+// clic sobre personas
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let downAt = null;
+canvas.addEventListener('pointerdown', e => downAt = [e.clientX, e.clientY]);
+canvas.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+  ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ptr, cam);
+  const hit = ray.intersectObjects(people.map(p => p.g), true)[0];
+  if (hit) { selected = hit.object.userData.person; renderPanel(); return; }
+  const fh = ray.intersectObjects(floorMeshes, false)[0];
+  if (fh) { roomOpen = fh.object.userData.room; renderRoom(); }
+});
+
+// ---------- Loop ----------
+const v3 = new THREE.Vector3();
+let lastMin = -1;
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (playing) simOffset += dt * 1000 * speed;
+  const h = simHour();
+  // ejecución automática de tareas al simular
+  if (playing) for (const p of people) if (!p.busy && !p.path.length) { const i = p.tasks.findIndex((t, k) => t[0] <= h && !p.done[k] && !p.prob[k]); if (i >= 0) doTask(p, i, p.id === 'Vilela' && /plagas/.test(p.tasks[i][2]) && !p._probShown && (p._probShown = true)); }
+  for (const p of people) {
+    const g = p.g; let moving = false;
+    if (p.path.length) {
+      const tgt = p.path[0]; v3.copy(tgt).sub(g.position); v3.y = 0; const d = v3.length();
+      const step = 1.6 * dt * (playing ? Math.min(6, Math.max(1, speed / 60)) : 1);
+      if (d < step) { g.position.copy(tgt); p.path.shift(); }
+      else { v3.normalize(); g.position.addScaledVector(v3, step); g.rotation.y = Math.atan2(v3.x, v3.z); moving = true; }
+      if (!p.path.length && p.busy) p.bubble = p.busy.title + '…';
+    } else if (p.busy) {
+      p.busy.t += dt * (playing ? Math.min(6, speed / 60) : 1);
+      if (p.busy.t > 2.5) finishTask(p);
+    }
+    const t = now / 1000;
+    const sw = moving ? Math.sin(t * 9) * 0.5 : (p.busy ? Math.sin(t * 5) * 0.25 : 0);
+    p.legL.rotation.x = sw; p.legR.rotation.x = -sw; p.armL.rotation.x = -sw; p.armR.rotation.x = p.busy && !moving ? -1.2 + Math.sin(t * 6) * 0.3 : sw;
+    p.gem.rotation.y += dt * 1.5; p.gem.position.y = 2.1 + Math.sin(t * 2 + g.position.x) * 0.04;
+    const [c, e] = gemColor(p); p.gem.material.color.set(c); p.gem.material.emissive.set(e);
+    // etiqueta
+    v3.copy(g.position); v3.y = 2.4; v3.project(cam);
+    p.el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; p.el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px';
+    p.el.querySelector('.b').textContent = p.bubble;
+  }
+  for (const [k, el] of Object.entries(signEls)) { const r = rooms[k]; v3.set(k === 's5' ? r.x1 - 0.4 : k === 's2' || k === 's3' ? r.x0 + 0.6 : (r.x0 + r.x1) / 2, 2.5, k === 'aten' ? r.z0 + 1 : r.z0 + 0.4); v3.project(cam); el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; }
+  for (const f of fans) f.rotation.z += dt * 14;
+  // Nubi: recorre las salas y mide
+  {
+    const spd = playing ? Math.min(6, Math.max(1, speed / 60)) : 1;
+    if (!nubi.target) { const ks = ['s1', 's2', 's5', 's3', 's4']; const k = ks[nubi.idx++ % ks.length]; const c = center(k); nubi.target = { k, v: new THREE.Vector3(c.x, 2.45, c.z) }; nubi.wait = 0; }
+    v3.copy(nubi.target.v).sub(nubi.g.position); const d = v3.length();
+    if (d > 0.05) { v3.normalize(); nubi.g.position.addScaledVector(v3, Math.min(d, 1.2 * dt * spd)); nubi.g.rotation.y = Math.atan2(v3.x, v3.z); }
+    else { nubi.wait += dt * spd; if (nubi.wait > 3) { nubiCheck(nubi.target.k); nubi.target = null; } }
+    nubi.g.position.y = 2.45 + Math.sin(now / 400) * 0.06; nubi.tip.material.emissiveIntensity = 0.6 + Math.sin(now / 150) * 0.5;
+    const hh = simHour(); const night = hh >= 20 || hh < 10;
+    const nt = document.getElementById('nubiTxt'); if (nt) nt.textContent = (night ? 'Turno noche · ' : '') + nubi.bubble;
+    v3.copy(nubi.g.position); v3.y += 0.45; v3.project(cam); nubi.el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; nubi.el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; nubi.el.querySelector('.b').textContent = nubi.bubble;
+  }
+  // Changuito: se mueve por el recorrido
+  {
+    const spd = playing ? Math.min(6, Math.max(1, speed / 60)) : 1;
+    if (chango.path.length) {
+      const tgt = chango.path[0]; v3.copy(tgt).sub(chango.g.position); v3.y = 0; const d = v3.length(); const st = 1.5 * dt * spd;
+      if (d < st) { chango.g.position.copy(tgt); chango.path.shift(); if (!chango.path.length) changoArrived(); }
+      else { v3.normalize(); chango.g.position.addScaledVector(v3, st); chango.g.rotation.y = Math.atan2(v3.x, v3.z) + Math.PI; for (const w of chango.wheels) w.rotation.x += st * 8; }
+    }
+    v3.copy(chango.g.position); v3.y = 1.25; v3.project(cam); chango.el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; chango.el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; chango.el.querySelector('.b').textContent = chango.bubble;
+  }
+  const min = Math.floor(h * 60);
+  if (min !== lastMin) {
+    lastMin = min; const d = new Date(simNow());
+    $('clock').textContent = d.toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' });
+    $('day').textContent = d.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'long' });
+    applyLights(); renderSigns(); if (min % 10 === 0) { updatePlants(); renderPanel(); }
+  }
+  controls.update(); renderer.render(scene, cam);
+  requestAnimationFrame(tick);
+}
+updatePlants(); renderSigns(); renderPanel(); applyLights();
+log('Bienvenido a la sede virtual. Tocá ▶ para simular el día o hacé las tareas a mano.');
+log('Salas limpias al empezar y al terminar el día: es tarea de todos. Encargados: <b>Vilela</b> (apertura) y <b>Pato</b> (cierre).');
+log('<b>Prioridad máxima:</b> todo lo que retira cada uno queda registrado como entrega, con cuántos gramos y de qué genética. Nadie se sirve solo.');
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

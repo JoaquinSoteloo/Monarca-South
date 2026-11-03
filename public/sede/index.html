@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// Modo sistema (/sede en la compu): la clase va en <html> antes de leer el resto, así
+// los controles de la demo nunca llegan a verse.
+if (new URLSearchParams(location.search).get('modo') === 'sistema') document.documentElement.classList.add('sistema');
+</script>
 <title>Monarca virtual — Sede Balbastro (v0.6)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -92,7 +97,7 @@
   /* Modo sistema (/sede en la compu, rediseño del 03/11/2026): sin controles de
      demo, ayudantes ni chat flotante; el clima, los ciclos y las tareas vienen
      del sistema. Sin «?modo=sistema» el simulador queda como antes. */
-  body.sistema .demo, body.sistema #filaTiempo, body.sistema #iaT, body.sistema #ia, body.sistema #logT, body.sistema #log, body.sistema #chatBtn, body.sistema #chat{display:none!important}
+  .sistema .demo, .sistema #filaTiempo, .sistema #iaT, .sistema #ia, .sistema #logT, .sistema #log, .sistema #chatBtn, .sistema #chat{display:none!important}
   .links{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
   .links button{background:#13201a;color:#f4f1e8;border-color:#13201a}
   .links button.sec{background:#fff;color:#1c2620;border-color:#1c262033}
@@ -140,6 +145,17 @@
 <button id="chatBtn">💬 Chat del equipo<span class="n" id="chatN" style="display:none"></span></button>
 <div id="chat"><header><div>Chat del equipo<small>Canal «Todos» para el equipo, un chat privado con cada uno y el 🤖 Asistente de cultivo con IA. Al conectar el simulador al sistema, es el mismo chat de Equipo.</small></div><button id="chatX" style="background:none;border:none;color:#f4f1e8;font-size:16px">✕</button></header><div id="chatCanales"></div><div id="chatPara"></div><div id="chatMsgs"></div><form id="chatF"><select id="chatQuien"></select><input id="chatTxt" placeholder="Escribir un mensaje" autocomplete="off"><button>Enviar</button></form></div>
 <div id="help">Arrastrá para mover la vista · rueda o pellizco para zoom · tocá a una persona para ver sus tareas o una sala para ver su ficha · ✓ la hace (las de riego piden EC y pH), ! marca un problema.</div>
+
+<script>
+// Modo sistema: los textos de la demo, cambiados antes de que se vea la página (sin
+// esperar a que baje la librería del 3D).
+if (new URLSearchParams(location.search).get('modo') === 'sistema') {
+  document.querySelector('#hud h1').textContent = 'Monarca virtual';
+  document.querySelector('#hud .sub').textContent = 'Sede Balbastro + Sala 4 Itaquí · plano de Facundo · datos del sistema';
+  document.getElementById('help').textContent = 'Arrastrá para mover la vista · rueda para zoom · tocá una sala para ver su ficha o a una persona para ver sus tareas de hoy.';
+  document.getElementById('tasks').innerHTML = '<div class="task"><span class="t" style="color:#5b665f">Cargando las tareas de hoy…</span></div>';
+}
+</script>
 
 <script type="module">
 import * as THREE from 'three';
@@ -1363,10 +1379,6 @@ async function cargarDatosSistema() {
   updatePlants(); applyLights(); renderSigns(); renderPanel();
 }
 if (MODO_SISTEMA) {
-  document.body.classList.add('sistema');
-  document.querySelector('#hud h1').textContent = 'Monarca virtual';
-  document.querySelector('#hud .sub').textContent = 'Sede Balbastro + Sala 4 Itaquí · plano de Facundo · datos del sistema';
-  document.getElementById('help').textContent = 'Arrastrá para mover la vista · rueda para zoom · tocá una sala para ver su ficha o a una persona para ver sus tareas de hoy.';
   for (const ayudante of [nubi, chango]) { ayudante.g.visible = false; ayudante.el.style.display = 'none'; }
   for (const p of people) { p.tasks = []; p.done = {}; p.prob = {}; p.bubble = ''; }
   for (const k of Object.keys(clima)) delete clima[k]; // nada de clima de ejemplo hasta que llegue el real

@@ -23,6 +23,9 @@ self.addEventListener("push", (event) => {
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       tag: data.tag,
+      // Con el mismo tag (ej.: una conversación del Chat) la nueva reemplaza
+      // a la anterior, pero vuelve a sonar.
+      renotify: Boolean(data.tag),
       data: { url: data.url || "/" },
     }),
   )

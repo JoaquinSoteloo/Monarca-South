@@ -41,6 +41,8 @@ interface Sala {
 interface MonitoreoManagerProps {
   initialDevices: PulseDevice[]
   salas: Sala[]
+  /** Minutos desde la última lectura guardada en el historial (null si no hay ninguna). */
+  minutosSinHistorial: number | null
 }
 
 // Este componente NUNCA llama a Pulse Grow directamente: toda lectura pasa
@@ -98,7 +100,7 @@ const METRIC_TINTS = {
 // puede depender del tema (claro/oscuro) porque esos fondos tampoco dependen.
 const METRIC_TEXT_DARK = "#202923"
 
-export function MonitoreoManager({ initialDevices, salas }: MonitoreoManagerProps) {
+export function MonitoreoManager({ initialDevices, salas, minutosSinHistorial }: MonitoreoManagerProps) {
   const [devices, setDevices] = useState<DeviceViewState[]>(() => initialDevices.map(toInitialSnapshot))
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -247,6 +249,27 @@ export function MonitoreoManager({ initialDevices, salas }: MonitoreoManagerProp
           {syncMessage.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
           <AlertTitle>{syncMessage.type === "success" ? "Sincronización completa" : "Error"}</AlertTitle>
           <AlertDescription>{syncMessage.text}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* El historial lo guarda el motor cada 1 minuto (scripts/085): si hace
+          rato que no llega nada, el programador o el Pulse se cortaron. */}
+      {(minutosSinHistorial === null || minutosSinHistorial > 10) && (
+        <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>El historial no se está guardando</AlertTitle>
+          <AlertDescription className="text-amber-900/90">
+            {minutosSinHistorial === null
+              ? "Todavía no hay lecturas guardadas."
+              : `La última lectura guardada es de hace ${
+                  minutosSinHistorial < 120
+                    ? `${minutosSinHistorial} minutos`
+                    : minutosSinHistorial < 2880
+                      ? `${Math.round(minutosSinHistorial / 60)} horas`
+                      : `${Math.round(minutosSinHistorial / 1440)} días`
+                }.`}{" "}
+            Mientras no se guarden lecturas tampoco corren las automatizaciones ni el chequeo de Modo Ausente.
+          </AlertDescription>
         </Alert>
       )}
 

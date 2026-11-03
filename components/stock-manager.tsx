@@ -20,6 +20,8 @@ import { MovimientoStockDialog } from "@/components/movimiento-stock-dialog"
 
 interface StockManagerProps {
   initialGeneticas: Genetica[]
+  /** Permiso stock.editar: agregar, editar y eliminar genéticas. */
+  puedeEditar: boolean
   // El diálogo de alta/edición se abre desde el botón "Agregar genética",
   // que ahora vive junto a las pestañas (ver components/stock-tabs.tsx) para
   // compartir la misma fila. El estado de apertura lo controla ese padre;
@@ -140,7 +142,7 @@ function PriceCellLines({
   )
 }
 
-export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange }: StockManagerProps) {
+export function StockManager({ initialGeneticas, puedeEditar, dialogOpen, onDialogOpenChange }: StockManagerProps) {
   const [geneticas, setGeneticas] = useState(initialGeneticas)
   const [editingGenetica, setEditingGenetica] = useState<Genetica | null>(null)
   const [loading, setLoading] = useState(false)
@@ -535,26 +537,30 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                               >
                                 <PackagePlus className="h-4 w-4 text-primary" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEdit(genetica)}
-                                className="h-9 w-9 p-0 hover:bg-primary/10"
-                                title="Editar genética"
-                                aria-label={`Editar ${genetica.nombre}`}
-                              >
-                                <Pencil className="h-4 w-4 text-primary" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(genetica.id)}
-                                className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                title="Eliminar genética"
-                                aria-label={`Eliminar ${genetica.nombre}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {puedeEditar && (
+                                <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEdit(genetica)}
+                                  className="h-9 w-9 p-0 hover:bg-primary/10"
+                                  title="Editar genética"
+                                  aria-label={`Editar ${genetica.nombre}`}
+                                >
+                                  <Pencil className="h-4 w-4 text-primary" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(genetica.id)}
+                                  className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  title="Eliminar genética"
+                                  aria-label={`Eliminar ${genetica.nombre}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                                </>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -615,26 +621,30 @@ export function StockManager({ initialGeneticas, dialogOpen, onDialogOpenChange 
                           >
                             <PackagePlus className="h-4 w-4 text-primary" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(genetica)}
-                            className="h-9 w-9 p-0 hover:bg-primary/10"
-                            title="Editar genética"
-                            aria-label={`Editar ${genetica.nombre}`}
-                          >
-                            <Pencil className="h-4 w-4 text-primary" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(genetica.id)}
-                            className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            title="Eliminar genética"
-                            aria-label={`Eliminar ${genetica.nombre}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {puedeEditar && (
+                            <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(genetica)}
+                              className="h-9 w-9 p-0 hover:bg-primary/10"
+                              title="Editar genética"
+                              aria-label={`Editar ${genetica.nombre}`}
+                            >
+                              <Pencil className="h-4 w-4 text-primary" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(genetica.id)}
+                              className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              title="Eliminar genética"
+                              aria-label={`Eliminar ${genetica.nombre}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            </>
+                          )}
                         </div>
                       </div>
 

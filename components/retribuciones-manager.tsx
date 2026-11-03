@@ -135,7 +135,7 @@ function mensajeError(error: { code?: string; message: string }, generico: strin
   return /^EQ00\d$/.test(error.code || "") ? error.message : generico
 }
 
-export function RetribucionesManager() {
+export function RetribucionesManager({ puedeLiquidar }: { puedeLiquidar: boolean }) {
   const supabase = createClient()
   const [equipo, setEquipo] = useState<MiembroEquipo[]>([])
   const [liquidaciones, setLiquidaciones] = useState<LiquidacionEquipo[]>([])
@@ -233,10 +233,12 @@ export function RetribucionesManager() {
           <h2 className="text-2xl font-bold text-foreground">Retribuciones del equipo</h2>
           <p className="text-muted-foreground">Cuánto cobra cada uno y qué se le liquidó</p>
         </div>
-        <Button onClick={() => setEditando("nuevo")}>
-          <Plus className="mr-2 h-4 w-4" />
-          Agregar persona
-        </Button>
+        {puedeLiquidar && (
+          <Button onClick={() => setEditando("nuevo")}>
+            <Plus className="mr-2 h-4 w-4" />
+            Agregar persona
+          </Button>
+        )}
       </div>
 
       {sinLiquidarAnteriores.length > 0 && (
@@ -367,7 +369,7 @@ export function RetribucionesManager() {
                     )}
 
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {m.activo && pendientes.length > 0 && (
+                      {puedeLiquidar && m.activo && pendientes.length > 0 && (
                         <Button size="sm" onClick={() => setLiquidando(m)}>
                           <Wallet className="mr-1.5 h-4 w-4" />
                           Liquidar
@@ -378,6 +380,7 @@ export function RetribucionesManager() {
                           Ver liquidaciones
                         </Button>
                       )}
+                      {puedeLiquidar && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -388,6 +391,7 @@ export function RetribucionesManager() {
                         <Pencil className="mr-1.5 h-4 w-4" />
                         Editar
                       </Button>
+                      )}
                     </div>
                   </li>
                 )
@@ -458,6 +462,7 @@ export function RetribucionesManager() {
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
                         <span className="font-semibold tabular-nums">{formatCurrency(Number(l.total))}</span>
+                        {puedeLiquidar && (
                         <Button
                           size="icon"
                           variant="ghost"
@@ -471,6 +476,7 @@ export function RetribucionesManager() {
                         >
                           <Undo2 className="h-4 w-4" />
                         </Button>
+                        )}
                       </div>
                     </li>
                   )

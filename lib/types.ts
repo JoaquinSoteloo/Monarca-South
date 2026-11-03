@@ -47,7 +47,8 @@ export interface Socio {
   entregas_mes?: number
 }
 
-export type RolUsuario = "operador" | "comision"
+/** Clave de public.roles (scripts/084). "comision" es fija y tiene todos los permisos. */
+export type RolUsuario = string
 
 export interface Perfil {
   user_id: string

@@ -39,7 +39,7 @@ function mensajeError(error: { code?: string; message: string }, generico: strin
   return /^GA00\d$/.test(error.code || "") ? error.message : generico
 }
 
-export function AportesManager({ esComision }: { esComision: boolean }) {
+export function AportesManager({ puedeEditar }: { puedeEditar: boolean }) {
   const supabase = createClient()
   const [aportes, setAportes] = useState<AporteCapital[]>([])
   const [devoluciones, setDevoluciones] = useState<Gasto[]>([])
@@ -99,7 +99,7 @@ export function AportesManager({ esComision }: { esComision: boolean }) {
           <h2 className="text-2xl font-bold text-foreground">Aportes de capital</h2>
           <p className="text-muted-foreground">Lo que aportaron los socios y cuánto falta devolver</p>
         </div>
-        {esComision && (
+        {puedeEditar && (
           <Button onClick={() => setEditando("nuevo")}>
             <Plus className="mr-2 h-4 w-4" />
             Nuevo aporte
@@ -160,7 +160,7 @@ export function AportesManager({ esComision }: { esComision: boolean }) {
             <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
               <HandCoins className="h-8 w-8 text-primary/60" />
               <p>Todavía no hay aportes cargados.</p>
-              {esComision && <p className="text-sm">Cargá el primero con &quot;Nuevo aporte&quot;.</p>}
+              {puedeEditar && <p className="text-sm">Cargá el primero con &quot;Nuevo aporte&quot;.</p>}
             </div>
           ) : (
             <ul className="space-y-3">
@@ -232,7 +232,7 @@ export function AportesManager({ esComision }: { esComision: boolean }) {
                           Ver devoluciones
                         </Button>
                       )}
-                      {esComision && (
+                      {puedeEditar && (
                         <>
                           <Button
                             size="sm"

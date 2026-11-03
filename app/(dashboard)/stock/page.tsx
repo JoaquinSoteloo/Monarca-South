@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server"
 import { StockTabs } from "@/components/stock-tabs"
+import { getServerSession } from "@/lib/auth/session"
+import { tienePermiso } from "@/lib/permisos"
 
 export default async function StockPage() {
   const supabase = await createClient()
+  const session = await getServerSession()
   const { data: geneticas } = await supabase.from("geneticas").select("*").order("nombre")
   const { data: productos } = await supabase.from("productos").select("*").order("nombre")
 
@@ -13,7 +16,11 @@ export default async function StockPage() {
         <p className="text-sm text-muted-foreground">Inventario de genéticas y productos del club</p>
       </div>
 
-      <StockTabs geneticas={geneticas || []} productos={productos || []} />
+      <StockTabs
+        geneticas={geneticas || []}
+        productos={productos || []}
+        puedeEditar={tienePermiso(session?.permisos, "stock.editar")}
+      />
     </main>
   )
 }

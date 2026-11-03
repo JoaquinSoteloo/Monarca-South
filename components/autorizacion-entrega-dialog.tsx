@@ -29,6 +29,8 @@ import {
 export interface UsuarioActual {
   nombre: string
   rol: RolUsuario
+  /** Si su rol tiene el permiso entregas.autorizar. */
+  puedeAutorizar: boolean
 }
 
 /** Separa el MESSAGE de VB001 ("motivo · motivo") en una lista. */
@@ -50,7 +52,7 @@ interface Props {
 }
 
 export function AutorizacionEntregaDialog({ open, onOpenChange, socioId, motivos, usuarioActual, onAutorizado }: Props) {
-  const esComision = usuarioActual.rol === "comision"
+  const esComision = usuarioActual.puedeAutorizar
   const [autorizaOtro, setAutorizaOtro] = useState(!esComision)
   const [motivo, setMotivo] = useState("")
   const [email, setEmail] = useState("")

@@ -36,10 +36,13 @@ import {
 import { cn } from "@/lib/utils"
 import { PushNotificationsBell } from "@/components/push-notifications-bell"
 import type { RolUsuario } from "@/lib/types"
+import { permisoDeRuta, tienePermiso } from "@/lib/permisos"
 
 export interface UsuarioNav {
   nombre: string
   rol: RolUsuario
+  rolNombre: string
+  permisos: string[]
 }
 
 /**
@@ -49,7 +52,7 @@ export interface UsuarioNav {
  */
 const navGroups: {
   label: string
-  items: { href: string; label: string; icon: typeof Home; soloComision?: boolean }[]
+  items: { href: string; label: string; icon: typeof Home }[]
 }[] = [
   {
     label: "Principal",
@@ -87,7 +90,7 @@ const navGroups: {
       { href: "/caja", label: "Caja", icon: DollarSign },
       { href: "/gastos", label: "Gastos", icon: Receipt },
       { href: "/aportes", label: "Aportes de capital", icon: HandCoins },
-      { href: "/retribuciones", label: "Retribuciones", icon: Wallet, soloComision: true },
+      { href: "/retribuciones", label: "Retribuciones", icon: Wallet },
       { href: "/deudas", label: "Deudas", icon: AlertCircle },
     ],
   },
@@ -97,7 +100,7 @@ const navGroups: {
       { href: "/automatizaciones", label: "Automatizaciones", icon: Zap },
       { href: "/control-manual", label: "Control manual", icon: Sliders },
       { href: "/modo-ausente", label: "Modo Ausente", icon: DoorClosed },
-      { href: "/usuarios", label: "Usuarios", icon: KeyRound, soloComision: true },
+      { href: "/usuarios", label: "Usuarios", icon: KeyRound },
     ],
   },
 ]
@@ -181,7 +184,11 @@ function NavLinks({
   const onDark = variant === "dark"
   const grupos = navGroups.map((g) => ({
     ...g,
-    items: g.items.filter((item) => !item.soloComision || usuario?.rol === "comision"),
+    // Cada pantalla aparece sólo si el rol tiene su permiso "ver" (lib/permisos.ts).
+    items: g.items.filter((item) => {
+      const permiso = permisoDeRuta(item.href)
+      return !permiso || tienePermiso(usuario?.permisos, permiso)
+    }),
   }))
   return (
     <nav className="flex flex-col gap-5">
@@ -237,7 +244,7 @@ function UsuarioConectado({ usuario }: { usuario: UsuarioNav | null }) {
     <div className="px-2.5 pb-1">
       <p className="truncate text-sm font-medium text-white">{usuario.nombre}</p>
       <p className="text-[11px] uppercase tracking-wide text-primary-foreground/60">
-        {usuario.rol === "comision" ? "Comisión directiva" : "Operador"}
+        {usuario.rolNombre}
       </p>
     </div>
   )

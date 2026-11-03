@@ -11,6 +11,8 @@ import type { Genetica, Producto } from "@/lib/types"
 interface StockTabsProps {
   geneticas: Genetica[]
   productos: Producto[]
+  /** Permiso stock.editar (lib/permisos.ts). */
+  puedeEditar: boolean
 }
 
 // Wrapper cliente: sólo existe para que las acciones de cada pestaña
@@ -18,7 +20,7 @@ interface StockTabsProps {
 // controlado para saber cuál está activa). La lógica de alta/edición de
 // genéticas y productos sigue 100% en sus managers — acá sólo se controla
 // el abrir/cerrar de sus diálogos y del escáner.
-export function StockTabs({ geneticas, productos }: StockTabsProps) {
+export function StockTabs({ geneticas, productos, puedeEditar }: StockTabsProps) {
   const [tab, setTab] = useState("geneticas")
   const [geneticaDialogOpen, setGeneticaDialogOpen] = useState(false)
   const [productoDialogOpen, setProductoDialogOpen] = useState(false)
@@ -42,7 +44,7 @@ export function StockTabs({ geneticas, productos }: StockTabsProps) {
           </TabsTrigger>
         </TabsList>
 
-        {tab === "geneticas" && (
+        {tab === "geneticas" && puedeEditar && (
           <Button onClick={() => setGeneticaDialogOpen(true)} className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Agregar genética
@@ -70,6 +72,7 @@ export function StockTabs({ geneticas, productos }: StockTabsProps) {
       <TabsContent value="geneticas">
         <StockManager
           initialGeneticas={geneticas}
+          puedeEditar={puedeEditar}
           dialogOpen={geneticaDialogOpen}
           onDialogOpenChange={setGeneticaDialogOpen}
         />

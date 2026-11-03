@@ -50,8 +50,8 @@ const EN_RESULTADO_LABEL: Record<EnResultado, string> = {
 }
 
 interface GastosManagerProps {
-  /** Sólo la comisión crea, renombra o borra categorías. */
-  esComision: boolean
+  /** Permiso gastos.categorias: crear, renombrar o borrar categorías. */
+  puedeEditarCategorias: boolean
 }
 
 type Aviso = { ok: boolean; texto: string } | null
@@ -91,7 +91,7 @@ function AvisoBox({ aviso, onClose }: { aviso: Aviso; onClose: () => void }) {
   )
 }
 
-export function GastosManager({ esComision }: GastosManagerProps) {
+export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
   const [gastos, setGastos] = useState<Gasto[]>([])
   const [categorias, setCategorias] = useState<CategoriaGasto[]>([])
   const [aportes, setAportes] = useState<AporteCapital[]>([])
@@ -649,7 +649,7 @@ export function GastosManager({ esComision }: GastosManagerProps) {
       {showCategoriasDialog && (
         <CategoriasDialog
           categorias={categorias}
-          esComision={esComision}
+          puedeEditarCategorias={puedeEditarCategorias}
           onClose={() => setShowCategoriasDialog(false)}
           onCambio={() => {
             fetchCategorias()
@@ -970,12 +970,12 @@ export function GastosManager({ esComision }: GastosManagerProps) {
 // la lista con qué entra en cada una.
 function CategoriasDialog({
   categorias,
-  esComision,
+  puedeEditarCategorias,
   onClose,
   onCambio,
 }: {
   categorias: CategoriaGasto[]
-  esComision: boolean
+  puedeEditarCategorias: boolean
   onClose: () => void
   onCambio: () => void
 }) {
@@ -1042,9 +1042,9 @@ function CategoriasDialog({
         <DialogHeader>
           <DialogTitle>Categorías de gastos</DialogTitle>
           <DialogDescription>
-            {esComision
+            {puedeEditarCategorias
               ? "Qué entra en cada categoría y cómo cuenta en el resultado del mes."
-              : "Qué entra en cada categoría. Sólo la comisión directiva puede cambiar la lista."}
+              : "Qué entra en cada categoría. Tu rol no puede cambiar la lista."}
           </DialogDescription>
         </DialogHeader>
 
@@ -1087,7 +1087,7 @@ function CategoriasDialog({
                     {cat.descripcion && <p className="text-xs text-muted-foreground">{cat.descripcion}</p>}
                     <p className="text-xs text-muted-foreground">{EN_RESULTADO_LABEL[cat.en_resultado]}</p>
                   </div>
-                  {esComision && cat.nombre !== SIN_CLASIFICAR && (
+                  {puedeEditarCategorias && cat.nombre !== SIN_CLASIFICAR && (
                     <div className="flex shrink-0 gap-1">
                       <Button
                         size="icon"
@@ -1119,7 +1119,7 @@ function CategoriasDialog({
             {categorias.length === 0 && <p className="text-sm text-muted-foreground text-center py-2">No hay categorías</p>}
           </div>
 
-          {esComision && (
+          {puedeEditarCategorias && (
             <div className="space-y-2 rounded-lg border p-3">
               <p className="text-sm font-semibold text-primary">Nueva categoría</p>
               <Input

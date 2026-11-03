@@ -74,7 +74,14 @@ interface VentaConDetalles extends Venta {
   socio?: Socio // Asegúrate de que Socio tenga es_miembro
 }
 
-export function HistorialVentas({ usuarioActual }: { usuarioActual: UsuarioActual }) {
+export function HistorialVentas({
+  usuarioActual,
+  puedeEditar,
+}: {
+  usuarioActual: UsuarioActual
+  /** Permiso entregas.editar: editar y eliminar entregas. */
+  puedeEditar: boolean
+}) {
   const [ventas, setVentas] = useState<VentaConDetalles[]>([])
   const [loading, setLoading] = useState(false)
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined)
@@ -1083,7 +1090,8 @@ export function HistorialVentas({ usuarioActual }: { usuarioActual: UsuarioActua
 
   // Botones de acciones (editar + menú "más acciones"). Reutilizado en la
   // celda de la tabla (desktop) y en la tarjeta mobile.
-  const renderAccionesVenta = (venta: VentaConDetalles) => (
+  const renderAccionesVenta = (venta: VentaConDetalles) =>
+    !puedeEditar ? null : (
     <>
       <Button
         variant="ghost"
@@ -1115,7 +1123,7 @@ export function HistorialVentas({ usuarioActual }: { usuarioActual: UsuarioActua
         </DropdownMenuContent>
       </DropdownMenu>
     </>
-  )
+    )
 
   const ventasFiltradas = ventas.filter((v) => {
     if (soloNoPagados && !(Number(v.saldo_pendiente || 0) > 0)) return false

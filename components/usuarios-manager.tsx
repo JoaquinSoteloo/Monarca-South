@@ -29,7 +29,6 @@ import { cn } from "@/lib/utils"
 
 type Usuario = Perfil & { email: string }
 
-const ROL_LABEL: Record<RolUsuario, string> = { operador: "Operador", comision: "Comisión directiva" }
 
 interface Props {
   usuarioActualId: string
@@ -41,6 +40,8 @@ export function UsuariosManager({ usuarioActualId, initialConfig }: Props) {
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [cargando, setCargando] = useState(true)
+  // Roles para elegir (scripts/084): la comisión primero.
+  const [roles, setRoles] = useState<{ clave: string; nombre: string }[]>([])
   const [nuevoOpen, setNuevoOpen] = useState(false)
   const [nuevo, setNuevo] = useState({ nombre: "", email: "", password: "", rol: "operador" as RolUsuario })
   const [passwordPara, setPasswordPara] = useState<Usuario | null>(null)
@@ -57,6 +58,12 @@ export function UsuariosManager({ usuarioActualId, initialConfig }: Props) {
 
   const cargar = async () => {
     setCargando(true)
+    const { data: rolesData } = await createClient()
+      .from("roles")
+      .select("clave, nombre")
+      .order("es_sistema", { ascending: false })
+      .order("nombre")
+    setRoles(rolesData || [])
     const response = await fetch("/api/usuarios")
     const data = await response.json().catch(() => ({}))
     if (response.ok) setUsuarios(data.usuarios)
@@ -217,8 +224,11 @@ export function UsuariosManager({ usuarioActualId, initialConfig }: Props) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="monarca-theme">
-                          <SelectItem value="operador">{ROL_LABEL.operador}</SelectItem>
-                          <SelectItem value="comision">{ROL_LABEL.comision}</SelectItem>
+                          {roles.map((r) => (
+                            <SelectItem key={r.clave} value={r.clave}>
+                              {r.nombre}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -342,8 +352,11 @@ export function UsuariosManager({ usuarioActualId, initialConfig }: Props) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="monarca-theme">
-                  <SelectItem value="operador">{ROL_LABEL.operador}</SelectItem>
-                  <SelectItem value="comision">{ROL_LABEL.comision}</SelectItem>
+                  {roles.map((r) => (
+                      <SelectItem key={r.clave} value={r.clave}>
+                        {r.nombre}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

@@ -2,6 +2,9 @@ import { updateSession } from "@/lib/supabase/proxy"
 import type { NextRequest } from "next/server"
 
 export async function proxy(request: NextRequest) {
+  // La ruta pedida, para que el layout del panel controle el permiso de la
+  // pantalla (components/app-shell.tsx).
+  request.headers.set("x-pathname", request.nextUrl.pathname)
   return await updateSession(request)
 }
 

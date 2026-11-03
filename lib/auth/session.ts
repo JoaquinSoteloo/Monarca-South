@@ -6,12 +6,17 @@
 // persona. Para registrar "quién" hizo algo se usa `nombre`.
 import { createClient } from "@/lib/supabase/server"
 import type { RolUsuario } from "@/lib/types"
+import { ROL_COMISION, TODOS_LOS_PERMISOS } from "@/lib/permisos"
 
 export interface AuthSession {
   id: string
   usuario: string
   nombre: string
   rol: RolUsuario
+  /** Nombre del rol para mostrar (public.roles). */
+  rolNombre: string
+  /** Permisos del rol (lib/permisos.ts); la comisión los tiene todos. */
+  permisos: string[]
 }
 
 export async function getServerSession(): Promise<AuthSession | null> {
@@ -28,12 +33,27 @@ export async function getServerSession(): Promise<AuthSession | null> {
   // esto cubre la sesión que ya tenía abierta.
   if (perfil && !perfil.activo) return null
 
+  // Sin perfil (cuenta creada a mano fuera de la pantalla Usuarios): el
+  // permiso más bajo.
+  const rol = (perfil?.rol as RolUsuario | undefined) ?? "operador"
+
+  let permisos: string[] = TODOS_LOS_PERMISOS
+  let rolNombre = "Comisión directiva"
+  if (rol !== ROL_COMISION) {
+    const [{ data: rolFila }, { data: filas }] = await Promise.all([
+      supabase.from("roles").select("nombre").eq("clave", rol).maybeSingle(),
+      supabase.from("rol_permisos").select("permiso").eq("rol", rol),
+    ])
+    rolNombre = rolFila?.nombre ?? rol
+    permisos = (filas ?? []).map((f) => f.permiso)
+  }
+
   return {
     id: user.id,
     usuario: "admin",
     nombre: perfil?.nombre ?? user.email ?? "admin",
-    // Sin perfil (cuenta creada a mano fuera de la pantalla Usuarios): el
-    // permiso más bajo.
-    rol: (perfil?.rol as RolUsuario | undefined) ?? "operador",
+    rol,
+    rolNombre,
+    permisos,
   }
 }

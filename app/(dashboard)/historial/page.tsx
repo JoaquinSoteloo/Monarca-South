@@ -1,12 +1,20 @@
 import { HistorialVentas } from "@/components/historial-ventas"
 import { getServerSession } from "@/lib/auth/session"
+import { tienePermiso } from "@/lib/permisos"
 
 export default async function HistorialPage() {
   const session = await getServerSession()
 
   return (
     <main className="container mx-auto px-4 py-8">
-      <HistorialVentas usuarioActual={{ nombre: session?.nombre ?? "", rol: session?.rol ?? "operador" }} />
+      <HistorialVentas
+        usuarioActual={{
+          nombre: session?.nombre ?? "",
+          rol: session?.rol ?? "operador",
+          puedeAutorizar: tienePermiso(session?.permisos, "entregas.autorizar"),
+        }}
+        puedeEditar={tienePermiso(session?.permisos, "entregas.editar")}
+      />
     </main>
   )
 }

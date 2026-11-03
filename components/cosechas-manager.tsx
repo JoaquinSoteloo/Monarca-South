@@ -93,7 +93,7 @@ function Desglose({ r, pesoSeco }: { r: Resumen; pesoSeco: number }) {
   )
 }
 
-export function CosechasManager({ esComision }: { esComision: boolean }) {
+export function CosechasManager({ puedeBorrar }: { puedeBorrar: boolean }) {
   const supabase = createClient()
   const [cierres, setCierres] = useState<Cierre[]>([])
   const [salas, setSalas] = useState<Sala[]>([])
@@ -184,7 +184,7 @@ export function CosechasManager({ esComision }: { esComision: boolean }) {
                       </p>
                       <p className="text-xs text-muted-foreground">{c.genetica_ids.map(nombreGenetica).join(", ")}</p>
                     </div>
-                    {esComision && (
+                    {puedeBorrar && (
                       <Button
                         size="icon"
                         variant="ghost"

@@ -2,18 +2,23 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/session"
 import { createServiceClient } from "@/lib/supabase/service"
 import type { RolUsuario } from "@/lib/types"
+import { ROL_COMISION, tienePermiso } from "@/lib/permisos"
 
 // Altas y cambios de usuarios. perfiles no tiene policies de escritura (ver
 // scripts/066): todo pasa por acá con service_role, y por eso el gateo es
-// acá mismo — sólo un usuario de la comisión puede administrar usuarios.
+// acá mismo — hace falta el permiso usuarios.administrar (scripts/084).
 const BAN_INDEFINIDO = "876000h" // ~100 años: "dado de baja"
-const ROLES: RolUsuario[] = ["operador", "comision"]
+
+async function rolExiste(service: ReturnType<typeof createServiceClient>, rol: string) {
+  const { data } = await service.from("roles").select("clave").eq("clave", rol).maybeSingle()
+  return !!data
+}
 
 async function exigirComision() {
   const session = await getServerSession()
   if (!session) return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) }
-  if (session.rol !== "comision") {
-    return { error: NextResponse.json({ error: "Sólo la comisión directiva administra usuarios" }, { status: 403 }) }
+  if (!tienePermiso(session.permisos, "usuarios.administrar")) {
+    return { error: NextResponse.json({ error: "Tu rol no puede administrar usuarios" }, { status: 403 }) }
   }
   return { session }
 }
@@ -58,11 +63,11 @@ export async function POST(request: Request) {
   if (body.password.length < 8) {
     return NextResponse.json({ error: "La contraseña tiene que tener al menos 8 caracteres" }, { status: 400 })
   }
-  if (!ROLES.includes(rol)) {
+  const service = createServiceClient()
+  if (!(await rolExiste(service, rol))) {
     return NextResponse.json({ error: "Rol inválido" }, { status: 400 })
   }
 
-  const service = createServiceClient()
   const { data: creado, error: createError } = await service.auth.admin.createUser({
     email,
     password: body.password,
@@ -103,14 +108,14 @@ export async function PATCH(request: Request) {
   if (!body?.user_id) {
     return NextResponse.json({ error: "Falta el usuario" }, { status: 400 })
   }
-  if (body.rol !== undefined && !ROLES.includes(body.rol)) {
-    return NextResponse.json({ error: "Rol inválido" }, { status: 400 })
-  }
   if (body.password !== undefined && body.password.length < 8) {
     return NextResponse.json({ error: "La contraseña tiene que tener al menos 8 caracteres" }, { status: 400 })
   }
 
   const service = createServiceClient()
+  if (body.rol !== undefined && !(await rolExiste(service, body.rol))) {
+    return NextResponse.json({ error: "Rol inválido" }, { status: 400 })
+  }
   const { data: actual } = await service.from("perfiles").select("*").eq("user_id", body.user_id).maybeSingle()
   if (!actual) {
     return NextResponse.json({ error: "El usuario no existe" }, { status: 404 })
@@ -119,7 +124,9 @@ export async function PATCH(request: Request) {
   // Siempre tiene que quedar al menos una persona de la comisión activa, o
   // nadie podría volver a administrar usuarios ni autorizar excepciones.
   const dejaDeSerComision =
-    actual.rol === "comision" && actual.activo && (body.rol === "operador" || body.activo === false)
+    actual.rol === ROL_COMISION &&
+    actual.activo &&
+    ((body.rol !== undefined && body.rol !== ROL_COMISION) || body.activo === false)
   if (dejaDeSerComision) {
     const { count } = await service
       .from("perfiles")

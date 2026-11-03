@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { VentasManager } from "@/components/ventas-manager"
 import { getServerSession } from "@/lib/auth/session"
+import { tienePermiso } from "@/lib/permisos"
 import { obtenerResumenMes } from "@/lib/consumo"
 
 export default async function VentasPage() {
@@ -44,7 +45,11 @@ export default async function VentasPage() {
         geneticas={geneticas || []}
         productos={productos || []}
         initialVentas={ventas || []}
-        usuarioActual={{ nombre: session?.nombre ?? "", rol: session?.rol ?? "operador" }}
+        usuarioActual={{
+          nombre: session?.nombre ?? "",
+          rol: session?.rol ?? "operador",
+          puedeAutorizar: tienePermiso(session?.permisos, "entregas.autorizar"),
+        }}
         maxEntregasExterno={config?.max_entregas_externo_mes ?? 3}
       />
     </main>

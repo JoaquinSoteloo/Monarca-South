@@ -16,6 +16,13 @@ describe("permisoDeRuta", () => {
     expect(permisoDeRuta("/stockeo")).toBeNull()
   })
 
+  it("el Chat y las pantallas anteriores usan el permiso de Equipo y Sede", () => {
+    expect(permisoDeRuta("/chat")).toBe("equipo.ver")
+    expect(permisoDeRuta("/chatear")).toBeNull()
+    expect(permisoDeRuta("/equipo/anterior")).toBe("equipo.ver")
+    expect(permisoDeRuta("/sede/oficina")).toBe("sede.ver")
+  })
+
   it("rutas fuera del catálogo no piden permiso", () => {
     expect(permisoDeRuta("/preview/monarca")).toBeNull()
   })

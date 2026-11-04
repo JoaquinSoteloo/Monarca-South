@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { canalDe, destinatarioDe, etapaDesdeSimulador, numeroOnull, personajeDe } from "./sede"
+import { canalDe, destinatarioDe, etapaDesdeSimulador, numeroOnull, personajeDe, resumenDia, ultimaPorSala } from "./sede"
 import { historialParaApi, promptSistema, textoDeRespuesta } from "./asistente"
 
 describe("sede", () => {
@@ -52,5 +52,22 @@ describe("asistente", () => {
 
   it("junta el texto de la respuesta", () => {
     expect(textoDeRespuesta([{ type: "text", text: "a" }, { type: "tool_use" }, { type: "text", text: "b" }])).toBe("a\nb")
+  })
+})
+
+describe("lecturas", () => {
+  it("se queda con la más nueva de cada sala", () => {
+    const l = (sala_id: number, leido_en: string, temperatura_c: number) => ({ sala_id, leido_en, temperatura_c, humedad_rh: 60, vpd: 1 })
+    const m = ultimaPorSala([l(1, "2026-11-03T15:20:00Z", 22), l(1, "2026-11-03T15:24:00Z", 22.3), l(2, "2026-11-03T15:23:00Z", 21.3)])
+    expect(m.get(1)?.temperatura_c).toBe(22.3)
+    expect(m.get(2)?.temperatura_c).toBe(21.3)
+  })
+})
+
+describe("resumenDia", () => {
+  it("mínimo, máximo y promedio, sin los huecos", () => {
+    expect(resumenDia([22, null, 26, 24, undefined])).toEqual({ min: 22, max: 26, prom: 24 })
+    expect(resumenDia([null, undefined])).toBeNull()
+    expect(resumenDia([])).toBeNull()
   })
 })

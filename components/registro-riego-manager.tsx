@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import type { RegistroRiego, SalaCultivo } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
@@ -257,7 +258,7 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="space-y-1">
                   <Label htmlFor="fecha">Fecha</Label>
-                  <Input id="fecha" type="date" value={form.fecha} onChange={set("fecha")} required />
+                  <DatePicker id="fecha" value={form.fecha} onChange={(fecha) => fecha && setForm((f) => ({ ...f, fecha }))} />
                 </div>
                 <div className="space-y-1">
                   <Label>Sala</Label>

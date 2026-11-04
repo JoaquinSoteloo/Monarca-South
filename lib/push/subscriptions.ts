@@ -5,11 +5,15 @@ export interface PushSubscriptionInput {
   keys: { p256dh: string; auth: string }
   userAgent?: string | null
   deviceLabel?: string | null
+  /** De quién es el aparato (session.id): a quién le llegan los push del Chat. */
+  userId?: string | null
 }
 
 export interface PushSubscriptionRow {
   id: number
   usuario: string
+  /** Usuario de Supabase Auth dueño del aparato (script 090); null en los viejos. */
+  user_id: string | null
   endpoint: string
   p256dh: string
   auth: string
@@ -23,6 +27,9 @@ export interface PushSubscriptionRow {
 // Todo el CRUD queda filtrado por `usuario` (la sesión admin dueña de la
 // suscripción) para que, el día que exista más de una sesión, ninguna pueda
 // leer ni borrar suscripciones de otra — aunque hoy solo exista "admin".
+// Aparte, `user_id` dice de qué persona es cada aparato (script 090): cada
+// alta lo pisa con quien la hizo, así un aparato queda a nombre de quien
+// entró por última vez.
 export async function saveSubscription(usuario: string, input: PushSubscriptionInput): Promise<void> {
   const supabase = createServiceClient()
 
@@ -31,6 +38,7 @@ export async function saveSubscription(usuario: string, input: PushSubscriptionI
     .upsert(
       {
         usuario,
+        user_id: input.userId ?? null,
         endpoint: input.endpoint,
         p256dh: input.keys.p256dh,
         auth: input.keys.auth,
@@ -57,10 +65,9 @@ export async function removeSubscription(usuario: string, endpoint: string): Pro
   }
 }
 
-// Sin filtro por usuario: la usa el motor de envío (lib/push/send.ts), que
-// hoy manda a todos los dispositivos activos porque solo existe una sesión
-// admin. El día que haya más de un usuario real, este es el punto para
-// decidir a quién le corresponde cada notificación.
+// Sin filtro por usuario: la usa sendPushNotification (lib/push/send.ts) para
+// los avisos del club (Modo Ausente), que van a todos los dispositivos
+// activos, tengan dueño o no.
 export async function listActiveSubscriptions(): Promise<PushSubscriptionRow[]> {
   const supabase = createServiceClient()
 
@@ -68,6 +75,19 @@ export async function listActiveSubscriptions(): Promise<PushSubscriptionRow[]> 
 
   if (error) {
     throw new Error(`No se pudieron listar las suscripciones activas: ${error.message}`)
+  }
+
+  return data ?? []
+}
+
+// Los aparatos activos de esas personas: la usa sendPushToUsers (push del Chat).
+export async function listActiveSubscriptionsOf(userIds: string[]): Promise<PushSubscriptionRow[]> {
+  const supabase = createServiceClient()
+
+  const { data, error } = await supabase.from("push_subscriptions").select("*").eq("enabled", true).in("user_id", userIds)
+
+  if (error) {
+    throw new Error(`No se pudieron listar las suscripciones de esas personas: ${error.message}`)
   }
 
   return data ?? []

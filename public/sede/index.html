@@ -3,18 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// Modo sistema (/sede en la compu): la clase va en <html> antes de leer el resto, así
+// los controles de la demo nunca llegan a verse.
+if (new URLSearchParams(location.search).get('modo') === 'sistema') document.documentElement.classList.add('sistema');
+</script>
 <title>Monarca virtual — Sede Balbastro (v0.6)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:#1b2620;font-family:Inter,system-ui,sans-serif;color:#1c2620}
-  #c{position:fixed;inset:0;display:block}
+  #c{position:fixed;inset:0;display:block;width:100%;height:100%} /* sin el tamaño, en pantallas de alta densidad (celulares, Retina) el lienzo se veía al doble */
   #labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
   .tag{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;text-align:center}
   .tag .n{display:inline-block;background:#ffffffee;border:1px solid #00000022;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:600}
   .tag .b{display:block;margin-top:3px;background:#13201aee;color:#f4f1e8;border-radius:8px;padding:2px 7px;font-size:11px}
   .sign{position:absolute;transform:translate(-50%,-100%);background:#13201ae0;color:#f4f1e8;border-radius:8px;padding:4px 8px;font-size:10.5px;line-height:1.3;white-space:nowrap;border-left:4px solid #6fbf4f}
+  .sign{pointer-events:auto;cursor:pointer}
+  .sign:hover,.sign:focus-visible{outline:2px solid #f4f1e8;outline-offset:1px}
+  .tag{pointer-events:auto;cursor:pointer}
   .sign b{font-family:Archivo,sans-serif;font-size:12px;letter-spacing:.3px}
   .sign .x{color:#a9b5ad}
   .sign.alert{border-left-color:#e24b4a}
@@ -88,6 +96,42 @@
   #room .bar{height:6px;background:#00000014;border-radius:4px;overflow:hidden;margin:6px 0 2px}
   #room .bar i{display:block;height:100%;background:#3f7d3a}
   @media (max-width:700px){#hud{width:auto;right:12px;max-height:45%}#help{display:none}#status{top:auto;bottom:12px;flex-wrap:wrap;max-width:94%}#room{top:auto;bottom:70px;left:12px;right:12px;width:auto;max-height:40%}}
+  .tag .b:empty{display:none}
+  /* Modo sistema (/sede en la compu, rediseño del 03/11/2026): sin controles de
+     demo, ayudantes ni chat flotante; el clima, los ciclos y las tareas vienen
+     del sistema. Sin «?modo=sistema» el simulador queda como antes. */
+  .sistema .demo, .sistema #filaTiempo, .sistema #iaT, .sistema #ia, .sistema #logT, .sistema #log, .sistema #chatBtn, .sistema #chat{display:none!important}
+  .links{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .links button{background:#13201a;color:#f4f1e8;border-color:#13201a}
+  .links button.sec{background:#fff;color:#1c2620;border-color:#1c262033}
+  #room .met{padding:5px 0;border-top:1px solid #00000012}
+  #room .met .mt{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  #room .met .mt span{color:#5b665f;font-size:11px;text-align:right}
+  #room .met .mv{display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:2px}
+  #room .ok{color:#2f6b3f;font-weight:600}
+  #room .mal{color:#b3261e;font-weight:600}
+  #room .nd{color:#8a948d}
+  #room .x{color:#5b665f;font-size:11px}
+  /* Tareas de hoy en la Sede: ✓ hecha, ! problema (con «¿Qué pasó?»), ↩ deshacer. */
+  .sistema .task button{min-width:34px;min-height:32px;font-size:14px;font-weight:600}
+  .sistema .task button[data-a="abrir-problema"]{color:#b3261e}
+  #tasks .problema{display:flex;flex-direction:column;gap:6px;padding:6px 0 8px}
+  #tasks .problema label{font-size:12px;font-weight:600}
+  #tasks .problema textarea{font:inherit;font-size:14px;border:1px solid #1c262033;border-radius:8px;padding:6px 8px;resize:vertical;min-height:56px}
+  #tasks .problema .row{margin:0}
+  #tasks .problema button.ok{background:#13201a;color:#f4f1e8;border-color:#13201a}
+  #tasks .aviso{font-size:12px;border-radius:8px;padding:6px 8px;margin-bottom:6px}
+  #tasks .aviso.ok{background:#dcefd6;color:#1f5130}
+  #tasks .aviso.mal{background:#f8e1df;color:#8a1f1f}
+  /* Panel del equipo plegable (en el celular arranca plegado: se ve la sede). */
+  #bPanel{margin-left:auto;align-self:center}
+  #hud.plegado .sub, #hud.plegado .row, #hud.plegado #equipoT, #hud.plegado #people, #hud.plegado #tasks, #hud.plegado .links{display:none}
+  @media (max-width:700px){
+    .ficha-abierta #status{display:none}
+    .sistema #hud{max-height:60%}
+    .sistema #room{top:auto;bottom:12px;max-height:62%}
+    .sistema #hud button, .sistema #room button, .sistema .links button{min-height:44px;padding:8px 12px;font-size:13px}
+  }
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head>
@@ -98,7 +142,7 @@
   <h1>Monarca virtual <span class="demo">DEMO v0.9</span></h1>
   <div class="sub">Sede Balbastro + Sala 4 Itaquí · plano dibujado por Facundo (31/10) con medidas de las salas · datos de ejemplo</div>
   <div style="display:flex;align-items:baseline;gap:8px"><span id="clock">--:--</span><span id="day" style="font-size:12px;color:#5b665f"></span></div>
-  <div class="row">
+  <div class="row" id="filaTiempo">
     <button id="bPlay">▶ Simular el día</button>
     <button id="bSpeed">x60</button>
     <button id="bNow">Hora real</button>
@@ -110,12 +154,12 @@
     <button id="bSalas">Salas</button>
     <button id="bHome">Ver todo</button>
   </div>
-  <div style="font-size:12px;font-weight:600;margin:6px 0 4px">El equipo</div>
+  <div id="equipoT" style="font-size:12px;font-weight:600;margin:6px 0 4px">El equipo</div>
   <div class="people" id="people"></div>
   <div id="tasks" style="margin-top:8px"></div>
-  <div style="font-size:12px;font-weight:600;margin-top:10px">Ayudantes de IA</div>
+  <div id="iaT" style="font-size:12px;font-weight:600;margin-top:10px">Ayudantes de IA</div>
   <div id="ia" style="font-size:12px"></div>
-  <div style="font-size:12px;font-weight:600;margin-top:10px">Avisos</div>
+  <div id="logT" style="font-size:12px;font-weight:600;margin-top:10px">Avisos</div>
   <div id="log"></div>
 </div>
 <div id="status"></div>
@@ -125,10 +169,35 @@
 <div id="chat"><header><div>Chat del equipo<small>Canal «Todos» para el equipo, un chat privado con cada uno y el 🤖 Asistente de cultivo con IA. Al conectar el simulador al sistema, es el mismo chat de Equipo.</small></div><button id="chatX" style="background:none;border:none;color:#f4f1e8;font-size:16px">✕</button></header><div id="chatCanales"></div><div id="chatPara"></div><div id="chatMsgs"></div><form id="chatF"><select id="chatQuien"></select><input id="chatTxt" placeholder="Escribir un mensaje" autocomplete="off"><button>Enviar</button></form></div>
 <div id="help">Arrastrá para mover la vista · rueda o pellizco para zoom · tocá a una persona para ver sus tareas o una sala para ver su ficha · ✓ la hace (las de riego piden EC y pH), ! marca un problema.</div>
 
+<script>
+// Modo sistema: los textos de la demo, cambiados antes de que se vea la página (sin
+// esperar a que baje la librería del 3D).
+if (new URLSearchParams(location.search).get('modo') === 'sistema') {
+  document.querySelector('#hud h1').textContent = 'Monarca virtual';
+  document.querySelector('#hud .sub').textContent = 'Sede Balbastro + Sala 4 Itaquí · plano de Facundo · datos del sistema';
+  document.getElementById('help').textContent = 'Arrastrá para mover la vista · rueda para zoom · tocá una sala para ver su ficha o a una persona para ver sus tareas de hoy.';
+  document.getElementById('tasks').innerHTML = '<div class="task"><span class="t" style="color:#5b665f">Cargando las tareas de hoy…</span></div>';
+  // Panel plegable: en el celular arranca plegado para que se vea la sede.
+  const hud = document.getElementById('hud'), boton = document.createElement('button');
+  boton.id = 'bPanel'; boton.type = 'button';
+  const pintar = () => { const plegado = hud.classList.contains('plegado'); boton.textContent = plegado ? 'Ver tareas' : 'Ocultar'; boton.setAttribute('aria-expanded', String(!plegado)); };
+  boton.addEventListener('click', () => { hud.classList.toggle('plegado'); pintar(); });
+  document.getElementById('clock').parentElement.appendChild(boton);
+  if (matchMedia('(max-width: 700px)').matches) hud.classList.add('plegado');
+  pintar();
+}
+</script>
+
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+// Modo sistema: así lo abre la pantalla /sede del sistema en la compu (ver el
+// final del archivo). Sin el parámetro, todo funciona como la demo de siempre.
+const MODO_SISTEMA = new URLSearchParams(location.search).get('modo') === 'sistema';
+let equipoReal = null;      // tareas de hoy por persona, del sistema
+let pulseActualizado = '';  // hora de la última lectura de Pulse
 
 // ---------- Escena ----------
 const canvas = document.getElementById('c');
@@ -151,7 +220,8 @@ function home() { cam.position.set(1 + 22, 24, -3 + 22); cam.zoom = 1.45; contro
 function all() { cam.position.set(3 + 22, 24, 4 + 22); cam.zoom = 0.85; controls.target.set(3, 0, 4); cam.updateProjectionMatrix(); }
 home();
 function resize() {
-  const w = innerWidth, h = innerHeight, a = w / h, s = 13.5;
+  // En vertical (celular) se mantiene el ancho visible; si no, la sede queda cortada a los costados.
+  const w = innerWidth, h = innerHeight, a = w / h, s = 13.5 * Math.max(1, 1 / a);
   cam.left = -s * a; cam.right = s * a; cam.top = s; cam.bottom = -s; cam.updateProjectionMatrix();
   renderer.setSize(w, h, false);
 }
@@ -554,6 +624,7 @@ function makePerson(p) {
   g.traverse(o => { o.userData.person = p.id; });
   world.add(g);
   const el = document.createElement('div'); el.className = 'tag'; el.innerHTML = `<span class="n">${p.id}</span><span class="b"></span>`; labelsEl.appendChild(el);
+  el.addEventListener('click', () => { selected = p.id; renderPanel(); });
   Object.assign(p, { g, legL, legR, armL, armR, gem, el, path: [], busy: null, done: {}, prob: {}, bubble: 'Libre' });
 }
 people.forEach(makePerson);
@@ -567,6 +638,7 @@ function route(from, to) {
   const pts = []; let c = to; while (prev[c]) { const [p, x, z] = prev[c]; pts.unshift(center(c)); pts.unshift(new THREE.Vector3(x, 0, z)); c = p; }
   return pts;
 }
+function salaEn(pos) { for (const [k, r] of Object.entries(rooms)) if (pos.x >= r.x0 && pos.x <= r.x1 && pos.z >= r.z0 && pos.z <= r.z1) return k; return null; }
 function roomOf(pos) { for (const [k, r] of Object.entries(rooms)) if (pos.x >= r.x0 && pos.x <= r.x1 && pos.z >= r.z0 && pos.z <= r.z1) return k; return 'patio'; }
 function spot(k) { // lugar libre cerca del centro de la sala, en zona de circulación
   const r = rooms[k]; const c = center(k);
@@ -608,6 +680,13 @@ function avisoStock() {
   else log(`<b>Demian</b>: stock justo, pero el próximo corte es en ${d} días. Alcanza si se cuida la entrega.`);
 }
 function gemColor(p) {
+  if (MODO_SISTEMA) {
+    const e = equipoDe(p.id);
+    if (!e || !e.total) return ['#9aa39c', '#4b524d'];
+    if (e.problemas) return ['#e24b4a', '#8a1f1f'];
+    if (e.hechas < e.total) return ['#f2c14e', '#a77c12'];
+    return ['#43c35a', '#1f8a33'];
+  }
   const total = p.tasks.length, d = Object.keys(p.done).length, pr = Object.keys(p.prob).length;
   const h = simHour();
   const due = p.tasks.filter((t, i) => t[0] <= h && !p.done[i] && !p.prob[i]).length;
@@ -697,7 +776,15 @@ const simHour = () => { const s = new Date(simNow()).toLocaleTimeString('en-GB',
 const LUZ = { s1: 9 + 40 / 60, s2: 10 + 20 / 60, s3: 14, s4: 9, s5: 9.5 };
 const hhmm = x => { const t = ((x % 24) + 24) % 24; return String(Math.floor(t)).padStart(2, '0') + ':' + String(Math.round((t % 1) * 60)).padStart(2, '0'); };
 const hl = (k, horas) => LUZ[k] === undefined ? '' : ` · ${hhmm(LUZ[k])} a ${hhmm(LUZ[k] + horas)}`;
+// Pulse da la luz como un nivel de 0 a ~100 (0 = apagada): en modo sistema
+// las luces del 3D siguen al sensor; el horario queda para compararlo.
+const LUZ_PRENDIDA = 10;
 function lightsOn(room) {
+  const l = rooms[room] && rooms[room].lectura;
+  if (MODO_SISTEMA && l && l.lux != null) return l.lux > LUZ_PRENDIDA;
+  return luzSegunHorario(room);
+}
+function luzSegunHorario(room) {
   const h = simHour(); const r = rooms[room];
   const on = LUZ[room]; if (on === undefined) return false;
   const dentro = horas => ((h - on + 24) % 24) < horas;
@@ -725,7 +812,15 @@ function renderSigns() {
   const hoy = hoyStr();
   for (const [k, r] of Object.entries(rooms)) {
     if (!['s1', 's2', 's3', 's4', 's5', 'agua', 'aten', 'ofi', 'bano'].includes(k)) continue;
-    let el = signEls[k]; if (!el) { el = signEls[k] = document.createElement('div'); el.className = 'sign'; labelsEl.appendChild(el); }
+    const compacto = MODO_SISTEMA && matchMedia('(max-width: 700px)').matches;
+    if (compacto && r.kind !== 'sala' && r.kind !== 'vege') { if (signEls[k]) signEls[k].style.display = 'none'; continue; }
+    let el = signEls[k]; if (!el) {
+      el = signEls[k] = document.createElement('div'); el.className = 'sign'; labelsEl.appendChild(el);
+      // Tocar el cartel abre su sala; antes el toque pasaba al 3D y caía en el piso de atrás.
+      const abrir = () => { roomOpen = k; renderRoom(); };
+      el.setAttribute('role', 'button'); el.tabIndex = 0; el.addEventListener('click', abrir);
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } });
+    }
     let html = `<b>${r.name.toUpperCase()}</b>`; let cls = 'sign';
     if (r.ciclo) {
       const m = momento(r.ciclo, hoy);
@@ -739,7 +834,8 @@ function renderSigns() {
     if (clima[k]) html += `<br><span class="x">${clima[k][0].toFixed(1).replace('.', ',')} °C · ${Math.round(clima[k][1])} % · luz ${lightsOn(k) ? 'on' : 'off'}</span>`;
     if (r.alert) { html += `<br>⚠ ${r.alert}`; cls += ' alert'; }
     if (r.climaAlert) { html += `<br>⚠ Nubi: ${r.climaAlert}`; cls += ' alert'; }
-    el.className = cls; el.innerHTML = html;
+    if (compacto) html = `<b>${r.name.toUpperCase()}</b>`;
+    el.style.display = ''; el.className = cls; el.innerHTML = html;
   }
   renderStatus(); renderRoom();
 }
@@ -769,6 +865,7 @@ function hitos(k) {
 }
 let roomOpen = null;
 function renderRoom() {
+  document.documentElement.classList.toggle('ficha-abierta', !!roomOpen);
   const el = document.getElementById('room'); if (!roomOpen) { el.style.display = 'none'; return; }
   const k = roomOpen, r = rooms[k], hoy = hoyStr(); el.style.display = 'block';
   let h = `<div style="display:flex;justify-content:space-between;align-items:start"><h2>${r.name}</h2><button id="roomX" aria-label="Cerrar">✕</button></div>`;
@@ -782,21 +879,35 @@ function renderRoom() {
   }
   if (k === 's3') h += `<div style="margin-top:4px">Madres, vege y estanterías de esquejes. Acá arranca cada tanda.</div>`;
   if (k === 'agua') h += `<div style="margin-top:4px">Ósmosis Hidrolit ROMi 400 · 3 tanques de 500 L (ósmosis, vege, flora) · tacho azul para esquejes.<br><b>15/12:</b> cambio del filtro de carbón.</div><div style="color:#8a6a1c">Ubicación a confirmar con el video.</div>`;
-  if (k === 'aten') h += `<div style="margin-top:4px">Lunes, miércoles y viernes de 14 a 20 h · turnos de 30 min.<br>Lista de compras: ${compras.length ? compras.join(', ') : 'vacía'}.</div>`;
+  if (k === 'aten') h += `<div style="margin-top:4px">Lunes, miércoles y viernes de 14 a 20 h · turnos de 30 min.${MODO_SISTEMA ? '' : `<br>Lista de compras: ${compras.length ? compras.join(', ') : 'vacía'}.`}</div>`;
   const ob = objetivos(k);
-  if (ob) h += `<div style="font-weight:600;margin-top:8px">Valores de hoy</div><div class="grid">${Object.entries(ob).map(([a, b]) => `<div><span>${a}</span>${b}</div>`).join('')}</div>`;
-  if (clima[k]) h += `<div>Ahora: <b>${clima[k][0].toFixed(1).replace('.', ',')} °C · ${Math.round(clima[k][1])} %</b> · luces ${lightsOn(k) ? 'prendidas' : 'apagadas'} <span style="color:#8a948d">(Pulse, ejemplo)</span></div>`;
+  if (ob && MODO_SISTEMA) h += bloqueMedicion(k, ob);
+  else {
+    if (ob) h += `<div style="font-weight:600;margin-top:8px">Valores de hoy</div><div class="grid">${Object.entries(ob).map(([a, b]) => `<div><span>${a}</span>${b}</div>`).join('')}</div>`;
+    if (clima[k]) {
+      const fuente = MODO_SISTEMA ? (r.lectura ? `Pulse, ${r.lectura.hora}` : 'Pulse') : 'Pulse, ejemplo';
+      const vpd = MODO_SISTEMA && r.lectura && r.lectura.vpd != null ? ` · VPD ${r.lectura.vpd.toFixed(2).replace('.', ',')}` : '';
+      h += `<div>Ahora: <b>${clima[k][0].toFixed(1).replace('.', ',')} °C · ${Math.round(clima[k][1])} %${vpd}</b> · luces ${lightsOn(k) ? 'prendidas' : 'apagadas'} <span style="color:#8a948d">(${fuente})</span></div>`;
+    } else if (MODO_SISTEMA && (r.kind === 'sala' || r.kind === 'vege')) h += `<div style="color:#5b665f">Sin lecturas de Pulse en las últimas 2 horas.</div>`;
+  }
   if (r.alert) h += `<div style="color:#b3261e;margin-top:4px">⚠ ${r.alert}</div>`;
   if (r.climaAlert) h += `<div style="color:#b3261e;margin-top:4px">⚠ Nubi: ${r.climaAlert}</div>`;
   const hs = hitos(k);
   if (hs.length) h += `<div style="font-weight:600;margin-top:8px">Lo que viene</div>` + hs.map(x => `<div class="hit"><span style="width:44px;color:#5b665f">${fd(x[0])}</span><span style="flex:1">${x[1]}${x[2] ? `<br><span style="color:#8a948d">${x[2]}</span>` : ''}</span><span style="color:#5b665f">${diffD(hoy, x[0]) === 0 ? 'hoy' : diffD(hoy, x[0]) + ' d'}</span></div>`).join('');
-  const aqui = people.filter(p => roomOf(p.g.position) === k).map(p => p.id);
-  h += `<div style="margin-top:8px"><b>Ahora acá:</b> ${aqui.length ? aqui.join(', ') : 'nadie'}</div>`;
-  const ts = []; people.forEach(p => p.tasks.forEach((t, i) => { if (t[1] === k) ts.push(`${p.done[i] ? '✓' : p.prob[i] ? '⚠' : '○'} ${p.id}: ${t[2]}`); }));
-  if (ts.length) h += `<div style="font-weight:600;margin-top:8px">Tareas de hoy en esta sala</div>` + ts.map(t => `<div class="hit">${t}</div>`).join('');
+  if (MODO_SISTEMA) {
+    // Dónde está cada uno y las tareas por sala son de la demo: en el sistema, a las pantallas reales.
+    if (r.kind === 'sala' || r.kind === 'vege') h += `<div class="links"><button data-ir="/riego">Cargar riego</button><button data-ir="/ciclos" class="sec">Ciclos</button><button data-ir="/monitoreo" class="sec">Monitoreo</button></div>`;
+  } else {
+    const aqui = people.filter(p => roomOf(p.g.position) === k).map(p => p.id);
+    h += `<div style="margin-top:8px"><b>Ahora acá:</b> ${aqui.length ? aqui.join(', ') : 'nadie'}</div>`;
+    const ts = []; people.forEach(p => p.tasks.forEach((t, i) => { if (t[1] === k) ts.push(`${p.done[i] ? '✓' : p.prob[i] ? '⚠' : '○'} ${p.id}: ${t[2]}`); }));
+    if (ts.length) h += `<div style="font-weight:600;margin-top:8px">Tareas de hoy en esta sala</div>` + ts.map(t => `<div class="hit">${t}</div>`).join('');
+  }
   el.innerHTML = h; document.getElementById('roomX').onclick = () => { roomOpen = null; renderRoom(); };
+  el.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
 }
 function renderStatus() {
+  if (MODO_SISTEMA) return renderStatusSistema();
   const hoy = hoyStr();
   const cortes = Object.entries(rooms).filter(([, r]) => r.ciclo).map(([k, r]) => [k, momento(r.ciclo, hoy).cos]).filter(([, c]) => c && c >= hoy).sort((a, b) => a[1].localeCompare(b[1]));
   const prox = cortes[0];
@@ -836,6 +947,7 @@ function pedir(tipo, datos = {}, espera = 90000) {
 window.addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== window.parent) return;
   const d = e.data; if (!d || d.fuente !== 'monarca-sistema') return;
+  if (d.tipo === 'listo') { alSistemaListo(); return; }
   const p = _pend[d.id]; if (!p) return; delete _pend[d.id];
   d.ok ? p.res(d.datos) : p.rej(new Error(d.error || 'Error'));
 });
@@ -894,13 +1006,19 @@ async function enviarChat(yo, t, c) {
   catch (err) { m.txt += ' ⚠ no se envió: ' + err.message; m._pendiente = false; pintarChat(); }
 }
 // Al abrir dentro del sistema: quién soy, el equipo y el chat guardado.
+let chatCadaTanto = null;
+function alSistemaListo() { saludar(); if (MODO_SISTEMA) cargarDatosSistema(); }
+function saludar() {
 pedir('hola', {}, 6000).then(d => {
   sistema = d;
   _g('chatQuien').innerHTML = `<option>${esc(d.yo)}</option>`; _g('chatQuien').disabled = true;
   if (people.some(p => p.id === d.yo)) { selected = d.yo; renderPanel(); }
   document.querySelector('#chat header small').textContent = `Entraste como ${d.yo}. «Todos» lo lee el equipo, los privados solo esa persona, y el 🤖 Asistente es tuyo.`;
-  recargarChat(); setInterval(recargarChat, 8000);
+  // En modo sistema el chat está en su pantalla: no se consulta acá.
+  if (!MODO_SISTEMA) { recargarChat(); if (!chatCadaTanto) chatCadaTanto = setInterval(recargarChat, 8000); }
 }).catch(() => {});
+}
+saludar();
 pintarChat();
 // ---------- Asistente de cultivo con IA (dentro del chat) ----------
 // Usa Claude desde la página (capacidad «sample»). Cada persona tiene su propio canal «🤖 Asistente».
@@ -1080,6 +1198,7 @@ function textoAsesor() {
 }
 function log(html, bad) { const d = document.createElement('div'); d.innerHTML = `<span style="color:#5b665f">${new Date(simNow()).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' })}</span> ${html}`; if (bad) d.style.color = '#b3261e'; logEl.prepend(d); while (logEl.children.length > 8) logEl.lastChild.remove(); }
 function renderPanel() {
+  if (MODO_SISTEMA) return renderPanelSistema();
   const pe = document.getElementById('people');
   pe.innerHTML = people.map(p => { const [c] = gemColor(p); return `<button data-p="${p.id}" class="${p.id === selected ? 'on' : ''}"><span class="dot" style="background:${c}"></span>${p.id}</button>`; }).join('');
   pe.querySelectorAll('button').forEach(b => b.onclick = () => { selected = b.dataset.p; focusPerson(selected); renderPanel(); });
@@ -1123,6 +1242,12 @@ canvas.addEventListener('pointerup', e => {
   ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ptr, cam);
   const hit = ray.intersectObjects(people.map(p => p.g), true)[0];
   if (hit) { selected = hit.object.userData.person; renderPanel(); return; }
+  // La sala de lo primero que se toca (cama, planta, pared o piso), no la del piso
+  // que queda detrás: desde arriba en diagonal, ese piso suele ser el de otra sala.
+  const visible = o => { for (let x = o; x; x = x.parent) if (!x.visible) return false; return true; };
+  const primero = ray.intersectObjects(world.children, true).find(h => visible(h.object));
+  const k = primero && salaEn(primero.point);
+  if (k) { roomOpen = k; renderRoom(); return; }
   const fh = ray.intersectObjects(floorMeshes, false)[0];
   if (fh) { roomOpen = fh.object.userData.room; renderRoom(); }
 });
@@ -1160,8 +1285,8 @@ function tick(now) {
   }
   for (const [k, el] of Object.entries(signEls)) { const r = rooms[k]; v3.set(k === 's5' ? r.x1 - 0.4 : k === 's2' || k === 's3' ? r.x0 + 0.6 : (r.x0 + r.x1) / 2, 2.5, k === 'aten' ? r.z0 + 1 : r.z0 + 0.4); v3.project(cam); el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; }
   for (const f of fans) f.rotation.z += dt * 14;
-  // Nubi: recorre las salas y mide
-  {
+  // Nubi: recorre las salas y mide (en modo sistema el clima es el real de Pulse)
+  if (!MODO_SISTEMA) {
     const spd = playing ? Math.min(6, Math.max(1, speed / 60)) : 1;
     if (!nubi.target) { const ks = ['s1', 's2', 's5', 's3', 's4']; const k = ks[nubi.idx++ % ks.length]; const c = center(k); nubi.target = { k, v: new THREE.Vector3(c.x, 2.45, c.z) }; nubi.wait = 0; }
     v3.copy(nubi.target.v).sub(nubi.g.position); const d = v3.length();
@@ -1173,7 +1298,7 @@ function tick(now) {
     v3.copy(nubi.g.position); v3.y += 0.45; v3.project(cam); nubi.el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; nubi.el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; nubi.el.querySelector('.b').textContent = nubi.bubble;
   }
   // Changuito: se mueve por el recorrido
-  {
+  if (!MODO_SISTEMA) {
     const spd = playing ? Math.min(6, Math.max(1, speed / 60)) : 1;
     if (chango.path.length) {
       const tgt = chango.path[0]; v3.copy(tgt).sub(chango.g.position); v3.y = 0; const d = v3.length(); const st = 1.5 * dt * spd;
@@ -1185,13 +1310,178 @@ function tick(now) {
   const min = Math.floor(h * 60);
   if (min !== lastMin) {
     lastMin = min; const d = new Date(simNow());
-    $('clock').textContent = d.toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' });
+    $('clock').textContent = d.toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
     $('day').textContent = d.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'long' });
     applyLights(); renderSigns(); if (min % 10 === 0) { updatePlants(); renderPanel(); }
   }
   controls.update(); renderer.render(scene, cam);
   requestAnimationFrame(tick);
 }
+// ---------- Modo sistema ----------
+// Así lo abre /sede en la compu (rediseño del 03/11/2026): sin controles de
+// demo ni ayudantes inventados. El clima es la última lectura de Pulse, los
+// ciclos son los de la pantalla Ciclos y las tareas, las de hoy de cada uno.
+// El chat, los avisos y los riegos están en sus pantallas: los botones llevan ahí.
+function equipoDe(id) { return equipoReal ? equipoReal.find(e => e.nombre === id) : null; }
+
+// Ficha de sala: el objetivo del manual al lado de lo medido. Temperatura,
+// humedad, VPD y luz las mide Pulse (ahora y el día); EC, pH y drenaje se miden
+// a mano en cada riego, así que va el último riego cargado.
+const dec1 = n => n.toFixed(1).replace('.', ','), dec2 = n => n.toFixed(2).replace('.', ',');
+const TOLERANCIA = { Temperatura: 1, Humedad: 5, 'EC entrada': 0.1, 'pH entrada': 0.1, Drenaje: 2 };
+function rangoTexto(txt, tol) {
+  const s = String(txt).replace(/,/g, '.');
+  if (/solo agua/i.test(s)) return [0, 0.2];
+  const m = s.match(/(\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)/);
+  if (m) return [+m[1], +m[2]];
+  const u = s.match(/(~)?\s*(\d+(?:\.\d+)?)/);
+  if (!u) return null;
+  const v = +u[2], t = u[1] ? Math.max(tol, v * 0.5) : tol;
+  return [v - t, v + t];
+}
+// Se compara el mismo número que se muestra (si dice «60 %», 59,6 no es «bajo»).
+const DECIMALES = { Temperatura: 1, Humedad: 0, VPD: 2, 'EC entrada': 2, 'pH entrada': 1, Drenaje: 0 };
+function marca(que, objetivo, valor) {
+  if (valor == null || !objetivo) return '';
+  const p = 10 ** (DECIMALES[que] ?? 2); valor = Math.round(valor * p) / p;
+  const r = rangoTexto(objetivo, TOLERANCIA[que] || 0); if (!r) return '';
+  if (que === 'pH entrada') r[1] = Math.min(r[1], 6.0); // pH máximo 6,0 en todas las etapas (Facundo)
+  return valor < r[0] - 1e-9 ? 'bajo' : valor > r[1] + 1e-9 ? 'alto' : 'ok';
+}
+function vpdObjetivo(k) {
+  const r = rooms[k]; if (k === 's3') return '0,8–1,1 kPa';
+  if (!r.ciclo) return null;
+  const hoy = hoyStr(), m = momento(r.ciclo, hoy);
+  if (m.fase === 'vege') return '0,8–1,1 kPa';
+  if (m.fase === 'flora' || m.fase === 'lavado') return diffD(hoy, fechas(r.ciclo).cos) <= 14 ? '1,2–1,5 kPa' : '1,1–1,4 kPa';
+  return null;
+}
+function bloqueMedicion(k, ob) {
+  const r = rooms[k], l = r.lectura, d = r.dia, rg = r.riego;
+  const objetivo = { ...ob }; const vo = vpdObjetivo(k); if (vo) objetivo.VPD = vo;
+  const pulse = {
+    Temperatura: [l && l.t, d && d.t, v => dec1(v) + ' °C'],
+    Humedad: [l && l.h, d && d.h, v => Math.round(v) + ' %'],
+    VPD: [l && l.vpd, d && d.vpd, v => dec2(v) + ' kPa'],
+  };
+  const riego = { 'EC entrada': [rg && rg.ec, v => dec2(v).replace(/0$/, '')], 'pH entrada': [rg && rg.ph, dec1], Drenaje: [rg && rg.drenaje, v => Math.round(v) + ' %'] };
+  const conMarca = (que, obj, v, txt, antes) => {
+    const m = marca(que, obj, v);
+    return `<span class="${m === 'ok' ? 'ok' : m ? 'mal' : ''}">${antes} ${txt}${m === 'ok' ? ' ✓' : m === 'bajo' ? ' ↓ bajo' : m === 'alto' ? ' ↑ alto' : ''}</span>`;
+  };
+  let h = '<div style="font-weight:600;margin-top:10px">Objetivo y medición de hoy</div>';
+  for (const que of ['Temperatura', 'Humedad', 'VPD', 'Luz', 'EC entrada', 'pH entrada', 'Drenaje', 'PPFD']) {
+    const obj = objetivo[que]; if (obj === undefined) continue;
+    let med;
+    if (pulse[que]) {
+      const [ahora, dia, f] = pulse[que];
+      med = (ahora != null ? conMarca(que, obj, ahora, f(ahora), 'Ahora') : '<span class="nd">Sin lectura reciente</span>')
+        + (dia ? `<span class="x">Hoy de ${f(dia.min)} a ${f(dia.max)} · prom. ${f(dia.prom)}</span>` : '');
+    } else if (riego[que]) {
+      const [v, f] = riego[que];
+      med = !rg ? '<span class="nd">Sin riegos cargados</span>'
+        : v != null ? conMarca(que, obj, v, f(v), 'Último riego') + `<span class="x">del ${fd(rg.fecha)}</span>`
+        : `<span class="nd">No se anotó en el riego del ${fd(rg.fecha)}</span>`;
+    } else if (que === 'Luz') {
+      if (l && l.lux != null) {
+        const prendida = l.lux > LUZ_PRENDIDA, debe = luzSegunHorario(k);
+        med = prendida === debe ? `<span class="ok">Ahora ${prendida ? 'prendida' : 'apagada'} ✓</span>`
+          : `<span class="mal">Ahora ${prendida ? 'prendida' : 'apagada'}: según el horario debería estar ${debe ? 'prendida' : 'apagada'}</span>`;
+      } else med = '<span class="nd">Sin lectura reciente</span>';
+    } else med = '<span class="nd">No se mide: Pulse solo detecta si hay luz</span>';
+    h += `<div class="met"><div class="mt"><b>${que}</b><span>Objetivo ${obj}</span></div><div class="mv">${med}</div></div>`;
+  }
+  return h + `<div class="x" style="margin-top:4px">${l ? `Pulse, ${l.hora}` : 'Sin lecturas de Pulse en las últimas 2 horas'} · EC, pH y drenaje se miden a mano en cada riego (pantalla Riego).</div>`;
+}
+function irA(ruta) { pedir('navegar', { ruta }, 5000).catch(() => {}); }
+// Marcar tareas desde la Sede (pedido de Facundo: sin pestaña «Hoy»). Cada uno
+// marca las suyas, y quien supervisa también las de su gente; el sistema dice
+// cuáles (t.puede) y guarda el cambio (pedido «tarea:estado»).
+let problemaDe = null, notaBorrador = '', guardandoTarea = null, avisoTareas = null;
+function renderPanelSistema() {
+  const pe = document.getElementById('people');
+  pe.innerHTML = people.map(p => { const [c] = gemColor(p); return `<button data-p="${p.id}" class="${p.id === selected ? 'on' : ''}"><span class="dot" style="background:${c}"></span>${p.id}</button>`; }).join('');
+  pe.querySelectorAll('button').forEach(b => b.onclick = () => { selected = b.dataset.p; problemaDe = null; avisoTareas = null; focusPerson(selected); renderPanel(); });
+  const e = equipoDe(selected), ico = { hecha: '✓', problema: '⚠', pendiente: '○' };
+  let h = avisoTareas ? `<div class="aviso ${avisoTareas.ok ? 'ok' : 'mal'}" role="status">${esc(avisoTareas.texto)}</div>` : '';
+  if (!equipoReal) h += '<div class="task"><span class="t" style="color:#5b665f">Cargando las tareas de hoy…</span></div>';
+  else if (!e || !e.total) h += `<div class="task"><span class="t" style="color:#5b665f">${esc(selected)} no tiene tareas hoy.</span></div>`;
+  else {
+    h += `<div style="font-size:12px;color:#5b665f;margin-bottom:4px">${e.hechas} de ${e.total} hechas hoy${e.problemas ? ` · <span style="color:#b3261e">${e.problemas} con problema</span>` : ''}</div>`;
+    h += e.tareas.map(t => {
+      const titulo = esc(t.titulo), ocupado = guardandoTarea === t.id ? ' disabled' : '';
+      let acciones = '';
+      if (t.puede && t.estado === 'pendiente' && t.paso) acciones = `<button data-ir="/procesos" title="Se completa con su formulario">Completar</button>`;
+      else if (t.puede && t.estado === 'pendiente') acciones = `<button data-t="${t.id}" data-a="hecha" aria-label="Marcar como hecha: ${titulo}" title="Hecha"${ocupado}>✓</button><button data-t="${t.id}" data-a="abrir-problema" aria-label="Avisar un problema: ${titulo}" title="Problema"${ocupado}>!</button>`;
+      else if (t.puede && t.estado === 'problema') acciones = `<button data-t="${t.id}" data-a="hecha" aria-label="Marcar como resuelto: ${titulo}"${ocupado}>Resuelto</button>`;
+      else if (t.puede && !t.paso) acciones = `<button data-t="${t.id}" data-a="pendiente" aria-label="Volver a pendiente: ${titulo}" title="Deshacer"${ocupado}>↩</button>`;
+      const nota = t.estado === 'problema' && t.nota ? `<br><span style="color:#b3261e">«${esc(t.nota)}»</span>` : '';
+      let fila = `<div class="task ${t.estado === 'hecha' ? 'done' : t.estado === 'problema' ? 'prob' : ''}"><span style="width:14px">${ico[t.estado] || '○'}</span><span class="t">${titulo}${nota}</span>${acciones}</div>`;
+      if (problemaDe === t.id) fila += `<div class="problema"><label for="notaProblema">¿Qué pasó?</label><textarea id="notaProblema" rows="2" placeholder="Contá qué viste y dónde: sala, planta, qué tiene."></textarea><div class="row"><button data-t="${t.id}" data-a="problema" class="ok"${ocupado}>Avisar el problema</button><button data-a="cancelar">Cancelar</button></div></div>`;
+      return fila;
+    }).join('');
+  }
+  h += '<div class="links"><button data-ir="/chat" class="sec">Chat</button><button data-ir="/equipo" class="sec">Ver en Equipo</button></div>';
+  const ts = document.getElementById('tasks'); ts.innerHTML = h;
+  ts.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
+  ts.querySelectorAll('[data-a]').forEach(b => b.onclick = () => accionTarea(b.dataset.a, Number(b.dataset.t)));
+  const area = document.getElementById('notaProblema');
+  if (area) { area.value = notaBorrador; area.oninput = () => { notaBorrador = area.value; }; if (guardandoTarea === null) area.focus(); }
+  renderStatus();
+}
+async function accionTarea(a, id) {
+  if (a === 'abrir-problema') { problemaDe = id; notaBorrador = ''; avisoTareas = null; renderPanel(); return; }
+  if (a === 'cancelar') { problemaDe = null; renderPanel(); return; }
+  const nota = notaBorrador.trim();
+  if (a === 'problema' && !nota) { avisoTareas = { ok: false, texto: 'Contá qué pasó antes de avisar.' }; renderPanel(); return; }
+  guardandoTarea = id; renderPanel();
+  try {
+    await pedir('tarea:estado', { tarea: id, estado: a, nota }, 15000); // «id» es el del pedido: la tarea va aparte
+    avisoTareas = { ok: true, texto: a === 'problema' ? 'Listo: quedó avisado el problema.' : a === 'hecha' ? 'Listo, quedó hecha.' : 'Volvió a pendiente.' };
+    if (a === 'problema') { problemaDe = null; notaBorrador = ''; }
+  } catch (err) {
+    avisoTareas = { ok: false, texto: (err && err.message) || 'No se pudo guardar. Probá de nuevo.' };
+  }
+  guardandoTarea = null;
+  await cargarDatosSistema(); // trae el estado nuevo de la base y repinta
+  renderPanel();
+}
+function renderStatusSistema() {
+  const hoy = hoyStr();
+  const cortes = Object.entries(rooms).filter(([, r]) => r.ciclo).map(([k, r]) => [k, momento(r.ciclo, hoy).cos]).filter(([, c]) => c && c >= hoy).sort((a, b) => a[1].localeCompare(b[1]));
+  const prox = cortes[0], eq = equipoReal || [];
+  const total = eq.reduce((a, e) => a + e.total, 0), hechas = eq.reduce((a, e) => a + e.hechas, 0), probs = eq.reduce((a, e) => a + e.problemas, 0);
+  document.getElementById('status').innerHTML =
+    (prox ? `<span class="k">Próximo corte <b>${rooms[prox[0]].name.split(' ·')[0]}</b> en <b>${sem(diffD(hoy, prox[1]))}</b></span>` : '') +
+    (equipoReal ? `<span class="k">Tareas de hoy <b>${hechas}/${total}</b></span><span class="k ${probs ? 'warn' : ''}">Problemas <b>${probs}</b></span>` : '') +
+    (pulseActualizado ? `<span class="k">Pulse <b>${pulseActualizado}</b></span>` : '');
+}
+async function cargarDatosSistema() {
+  let d; try { d = await pedir('sede:datos', {}, 20000); } catch { return; }
+  for (const s of d.salas || []) {
+    const k = Object.keys(rooms).find(x => (rooms[x].kind === 'sala' || rooms[x].kind === 'vege') && (rooms[x].name === s.nombre || rooms[x].name.startsWith(s.nombre + ' ')));
+    if (!k) continue;
+    if (rooms[k].kind === 'sala') rooms[k].ciclo = s.ciclo ? { inicio: s.ciclo.inicio, vege: s.ciclo.vege, flora: s.ciclo.flora, m2: s.ciclo.m2 ?? rooms[k].ciclo?.m2 ?? 6 } : null;
+    rooms[k].lectura = s.lectura;
+    rooms[k].dia = s.dia || null;
+    rooms[k].riego = s.riego || null;
+    if (s.lectura && s.lectura.t != null && s.lectura.h != null) clima[k] = [s.lectura.t, s.lectura.h]; else delete clima[k];
+  }
+  equipoReal = d.equipo || [];
+  pulseActualizado = d.actualizado || '';
+  for (const p of people) { const e = equipoDe(p.id); p.bubble = e && e.total ? `${e.hechas} de ${e.total}${e.problemas ? ` · ⚠ ${e.problemas}` : ''}` : ''; }
+  updatePlants(); applyLights(); renderSigns(); renderPanel();
+}
+if (MODO_SISTEMA) {
+  for (const ayudante of [nubi, chango]) { ayudante.g.visible = false; ayudante.el.style.display = 'none'; }
+  for (const p of people) { p.tasks = []; p.done = {}; p.prob = {}; p.bubble = ''; }
+  for (const k of Object.keys(clima)) delete clima[k]; // nada de clima de ejemplo hasta que llegue el real
+  const hud = document.getElementById('hud');
+  hud.insertAdjacentHTML('beforeend', '<div class="links"><button data-ir="/sede/oficina" class="sec">Ver la versión anterior</button></div>');
+  hud.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
+  cargarDatosSistema(); setInterval(cargarDatosSistema, 5 * 60 * 1000);
+}
+
 updatePlants(); renderSigns(); renderPanel(); applyLights();
 log('Bienvenido a la sede virtual. Tocá ▶ para simular el día o hacé las tareas a mano.');
 log('Salas limpias al empezar y al terminar el día: es tarea de todos. Encargados: <b>Vilela</b> (apertura) y <b>Pato</b> (cierre).');

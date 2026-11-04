@@ -9,7 +9,15 @@ const PUBLIC_PAGES = ["/login", "/reservar"]
 // - automations/evaluate: el cron externo (cron-job.org), autenticado con
 //   su propio AUTOMATIONS_CRON_SECRET vía header Authorization, no con
 //   sesión de usuario. automations/evaluate/manual SÍ requiere sesión.
-const PUBLIC_API_PATHS = ["/api/auth/login", "/api/auth/logout", "/api/auth/session", "/api/automations/evaluate"]
+// - chat/notificar: la llama la base (pg_net, script 090) con el mismo
+//   AUTOMATIONS_CRON_SECRET.
+const PUBLIC_API_PATHS = [
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/auth/session",
+  "/api/automations/evaluate",
+  "/api/chat/notificar",
+]
 
 // setAll() puede haber agregado o eliminado cookies (refresh de sesión) en
 // `response` durante supabase.auth.getUser(). Toda respuesta que devolvamos

@@ -41,7 +41,9 @@ import {
   User,
   Calendar,
   CheckCircle,
+  Wallet,
 } from "lucide-react"
+import { etiquetaMetodo } from "@/lib/metodo-pago"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { formatCurrency } from "@/lib/format"
@@ -847,7 +849,9 @@ export function DeudasManager() {
               {pagosHistorial.map((pago) => (
                 <div key={pago.id} className="flex flex-wrap items-center justify-between gap-3 border bg-white p-3 rounded-lg">
                   <div className="flex items-center gap-3">
-                    {pago.metodo_pago === "efectivo" ? (
+                    {pago.metodo_pago === "retribucion" ? (
+                      <Wallet className="h-5 w-5 text-primary" />
+                    ) : pago.metodo_pago === "efectivo" ? (
                       <Banknote className="h-5 w-5 text-primary" />
                     ) : (
                       <CreditCard className="h-5 w-5 text-primary" />
@@ -863,8 +867,8 @@ export function DeudasManager() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={pago.metodo_pago === "efectivo" ? "default" : "secondary"}>
-                      {pago.metodo_pago === "efectivo" ? "Efectivo" : "Transferencia"}
+                    <Badge variant={pago.metodo_pago === "efectivo" ? "default" : pago.metodo_pago === "retribucion" ? "outline" : "secondary"}>
+                      {etiquetaMetodo(pago.metodo_pago)}
                     </Badge>
                     {pago.comprobante_url && (
                       <Button

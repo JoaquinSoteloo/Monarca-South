@@ -5,13 +5,12 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Receipt, AlertTriangle, Info } from "lucide-react"
+import { Receipt, AlertTriangle, Info } from "lucide-react"
+import { DatePicker, fechaATexto, textoAFecha } from "@/components/ui/date-picker"
 import { format } from "date-fns"
-import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatMoneda } from "@/lib/format"
+import { cobradoEnPlata } from "@/lib/metodo-pago"
 
 interface ResumenCaja {
   ventasEfectivo: number
@@ -28,7 +27,8 @@ interface ResumenCaja {
   devolucionTransferencia: number
   devolucion: number
   devolucionDolares: number
-  // Retribuciones pagadas en producto: cuentan en el resultado, no en la caja.
+  // Retribuciones pagadas en producto o descontadas de la deuda de sus
+  // entregas: cuentan en el resultado, no en la caja.
   pagadoEnProducto: number
   // Aportes menos los gastos que cuentan en el resultado.
   gananciaNeta: number
@@ -91,7 +91,7 @@ export function Caja() {
     const [ventasResult, gastosResult, categoriasResult] = await Promise.all([
       supabase
         .from("ventas")
-        .select("total, metodo_pago, created_at")
+        .select("total, metodo_pago, saldo_pendiente, created_at, pagos(monto, metodo_pago)")
         .gte("created_at", desde)
         .lte("created_at", `${hasta}T23:59:59`),
       supabase.from("gastos").select("monto, metodo_pago, fecha, categoria, moneda").gte("fecha", desde).lte("fecha", hasta),
@@ -113,10 +113,11 @@ export function Caja() {
     const ventas = ventasResult.data
     const gastos = gastosResult.data
 
-    const ventasEfectivo =
-      ventas?.filter((v) => v.metodo_pago === "efectivo").reduce((sum, v) => sum + Number(v.total), 0) || 0
-    const ventasTransferencia =
-      ventas?.filter((v) => v.metodo_pago === "transferencia").reduce((sum, v) => sum + Number(v.total), 0) || 0
+    // Lo que se pagó con la retribución de alguien del equipo no es plata que
+    // entró: cuenta como su sueldo pagado en producto (scripts/091).
+    const cobrado = ventas?.map(cobradoEnPlata) ?? []
+    const ventasEfectivo = cobrado.reduce((sum, c) => sum + c.efectivo, 0)
+    const ventasTransferencia = cobrado.reduce((sum, c) => sum + c.transferencia, 0)
     const totalVentas = ventasEfectivo + ventasTransferencia
 
     const tipoPorCategoria = new Map(categoriasResult.data?.map((c) => [c.nombre, c.en_resultado]) ?? [])
@@ -193,42 +194,28 @@ export function Caja() {
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="caja-fecha-desde" className="text-sm font-medium text-foreground">Desde</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button id="caja-fecha-desde" variant="outline" className="w-full justify-start bg-card text-left font-normal sm:w-[180px]">
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {format(fechaDesde, "dd/MM/yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fechaDesde}
-                    onSelect={(date) => date && setFechaDesde(date)}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                id="caja-fecha-desde"
+                className="sm:w-[190px]"
+                value={fechaATexto(fechaDesde)}
+                onChange={(texto) => {
+                  const fecha = textoAFecha(texto)
+                  if (fecha) setFechaDesde(fecha)
+                }}
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="caja-fecha-hasta" className="text-sm font-medium text-foreground">Hasta</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button id="caja-fecha-hasta" variant="outline" className="w-full justify-start bg-card text-left font-normal sm:w-[180px]">
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {format(fechaHasta, "dd/MM/yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fechaHasta}
-                    onSelect={(date) => date && setFechaHasta(date)}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                id="caja-fecha-hasta"
+                className="sm:w-[190px]"
+                value={fechaATexto(fechaHasta)}
+                onChange={(texto) => {
+                  const fecha = textoAFecha(texto)
+                  if (fecha) setFechaHasta(fecha)
+                }}
+              />
             </div>
 
             <Button onClick={calcularResumen} disabled={loading} className="w-full sm:w-auto">
@@ -311,7 +298,7 @@ export function Caja() {
                     </div>
                     {resumen.pagadoEnProducto > 0 && (
                       <div className="flex justify-between gap-2">
-                        <dt>Pagado en producto (incluido)</dt>
+                        <dt>Pagado en producto o descontado de deudas (incluido)</dt>
                         <dd className="tabular-nums">{formatCurrency(resumen.pagadoEnProducto)}</dd>
                       </div>
                     )}

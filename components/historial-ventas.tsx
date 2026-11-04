@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  CalendarIcon,
   Package,
   FileDown,
   Clock,
@@ -30,15 +29,15 @@ import {
   ArrowLeftRight,
   Upload,
   MoreVertical,
+  Wallet,
 } from "lucide-react"
 import { format, startOfDay, endOfDay } from "date-fns"
-import { es } from "date-fns/locale"
+import { DatePicker, fechaATexto, textoAFecha } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatGramos } from "@/lib/format"
+import { cobradoEnPlata, etiquetaMetodo } from "@/lib/metodo-pago"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
 import {
   Dialog,
   DialogContent,
@@ -87,8 +86,6 @@ export function HistorialVentas({
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined)
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined)
   const [exportando, setExportando] = useState(false)
-  const [popoverDesdeOpen, setPopoverDesdeOpen] = useState(false)
-  const [popoverHastaOpen, setPopoverHastaOpen] = useState(false)
   const [editingVenta, setEditingVenta] = useState<VentaConDetalles | null>(null)
   const [nuevoMetodoPago, setNuevoMetodoPago] = useState<"efectivo" | "transferencia">("efectivo")
   const [updatingPago, setUpdatingPago] = useState(false)
@@ -112,7 +109,6 @@ export function HistorialVentas({
   const [savingEdit, setSavingEdit] = useState(false)
   // Reglas de entrega que la edición no cumple (VB001): pedido de excepción.
   const [motivosBloqueoEdicion, setMotivosBloqueoEdicion] = useState<string[] | null>(null)
-  const [popoverEditFechaOpen, setPopoverEditFechaOpen] = useState(false)
   const router = useRouter()
 
   const [ventaABorrar, setVentaABorrar] = useState<VentaConDetalles | null>(null)
@@ -130,7 +126,7 @@ export function HistorialVentas({
     const { data, error } = await supabase
       .from("ventas")
       .select(
-        "*, socio:socios(nombre, apellido, dni, es_miembro), genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), detalles:detalle_venta(id, genetica_id, producto_id, gramos, cantidad_enrolados, peso_por_enrolado, peso_enrolados, precio_unitario, precio_enrolado, subtotal, genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), producto:productos(nombre)), pagos(id, monto, metodo_pago, comprobante_url, fecha)",
+        "*, socio:socios(nombre, apellido, dni, es_miembro), genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), detalles:detalle_venta(id, genetica_id, producto_id, gramos, cantidad_enrolados, peso_por_enrolado, peso_enrolados, precio_unitario, precio_enrolado, subtotal, genetica:geneticas(nombre, precio_por_gramo, precio_por_enrolado), producto:productos(nombre)), pagos(id, monto, metodo_pago, comprobante_url, fecha, notas)",
       )
       .gte("created_at", startOfDay(fechaDesde).toISOString())
       .lte("created_at", endOfDay(fechaHasta).toISOString())
@@ -255,7 +251,7 @@ export function HistorialVentas({
       router.refresh()
     } else {
       setGuardandoMetodoPagoId(null)
-      if (/^MP\d{3}$/.test(error.code || "")) {
+      if (/^(MP\d{3}|EQ006)$/.test(error.code || "")) {
         alert(error.message)
       } else {
         console.error("Error al corregir el método de pago:", error)
@@ -569,7 +565,8 @@ export function HistorialVentas({
       setVentaABorrar(null)
       await fetchVentas()
       await fetchGeneticasAndProductos()
-    } else if (/^VD0\d{2}$/.test(error.code || "")) {
+    } else if (/^(VD0\d{2}|EQ006)$/.test(error.code || "")) {
+      // EQ006: se pagó con la retribución de alguien del equipo (scripts/091).
       alert(error.message)
     } else {
       console.error("Error inesperado al eliminar la venta:", error)
@@ -660,14 +657,11 @@ export function HistorialVentas({
   // Efectivo/Transferencia usan ventas.metodo_pago (campo agregado, sincronizado
   // por las RPC de pago para el caso simple de "un solo método por venta").
   // Una venta con pagos parciales o de métodos distintos no queda representada
-  // con exactitud por este único campo — para eso habría que sumar directo
-  // desde `pagos`, fuera del alcance de esta corrección.
-  const ventasEfectivo = initialVentasFiltradas
-    .filter((v) => v.metodo_pago === "efectivo")
-    .reduce((sum, v) => sum + Number(v.total), 0)
-  const ventasTransferencia = initialVentasFiltradas
-    .filter((v) => v.metodo_pago === "transferencia")
-    .reduce((sum, v) => sum + Number(v.total), 0)
+  // con exactitud por este único campo. La excepción son las entregas pagadas
+  // con la retribución de alguien del equipo: ahí se suma solo lo pagado en
+  // plata, igual que en Caja (lib/metodo-pago.ts).
+  const ventasEfectivo = initialVentasFiltradas.reduce((sum, v) => sum + cobradoEnPlata(v).efectivo, 0)
+  const ventasTransferencia = initialVentasFiltradas.reduce((sum, v) => sum + cobradoEnPlata(v).transferencia, 0)
   // Pendiente se deriva de saldo_pendiente > 0 (no de metodo_pago === "pendiente"):
   // ver etapa 4B2, "pendiente" no es un método de pago real.
   const ventasPendientes = initialVentasFiltradas
@@ -755,13 +749,7 @@ export function HistorialVentas({
               idx === 0 ? (venta.socio?.dni ? formatDni(venta.socio.dni) : "-") : "",
               detalle.genetica?.nombre || detalle.producto?.nombre || "",
               detalleItemStr,
-              idx === 0
-                ? venta.metodo_pago === "efectivo"
-                  ? "Efectivo"
-                  : venta.metodo_pago === "transferencia"
-                    ? "Transferencia"
-                    : "Pendiente"
-                : "",
+              idx === 0 ? etiquetaMetodo(venta.metodo_pago) : "",
               idx === 0 ? `$${Number(venta.total).toFixed(2)}` : "",
             ])
           })
@@ -777,11 +765,7 @@ export function HistorialVentas({
             venta.socio?.dni ? formatDni(venta.socio.dni) : "-",
             info.genetica,
             cantidadStr,
-            venta.metodo_pago === "efectivo"
-              ? "Efectivo"
-              : venta.metodo_pago === "transferencia"
-                ? "Transferencia"
-                : "Pendiente",
+            etiquetaMetodo(venta.metodo_pago),
             `$${Number(venta.total).toFixed(2)}`,
           ])
         }
@@ -923,18 +907,21 @@ export function HistorialVentas({
             <div className="space-y-2.5">
               {pagos.map((pago) => (
                 <div key={pago.id} className="flex items-center justify-between gap-3 text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    {pago.metodo_pago === "efectivo" ? (
-                      <Banknote className="h-3.5 w-3.5" />
+                  <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                    {pago.metodo_pago === "retribucion" ? (
+                      <Wallet className="h-3.5 w-3.5 shrink-0" aria-label="Retribución" />
+                    ) : pago.metodo_pago === "efectivo" ? (
+                      <Banknote className="h-3.5 w-3.5 shrink-0" />
                     ) : (
-                      <CreditCard className="h-3.5 w-3.5" />
+                      <CreditCard className="h-3.5 w-3.5 shrink-0" />
                     )}
-                    <span>
+                    <span className="min-w-0">
                       {new Date(pago.fecha).toLocaleDateString("es-AR", {
                         day: "2-digit",
                         month: "2-digit",
                         year: "numeric",
                       })}
+                      {pago.metodo_pago === "retribucion" && ` · ${pago.notas || "Descontado de su retribución"}`}
                     </span>
                   </div>
                   <span className="tabular-nums text-foreground">{formatCurrency(Number(pago.monto))}</span>
@@ -996,6 +983,8 @@ export function HistorialVentas({
     const tieneTransferencia =
       pagosTransferencia.length > 0 ||
       ((!venta.pagos || venta.pagos.length === 0) && venta.metodo_pago === "transferencia" && !tieneDeuda)
+    // Pagada (en parte o toda) con la retribución de alguien del equipo.
+    const tieneRetribucion = venta.pagos?.some((p) => p.metodo_pago === "retribucion") ?? false
 
     if (venta.metodo_pago === "pendiente" && saldoPendiente >= Number(venta.total)) {
       return (
@@ -1026,6 +1015,12 @@ export function HistorialVentas({
             <span className="flex items-center gap-1 text-sm text-foreground">
               <CreditCard className="h-3.5 w-3.5 text-primary" />
               Transf.
+            </span>
+          )}
+          {tieneRetribucion && (
+            <span className="flex items-center gap-1 text-sm text-foreground">
+              <Wallet className="h-3.5 w-3.5 text-primary" />
+              Retribución
             </span>
           )}
           {tieneTransferencia &&
@@ -1244,6 +1239,22 @@ export function HistorialVentas({
                   <p className="text-sm text-muted-foreground">Esta entrega no tiene pagos registrados para corregir.</p>
                 )}
                 {(editingPagosVenta.pagos || []).map((pago) => {
+                  // Lo descontado del sueldo no se corrige acá: se anula desde Retribuciones.
+                  if (pago.metodo_pago === "retribucion") {
+                    return (
+                      <div key={pago.id} className="flex items-center gap-2 p-3 rounded-lg border border-border">
+                        <Wallet className="h-4 w-4 shrink-0 text-primary" />
+                        <div className="flex-1 space-y-1">
+                          <p className="text-sm font-medium text-foreground tabular-nums">
+                            {formatCurrency(Number(pago.monto))}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {pago.notas || "Descontado de una retribución"}. Se anula desde Retribuciones del equipo.
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  }
                   const valorSeleccionado = metodoPagoCorregido[pago.id] ?? pago.metodo_pago
                   return (
                     <div key={pago.id} className="flex items-center gap-2 p-3 rounded-lg border border-border">
@@ -1329,33 +1340,16 @@ export function HistorialVentas({
           <div className="py-4 space-y-4">
             {/* Fecha */}
             <div className="space-y-2">
-              <Label>Fecha de Entrega</Label>
-              <Popover open={popoverEditFechaOpen} onOpenChange={setPopoverEditFechaOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal border-border bg-transparent"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {format(editFormData.fecha, "dd 'de' MMMM, yyyy", { locale: es })}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={editFormData.fecha}
-                    onSelect={(date) => {
-                      if (date) {
-                        setEditFormData({ ...editFormData, fecha: date })
-                      }
-                      setPopoverEditFechaOpen(false)
-                    }}
-                    locale={es}
-                    disabled={(date) => date > new Date()}
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label htmlFor="edit-fecha-entrega">Fecha de Entrega</Label>
+              <DatePicker
+                id="edit-fecha-entrega"
+                value={fechaATexto(editFormData.fecha)}
+                max={fechaATexto(new Date())}
+                onChange={(texto) => {
+                  const fecha = textoAFecha(texto)
+                  if (fecha) setEditFormData({ ...editFormData, fecha })
+                }}
+              />
             </div>
 
             {/* Socio */}
@@ -1723,60 +1717,24 @@ export function HistorialVentas({
 
             <div className="min-w-0 space-y-1.5">
               <label htmlFor="historial-desde" className="block text-sm font-medium text-foreground">Desde</label>
-              <Popover open={popoverDesdeOpen} onOpenChange={setPopoverDesdeOpen}>
-                <PopoverTrigger asChild>
-                  <Button id="historial-desde"
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start bg-card text-left font-normal",
-                      !fechaDesde && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {fechaDesde ? format(fechaDesde, "dd/MM/yyyy") : <span>Seleccionar</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fechaDesde}
-                    onSelect={(date) => {
-                      setFechaDesde(date)
-                      setPopoverDesdeOpen(false)
-                    }}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                id="historial-desde"
+                value={fechaATexto(fechaDesde)}
+                placeholder="Seleccionar"
+                clearable
+                onChange={(texto) => setFechaDesde(textoAFecha(texto))}
+              />
             </div>
 
             <div className="min-w-0 space-y-1.5">
               <label htmlFor="historial-hasta" className="block text-sm font-medium text-foreground">Hasta</label>
-              <Popover open={popoverHastaOpen} onOpenChange={setPopoverHastaOpen}>
-                <PopoverTrigger asChild>
-                  <Button id="historial-hasta"
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start bg-card text-left font-normal",
-                      !fechaHasta && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {fechaHasta ? format(fechaHasta, "dd/MM/yyyy") : <span>Seleccionar</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fechaHasta}
-                    onSelect={(date) => {
-                      setFechaHasta(date)
-                      setPopoverHastaOpen(false)
-                    }}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                id="historial-hasta"
+                value={fechaATexto(fechaHasta)}
+                placeholder="Seleccionar"
+                clearable
+                onChange={(texto) => setFechaHasta(textoAFecha(texto))}
+              />
             </div>
 
           </div>

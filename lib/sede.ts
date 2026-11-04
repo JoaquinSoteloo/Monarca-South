@@ -1,7 +1,8 @@
 /**
- * Pantalla Sede: el simulador 3D (public/sede/index.html) dentro del sistema.
- * El simulador corre en un iframe y le pide los datos a la página con
- * postMessage; acá viven las conversiones puras entre los dos lados.
+ * Pantalla Sede: el simulador 3D de Facundo (public/sede/index.html). Corre en
+ * un iframe y le pide los datos a la página con postMessage; acá viven las
+ * conversiones puras entre los dos lados. Desde el rediseño del 03/11/2026, en
+ * «modo sistema» recibe también las lecturas reales de Pulse.
  */
 import type { EtapaRiego } from "@/lib/riego"
 
@@ -52,4 +53,38 @@ export function numeroOnull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null
   const n = typeof v === "number" ? v : Number(String(v).replace(",", "."))
   return Number.isFinite(n) ? n : null
+}
+
+// --- Modo sistema: lecturas de Pulse -------------------------------------------
+
+export interface LecturaSala {
+  sala_id: number
+  temperatura_c: number | null
+  humedad_rh: number | null
+  vpd: number | null
+  luz_lux?: number | null
+  leido_en: string
+}
+
+export interface ResumenDia {
+  min: number
+  max: number
+  prom: number
+}
+
+/** Mínimo, máximo y promedio de una serie (null si no hay datos). */
+export function resumenDia(valores: (number | null | undefined)[]): ResumenDia | null {
+  const xs = valores.filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+  if (xs.length === 0) return null
+  return { min: Math.min(...xs), max: Math.max(...xs), prom: xs.reduce((a, b) => a + b, 0) / xs.length }
+}
+
+/** La lectura más nueva de cada sala. */
+export function ultimaPorSala(lecturas: LecturaSala[]): Map<number, LecturaSala> {
+  const m = new Map<number, LecturaSala>()
+  for (const l of lecturas) {
+    const actual = m.get(l.sala_id)
+    if (!actual || l.leido_en > actual.leido_en) m.set(l.sala_id, l)
+  }
+  return m
 }

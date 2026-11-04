@@ -119,7 +119,8 @@ export interface Venta {
   gramos: number
   precio_unitario: number
   total: number
-  metodo_pago: "efectivo" | "transferencia" | "pendiente"
+  /** "retribucion": se pagó con el sueldo de alguien del equipo; "mixto": parte así y parte en plata (scripts/091). */
+  metodo_pago: "efectivo" | "transferencia" | "pendiente" | "mixto" | "retribucion"
   tipo_venta: "gramos" | "enrolados" | "mixto" | "producto"
   cantidad_enrolados: number | null
   peso_enrolados: number | null
@@ -183,6 +184,8 @@ export interface LiquidacionEquipo {
   precio_gramo: number
   precio_enrolado: number
   valor_producto: number
+  /** La parte del sueldo que canceló deuda de sus entregas (scripts/091). */
+  monto_deuda: number
   total: number
   nota: string | null
   usuario_nombre: string | null
@@ -237,7 +240,10 @@ export interface Pago {
   id: string
   venta_id: string
   monto: number
-  metodo_pago: "efectivo" | "transferencia"
+  /** "retribucion": descontado del sueldo al liquidar (no es plata que entra), scripts/091. */
+  metodo_pago: "efectivo" | "transferencia" | "retribucion"
+  /** De qué liquidación salió un pago "retribucion". */
+  liquidacion_id?: string | null
   comprobante_url: string | null
   notas: string | null
   fecha: string

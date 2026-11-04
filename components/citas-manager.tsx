@@ -6,11 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Calendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -27,6 +25,7 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { DatePicker, fechaATexto, textoAFecha } from "@/components/ui/date-picker"
 import { generarHorarios, todasLasHoras, CONFIG_CITAS_DEFAULT, type ConfigCitas } from "@/lib/horarios"
 import {
   AlertDialog,
@@ -351,22 +350,14 @@ export function CitasManager() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(fechaSeleccionada, "PPP", { locale: es })}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={fechaSeleccionada}
-                  onSelect={(date) => date && setFechaSeleccionada(date)}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+            <DatePicker
+              aria-label="Día de las citas"
+              value={fechaATexto(fechaSeleccionada)}
+              onChange={(texto) => {
+                const fecha = textoAFecha(texto)
+                if (fecha) setFechaSeleccionada(fecha)
+              }}
+            />
           </CardContent>
         </Card>
       </div>

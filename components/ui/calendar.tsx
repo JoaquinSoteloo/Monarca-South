@@ -1,6 +1,14 @@
 'use client'
 
+/**
+ * Calendario de la app (react-day-picker con el estilo de Monarca): en
+ * castellano, la semana empieza el lunes, el día elegido en verde y hoy
+ * marcado en dorado. Para un campo de fecha usá DatePicker
+ * (components/ui/date-picker.tsx), que lo abre en un globo.
+ */
 import * as React from 'react'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -11,12 +19,15 @@ import { DayButton, DayPicker, getDefaultClassNames } from 'react-day-picker'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
 
+const conMayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1)
+
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
   captionLayout = 'label',
   buttonVariant = 'ghost',
+  locale = es,
   formatters,
   components,
   ...props
@@ -28,16 +39,17 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      locale={locale}
       className={cn(
-        'bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent',
+        'bg-background group/calendar p-3 [--cell-size:--spacing(9)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent',
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className,
       )}
       captionLayout={captionLayout}
       formatters={{
-        formatMonthDropdown: (date) =>
-          date.toLocaleString('default', { month: 'short' }),
+        formatCaption: (date) => conMayuscula(format(date, 'LLLL yyyy', { locale: es })),
+        formatMonthDropdown: (date) => conMayuscula(format(date, 'LLL', { locale: es })),
         ...formatters,
       }}
       classNames={{
@@ -53,12 +65,12 @@ function Calendar({
         ),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          'size-(--cell-size) aria-disabled:opacity-50 p-0 select-none',
+          'size-(--cell-size) aria-disabled:opacity-40 p-0 select-none text-primary hover:bg-primary/10 hover:text-primary',
           defaultClassNames.button_previous,
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          'size-(--cell-size) aria-disabled:opacity-50 p-0 select-none',
+          'size-(--cell-size) aria-disabled:opacity-40 p-0 select-none text-primary hover:bg-primary/10 hover:text-primary',
           defaultClassNames.button_next,
         ),
         month_caption: cn(
@@ -78,7 +90,7 @@ function Calendar({
           defaultClassNames.dropdown,
         ),
         caption_label: cn(
-          'select-none font-medium',
+          'select-none font-semibold text-foreground',
           captionLayout === 'label'
             ? 'text-sm'
             : 'rounded-md pl-2 pr-1 flex items-center gap-1 text-sm h-8 [&>svg]:text-muted-foreground [&>svg]:size-3.5',
@@ -87,7 +99,7 @@ function Calendar({
         table: 'w-full border-collapse',
         weekdays: cn('flex', defaultClassNames.weekdays),
         weekday: cn(
-          'text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem] select-none',
+          'text-muted-foreground flex-1 font-medium text-[0.7rem] uppercase tracking-wide select-none',
           defaultClassNames.weekday,
         ),
         week: cn('flex w-full mt-2', defaultClassNames.week),
@@ -100,7 +112,7 @@ function Calendar({
           defaultClassNames.week_number,
         ),
         day: cn(
-          'relative w-full h-full p-0 text-center [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md group/day aspect-square select-none',
+          'relative w-full max-w-(--cell-size) h-full p-0 text-center [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md group/day aspect-square select-none',
           defaultClassNames.day,
         ),
         range_start: cn(
@@ -109,16 +121,17 @@ function Calendar({
         ),
         range_middle: cn('rounded-none', defaultClassNames.range_middle),
         range_end: cn('rounded-r-md bg-accent', defaultClassNames.range_end),
+        // Hoy: número en verde con un aro dorado (sin pintar todo el día).
         today: cn(
-          'bg-accent text-accent-foreground rounded-md data-[selected=true]:rounded-none',
+          'rounded-md [&>button]:font-semibold [&>button]:text-primary [&>button]:ring-1 [&>button]:ring-inset [&>button]:ring-accent',
           defaultClassNames.today,
         ),
         outside: cn(
-          'text-muted-foreground aria-selected:text-muted-foreground',
+          'text-muted-foreground/70 aria-selected:text-muted-foreground',
           defaultClassNames.outside,
         ),
         disabled: cn(
-          'text-muted-foreground opacity-50',
+          'text-muted-foreground opacity-40',
           defaultClassNames.disabled,
         ),
         hidden: cn('invisible', defaultClassNames.hidden),
@@ -201,6 +214,7 @@ function CalendarDayButton({
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
       className={cn(
+        'hover:bg-primary/10 hover:text-foreground data-[selected-single=true]:hover:bg-primary/90 data-[selected-single=true]:font-semibold data-[selected-single=true]:shadow-sm',
         'data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 dark:hover:text-accent-foreground flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70',
         defaultClassNames.day,
         className,

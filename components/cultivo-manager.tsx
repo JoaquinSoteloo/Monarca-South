@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import type { SalaCultivo, CamaCultivo, Genetica } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -393,11 +394,12 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
 
             <div className="space-y-2">
               <Label htmlFor="fecha_siembra">Fecha de Siembra</Label>
-              <Input
+              <DatePicker
                 id="fecha_siembra"
-                type="date"
                 value={camaForm.fecha_siembra}
-                onChange={(e) => setCamaForm({ ...camaForm, fecha_siembra: e.target.value })}
+                clearable
+                placeholder="Sin fecha"
+                onChange={(fecha_siembra) => setCamaForm({ ...camaForm, fecha_siembra })}
               />
             </div>
 
@@ -424,7 +426,14 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
               {([["fecha_vegetativo", "Inicio vege"], ["fecha_floracion", "Inicio flora"], ["fecha_cosecha", "Cosecha"]] as const).map(([key, label]) => (
                 <div key={key} className="space-y-2">
                   <Label htmlFor={`cama-${key}`}>{label}</Label>
-                  <Input id={`cama-${key}`} type="date" max={fechaLocal()} value={camaForm[key]} onChange={e => setCamaForm({ ...camaForm, [key]: e.target.value })} />
+                  <DatePicker
+                    id={`cama-${key}`}
+                    max={fechaLocal()}
+                    value={camaForm[key]}
+                    clearable
+                    placeholder="Sin fecha"
+                    onChange={(fecha) => setCamaForm({ ...camaForm, [key]: fecha })}
+                  />
                 </div>
               ))}
             </div>

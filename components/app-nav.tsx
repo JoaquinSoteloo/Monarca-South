@@ -33,11 +33,16 @@ import {
   Wallet,
   Scissors,
   Building2,
+  MessageCircle,
+  LockKeyhole,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PushNotificationsBell } from "@/components/push-notifications-bell"
 import type { RolUsuario } from "@/lib/types"
 import { permisoDeRuta, tienePermiso } from "@/lib/permisos"
+
+/** Lo dispara el botón «Más» de la barra de abajo (components/app-bottom-nav.tsx) para abrir este menú. */
+export const EVENTO_ABRIR_MENU = "monarca:abrir-menu"
 
 export interface UsuarioNav {
   nombre: string
@@ -60,6 +65,7 @@ const navGroups: {
     items: [
       { href: "/", label: "Inicio", icon: Home },
       { href: "/equipo", label: "Equipo", icon: ListChecks },
+      { href: "/chat", label: "Chat", icon: MessageCircle },
       { href: "/sede", label: "Sede", icon: Building2 },
       { href: "/ventas", label: "Entregas", icon: ShoppingCart },
       { href: "/historial", label: "Historial", icon: History },
@@ -115,8 +121,23 @@ function isActive(pathname: string, href: string) {
 }
 
 export function getTituloPorRuta(pathname: string): string {
+  if (isActive(pathname, "/cuenta")) return "Mi cuenta"
   const match = flatNavItems.find((item) => isActive(pathname, item.href))
   return match?.label ?? "Monarca South"
+}
+
+/** Mi cuenta (cambiar la contraseña), junto a «Cerrar sesión». */
+function EnlaceCuenta({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <Link
+      href="/cuenta"
+      onClick={onNavigate}
+      className="flex w-full items-center gap-2.5 rounded-lg border-l-2 border-transparent px-2.5 py-2 text-sm font-medium text-primary-foreground/70 transition-colors hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      <LockKeyhole className="h-4 w-4" />
+      Cambiar contraseña
+    </Link>
+  )
 }
 
 function useLogout() {
@@ -266,6 +287,7 @@ export function AppSidebar({ usuario }: { usuario: UsuarioNav | null }) {
       </div>
       <div className="shrink-0">
         <UsuarioConectado usuario={usuario} />
+        {usuario && <EnlaceCuenta />}
         <button
           type="button"
           onClick={logout}
@@ -308,6 +330,15 @@ export function AppMobileNav({ usuario }: { usuario: UsuarioNav | null }) {
     setOpen(false)
   }, [pathname])
 
+  useEffect(() => {
+    const abrir = () => {
+      setOpen(true)
+      window.scrollTo({ top: 0 })
+    }
+    window.addEventListener(EVENTO_ABRIR_MENU, abrir)
+    return () => window.removeEventListener(EVENTO_ABRIR_MENU, abrir)
+  }, [])
+
   return (
     <div className="bg-primary lg:hidden">
       {/* Encabezado compacto: un solo renglón (marca + título de pantalla en
@@ -341,6 +372,7 @@ export function AppMobileNav({ usuario }: { usuario: UsuarioNav | null }) {
           <NavLinks pathname={pathname} variant="dark" usuario={usuario} onNavigate={() => setOpen(false)} />
           <div className="mt-4">
             <UsuarioConectado usuario={usuario} />
+            {usuario && <EnlaceCuenta onNavigate={() => setOpen(false)} />}
           </div>
           <button
             type="button"

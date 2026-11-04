@@ -167,6 +167,9 @@ export function objetivos(m: Momento, c: Pick<CicloSala, "dias_flora">): Objetiv
 
 // --- Protocolo: tareas del ciclo ----------------------------------------------
 
+/** Tareas de defoliación (03/11/2026): se suman también a los ciclos que ya tenían tareas. */
+export const CLAVES_DEFOLIACION = ["prep_limpieza_bajos", "limpieza_bajos", "prep_defoliacion", "repaso_defoliacion"]
+
 export interface TareaCiclo {
   clave: string
   fecha: string
@@ -200,8 +203,20 @@ export function protocoloMonarca(c: CicloSala, nombreSala: string): TareaCiclo[]
       titulo: `${s} · Mapa de PPFD y altura de luces antes de flora`, detalle: "Manual 1. Objetivo en flora: 600–900." },
     { clave: "flip", fecha: f.flip, rol: "cultivo", afecta: ["direccion"], orden: 5,
       titulo: `${s} · Pasar a 12/12`, detalle: "Cambiar el timer, confirmar en el monitoreo que se apagó a la hora correcta." },
+    // Defoliación (pedido de Facundo, 03/11/2026): limpieza de bajos antes del 12/12 y la principal
+    // el día 21 de flora, con la preparación 2 días antes. Se hace con el procedimiento «Defoliación».
+    { clave: "prep_limpieza_bajos", fecha: sumarDias(f.flip, -5), rol: "mantenimiento", afecta: ["cultivo"], orden: 18,
+      titulo: `${s} · Preparar la limpieza de bajos`,
+      detalle: "Tijeras de punta fina desinfectadas, alcohol 70 % en rociador, guantes, bolsas y linterna. Plantas regadas el día anterior." },
+    { clave: "limpieza_bajos", fecha: sumarDias(f.flip, -3), rol: "cultivo", afecta: ["mantenimiento"], orden: 20,
+      titulo: `${s} · Limpieza de bajos antes del 12/12`,
+      detalle: "Procedimiento «Defoliación». Sacar lo que queda debajo de la malla y las hojas grandes que tapan puntas. Moderado." },
+    { clave: "prep_defoliacion", fecha: sumarDias(f.flip, 19), rol: "mantenimiento", afecta: ["cultivo"], orden: 18,
+      titulo: `${s} · Preparar la defoliación del día 21`,
+      detalle: "Tijeras de punta fina desinfectadas, alcohol 70 % en rociador, guantes, bolsas y linterna. Plantas regadas el día anterior. Sin otros estreses esta semana." },
     { clave: "poda_bajos", fecha: sumarDias(f.flip, 21), rol: "cultivo", afecta: ["mantenimiento"], orden: 20,
-      titulo: `${s} · Poda de bajos (semana 3 de flora)`, detalle: "Limpiar bajos para cocos grandes; acomodar la luz bajo canopia." },
+      titulo: `${s} · Defoliación del día 21 de flora`,
+      detalle: "Procedimiento «Defoliación». Hojas que tapan cogollos y ramitas bajas sin luz. Como máximo 20–30 % de las hojas. Revisar plagas y hermafroditas." },
     { clave: "lavado", fecha: f.lavado, rol: "cultivo", afecta: ["mantenimiento"], orden: 6,
       titulo: `${s} · Empieza el lavado: solo agua de ósmosis`,
       detalle: "Drenaje buscado 20–30 %. El tanque de vege puede usarse como tanque de solo agua." },
@@ -225,6 +240,12 @@ export function protocoloMonarca(c: CicloSala, nombreSala: string): TareaCiclo[]
       titulo: `${s} · Pasar ${cant}esquejes enraizados a la sala de vege`,
       detalle: `30 días de vege antes de entrar a ${s} el ${fechaCorta(f.libre)}. Si no alcanzan, avisar a Facundo para comprar.` },
   ]
+  const repaso = sumarDias(f.flip, 42)
+  if (repaso <= sumarDias(f.cosecha, -7)) {
+    t.push({ clave: "repaso_defoliacion", fecha: repaso, rol: "cultivo", afecta: [], orden: 20,
+      titulo: `${s} · Repaso día 42: solo hojas amarillas o dañadas`,
+      detalle: "Nada de defoliación fuerte desde acá hasta el corte." })
+  }
   for (let i = 1; i < c.dias_secado; i++) {
     t.push({ clave: `secado_${i}`, fecha: sumarDias(f.cosecha, i), rol: "mantenimiento", afecta: [], orden: 15,
       titulo: `${s} · Controlar secado (día ${i + 1})`, detalle: "20 °C y 55 % de humedad. Si se va de rango, marcar \"Problema\"." })

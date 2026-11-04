@@ -23,18 +23,14 @@ import {
   Clock,
   Plus,
   Trash2,
-  CalendarIcon,
   Crown,
   Star,
   Wallet,
 } from "lucide-react"
 import { etiquetaMetodo } from "@/lib/metodo-pago"
+import { DatePicker, fechaATexto, textoAFecha } from "@/components/ui/date-picker"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
 import { formatCurrency, formatGramos } from "@/lib/format"
 import { BarcodeScanner } from "./barcode-scanner"
 import { AutorizacionEntregaDialog, motivosDeError, type UsuarioActual } from "./autorizacion-entrega-dialog"
@@ -64,7 +60,6 @@ export function VentasManager({
   // pedido de excepción a la comisión.
   const [motivosBloqueo, setMotivosBloqueo] = useState<string[] | null>(null)
   const [fechaVenta, setFechaVenta] = useState<Date>(new Date())
-  const [popoverFechaOpen, setPopoverFechaOpen] = useState(false)
 
   const [lineas, setLineas] = useState<LineaVenta[]>([
     {
@@ -477,35 +472,19 @@ export function VentasManager({
           </div>
           <div className="min-w-0 space-y-2">
             <Label htmlFor="fecha-venta">Fecha de entrega</Label>
-            <Popover open={popoverFechaOpen} onOpenChange={setPopoverFechaOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  id="fecha-venta"
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-start bg-card text-left font-normal"
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                  {format(fechaVenta, "dd 'de' MMMM, yyyy", { locale: es })}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={fechaVenta}
-                  onSelect={(date) => {
-                    if (date) {
-                      const now = new Date()
-                      date.setHours(now.getHours(), now.getMinutes(), now.getSeconds())
-                      setFechaVenta(date)
-                    }
-                    setPopoverFechaOpen(false)
-                  }}
-                  locale={es}
-                  disabled={(date) => date > new Date()}
-                />
-              </PopoverContent>
-            </Popover>
+            <DatePicker
+              id="fecha-venta"
+              value={fechaATexto(fechaVenta)}
+              max={fechaATexto(new Date())}
+              onChange={(texto) => {
+                const fecha = textoAFecha(texto)
+                if (!fecha) return
+                // Con la hora de ahora, para que quede en orden con las del día.
+                const ahora = new Date()
+                fecha.setHours(ahora.getHours(), ahora.getMinutes(), ahora.getSeconds())
+                setFechaVenta(fecha)
+              }}
+            />
             {fechaVenta.toDateString() !== new Date().toDateString() && (
               <p className="text-xs text-amber-600 flex items-center gap-1">
                 <Clock className="h-3 w-3" />

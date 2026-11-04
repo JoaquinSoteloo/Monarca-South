@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 import type { Socio, Sucursal } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -672,12 +673,13 @@ export function SociosManager({ initialSocios, sucursales }: SociosManagerProps)
                   </div>
                   <div className="space-y-1.5 sm:max-w-xs">
                     <Label htmlFor="reprocann_vence">Vencimiento del REPROCANN</Label>
-                    <Input
+                    <DatePicker
                       id="reprocann_vence"
-                      type="date"
                       value={formData.reprocann_vence}
-                      onChange={(e) => setFormData({ ...formData, reprocann_vence: e.target.value })}
-                      className="bg-card"
+                      clearable
+                      conAnios
+                      placeholder="Sin cargar"
+                      onChange={(reprocann_vence) => setFormData({ ...formData, reprocann_vence })}
                     />
                     {formData.reprocann_vence && avisoVencimiento(formData.reprocann_vence) && (
                       <p className="text-xs font-medium text-amber-700">{avisoVencimiento(formData.reprocann_vence)}</p>

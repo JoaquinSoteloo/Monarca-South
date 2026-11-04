@@ -13,12 +13,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
-  CalendarIcon,
   Plus,
   DollarSign,
   Pencil,
@@ -34,6 +31,7 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { DatePicker, fechaATexto, textoAFecha } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
 import { ReclasificarGastosDialog } from "@/components/reclasificar-gastos-dialog"
 import { formatCurrency, formatMoneda } from "@/lib/format"
@@ -671,23 +669,15 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
                 <h3 className="text-sm font-semibold text-primary">Detalle del gasto</h3>
                 <div className="space-y-2">
                   <Label htmlFor="fecha">Fecha del Gasto</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" id="fecha" className="w-full justify-start bg-white text-left font-normal">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {format(formData.fecha, "PPP", { locale: es })}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={formData.fecha}
-                        onSelect={(date) => date && setFormData({ ...formData, fecha: date })}
-                        locale={es}
-                        disabled={(date) => date > new Date()}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <DatePicker
+                    id="fecha"
+                    value={fechaATexto(formData.fecha)}
+                    max={fechaATexto(new Date())}
+                    onChange={(texto) => {
+                      const fecha = textoAFecha(texto)
+                      if (fecha) setFormData({ ...formData, fecha })
+                    }}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="categoria">Categoría</Label>

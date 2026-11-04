@@ -14,6 +14,7 @@ import { formatMoneda, type Moneda } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
@@ -432,13 +433,11 @@ function AporteDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="aporte-fecha">Fecha del aporte</Label>
-              <Input
+              <DatePicker
                 id="aporte-fecha"
-                type="date"
-                className="bg-white"
                 value={form.fecha}
                 max={hoy()}
-                onChange={(e) => setForm({ ...form, fecha: e.target.value })}
+                onChange={(fecha) => setForm({ ...form, fecha })}
               />
             </div>
             <div className="space-y-1.5">
@@ -456,21 +455,14 @@ function AporteDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="aporte-fecha-devolucion">Fecha de devolución (opcional)</Label>
-            <div className="flex gap-2">
-              <Input
-                id="aporte-fecha-devolucion"
-                type="date"
-                className="bg-white"
-                value={form.fecha_devolucion}
-                min={form.fecha || undefined}
-                onChange={(e) => setForm({ ...form, fecha_devolucion: e.target.value })}
-              />
-              {form.fecha_devolucion && (
-                <Button type="button" variant="ghost" onClick={() => setForm({ ...form, fecha_devolucion: "" })}>
-                  Quitar
-                </Button>
-              )}
-            </div>
+            <DatePicker
+              id="aporte-fecha-devolucion"
+              value={form.fecha_devolucion}
+              min={form.fecha || undefined}
+              clearable
+              placeholder="Cuando haya plata"
+              onChange={(fecha_devolucion) => setForm({ ...form, fecha_devolucion })}
+            />
             <p className="text-xs text-muted-foreground">Dejala vacía si se devuelve cuando haya plata.</p>
           </div>
           <div className="space-y-1.5">
@@ -582,13 +574,11 @@ function DevolucionDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="dev-fecha">Fecha</Label>
-              <Input
+              <DatePicker
                 id="dev-fecha"
-                type="date"
-                className="bg-white"
                 value={form.fecha}
                 max={hoy()}
-                onChange={(e) => setForm({ ...form, fecha: e.target.value })}
+                onChange={(fecha) => setForm({ ...form, fecha })}
               />
             </div>
             <div className="space-y-1.5">

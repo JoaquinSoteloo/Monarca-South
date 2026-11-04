@@ -52,7 +52,7 @@ export interface Notificacion {
   id: number
   destinatario_id: string
   autor_id: string | null
-  tipo: "tarea_hecha" | "tarea_problema" | "tarea_nueva" | "comentario" | "riego" | "proceso" | "otro"
+  tipo: "tarea_hecha" | "tarea_problema" | "tarea_nueva" | "comentario" | "riego" | "proceso" | "gasto" | "otro"
   titulo: string
   cuerpo: string | null
   tarea_id: number | null

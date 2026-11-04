@@ -1,11 +1,12 @@
 import type React from "react"
 import { Suspense } from "react"
 import { headers } from "next/headers"
+import { redirect } from "next/navigation"
 import { ShieldX } from "lucide-react"
 import { AppSidebar, AppMobileNav } from "@/components/app-nav"
 import { AppBottomNav } from "@/components/app-bottom-nav"
 import { getServerSession } from "@/lib/auth/session"
-import { permisoDeRuta, tienePermiso } from "@/lib/permisos"
+import { permisoDeRuta, primeraPantalla, tienePermiso } from "@/lib/permisos"
 import { cn } from "@/lib/utils"
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
@@ -18,6 +19,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = (await headers()).get("x-pathname") ?? "/"
   const permiso = permisoDeRuta(pathname)
   const sinPermiso = !!session && !!permiso && !tienePermiso(session.permisos, permiso)
+  // Quien no ve Inicio (ej.: el rol de Vilela y Pato) entra directo a su
+  // primera pantalla en lugar de encontrarse con «Sin permiso».
+  if (sinPermiso && pathname === "/") {
+    const destino = primeraPantalla(session?.permisos)
+    if (destino) redirect(destino)
+  }
   // Barra de abajo en el celular para quien usa Equipo o Sede.
   const conBarra = !!session && (tienePermiso(session.permisos, "equipo.ver") || tienePermiso(session.permisos, "sede.ver"))
 

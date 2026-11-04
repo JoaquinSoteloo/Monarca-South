@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { PANTALLAS, TODOS_LOS_PERMISOS, permisoDeRuta, tienePermiso } from "./permisos"
+import { PANTALLAS, TODOS_LOS_PERMISOS, permisoDeRuta, primeraPantalla, tienePermiso } from "./permisos"
 
 describe("permisoDeRuta", () => {
   it("la raíz es Inicio, sin confundirse con otras pantallas", () => {
@@ -42,5 +42,24 @@ describe("catálogo", () => {
     expect(tienePermiso(["stock.ver"], "stock.ver")).toBe(true)
     expect(tienePermiso(["stock.ver"], "stock.editar")).toBe(false)
     expect(tienePermiso(undefined, "stock.ver")).toBe(false)
+  })
+})
+
+describe("cargar gastos sin ver la lista", () => {
+  it("/gastos/cargar tiene su propio permiso y /gastos sigue igual", () => {
+    expect(permisoDeRuta("/gastos")).toBe("gastos.ver")
+    expect(permisoDeRuta("/gastos/cargar")).toBe("gastos-cargar.ver")
+  })
+})
+
+describe("primeraPantalla", () => {
+  it("salta Inicio y respeta el orden del catálogo", () => {
+    expect(primeraPantalla(["sede.ver", "equipo.ver", "riego.ver"])).toBe("/equipo")
+    expect(primeraPantalla(["inicio.ver", "riego.ver"])).toBe("/riego")
+  })
+
+  it("sin pantallas, null", () => {
+    expect(primeraPantalla([])).toBeNull()
+    expect(primeraPantalla(undefined)).toBeNull()
   })
 })

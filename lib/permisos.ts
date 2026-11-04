@@ -72,6 +72,15 @@ export const PANTALLAS: PantallaPermisos[] = [
     acciones: [{ clave: "gastos.categorias", label: "Crear, renombrar y borrar categorías" }],
   },
   {
+    // Para quien anota gastos sin ver la lista ni los totales (scripts/092).
+    // A quien ve Gastos no le hace falta: carga desde esa pantalla.
+    ruta: "/gastos/cargar",
+    nombre: "Cargar gastos (sin ver la lista ni los totales)",
+    grupo: "Finanzas",
+    ver: "gastos-cargar.ver",
+    acciones: [],
+  },
+  {
     ruta: "/aportes",
     nombre: "Aportes de capital",
     grupo: "Finanzas",
@@ -121,4 +130,12 @@ export function permisoDeRuta(pathname: string): string | null {
 
 export function tienePermiso(permisos: readonly string[] | null | undefined, permiso: string): boolean {
   return !!permisos?.includes(permiso)
+}
+
+/**
+ * Primera pantalla que puede ver el rol, para mandarlo ahí cuando entra a
+ * Inicio sin tener ese permiso. null si no ve ninguna.
+ */
+export function primeraPantalla(permisos: readonly string[] | null | undefined): string | null {
+  return PANTALLAS.find((p) => p.ruta !== "/" && tienePermiso(permisos, p.ver))?.ruta ?? null
 }

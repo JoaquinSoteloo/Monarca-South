@@ -58,7 +58,9 @@ export interface UsuarioNav {
  */
 const navGroups: {
   label: string
-  items: { href: string; label: string; icon: typeof Home }[]
+  /** ocultarSi: el ítem no aparece si el rol tiene ese permiso (ej.: «Gastos»
+   *  para quien sólo carga, si ya ve la pantalla completa). */
+  items: { href: string; label: string; icon: typeof Home; ocultarSi?: string }[]
 }[] = [
   {
     label: "Principal",
@@ -97,6 +99,7 @@ const navGroups: {
     items: [
       { href: "/caja", label: "Caja", icon: DollarSign },
       { href: "/gastos", label: "Gastos", icon: Receipt },
+      { href: "/gastos/cargar", label: "Gastos", icon: Receipt, ocultarSi: "gastos.ver" },
       { href: "/aportes", label: "Aportes de capital", icon: HandCoins },
       { href: "/retribuciones", label: "Retribuciones", icon: Wallet },
       { href: "/deudas", label: "Deudas", icon: AlertCircle },
@@ -209,10 +212,11 @@ function NavLinks({
     ...g,
     // Cada pantalla aparece sólo si el rol tiene su permiso "ver" (lib/permisos.ts).
     items: g.items.filter((item) => {
+      if (item.ocultarSi && tienePermiso(usuario?.permisos, item.ocultarSi)) return false
       const permiso = permisoDeRuta(item.href)
       return !permiso || tienePermiso(usuario?.permisos, permiso)
     }),
-  }))
+  })).filter((g) => g.items.length > 0)
   return (
     <nav className="flex flex-col gap-5">
       {grupos.map((group) => (

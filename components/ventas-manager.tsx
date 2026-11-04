@@ -26,7 +26,9 @@ import {
   CalendarIcon,
   Crown,
   Star,
+  Wallet,
 } from "lucide-react"
+import { etiquetaMetodo } from "@/lib/metodo-pago"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -1011,11 +1013,10 @@ export function VentasManager({
                           {venta.metodo_pago === "efectivo" && <Banknote className="h-3 w-3 mr-1" />}
                           {venta.metodo_pago === "transferencia" && <CreditCard className="h-3 w-3 mr-1" />}
                           {venta.metodo_pago === "pendiente" && <Clock className="h-3 w-3 mr-1" />}
-                          {venta.metodo_pago === "efectivo"
-                            ? "Efectivo"
-                            : venta.metodo_pago === "transferencia"
-                              ? "Transferencia"
-                              : "Pendiente"}
+                          {(venta.metodo_pago === "retribucion" || venta.metodo_pago === "mixto") && (
+                            <Wallet className="h-3 w-3 mr-1" />
+                          )}
+                          {etiquetaMetodo(venta.metodo_pago)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium text-primary">

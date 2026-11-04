@@ -12,6 +12,7 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatMoneda } from "@/lib/format"
+import { cobradoEnPlata } from "@/lib/metodo-pago"
 
 interface ResumenCaja {
   ventasEfectivo: number
@@ -28,7 +29,8 @@ interface ResumenCaja {
   devolucionTransferencia: number
   devolucion: number
   devolucionDolares: number
-  // Retribuciones pagadas en producto: cuentan en el resultado, no en la caja.
+  // Retribuciones pagadas en producto o descontadas de la deuda de sus
+  // entregas: cuentan en el resultado, no en la caja.
   pagadoEnProducto: number
   // Aportes menos los gastos que cuentan en el resultado.
   gananciaNeta: number
@@ -91,7 +93,7 @@ export function Caja() {
     const [ventasResult, gastosResult, categoriasResult] = await Promise.all([
       supabase
         .from("ventas")
-        .select("total, metodo_pago, created_at")
+        .select("total, metodo_pago, saldo_pendiente, created_at, pagos(monto, metodo_pago)")
         .gte("created_at", desde)
         .lte("created_at", `${hasta}T23:59:59`),
       supabase.from("gastos").select("monto, metodo_pago, fecha, categoria, moneda").gte("fecha", desde).lte("fecha", hasta),
@@ -113,10 +115,11 @@ export function Caja() {
     const ventas = ventasResult.data
     const gastos = gastosResult.data
 
-    const ventasEfectivo =
-      ventas?.filter((v) => v.metodo_pago === "efectivo").reduce((sum, v) => sum + Number(v.total), 0) || 0
-    const ventasTransferencia =
-      ventas?.filter((v) => v.metodo_pago === "transferencia").reduce((sum, v) => sum + Number(v.total), 0) || 0
+    // Lo que se pagó con la retribución de alguien del equipo no es plata que
+    // entró: cuenta como su sueldo pagado en producto (scripts/091).
+    const cobrado = ventas?.map(cobradoEnPlata) ?? []
+    const ventasEfectivo = cobrado.reduce((sum, c) => sum + c.efectivo, 0)
+    const ventasTransferencia = cobrado.reduce((sum, c) => sum + c.transferencia, 0)
     const totalVentas = ventasEfectivo + ventasTransferencia
 
     const tipoPorCategoria = new Map(categoriasResult.data?.map((c) => [c.nombre, c.en_resultado]) ?? [])
@@ -311,7 +314,7 @@ export function Caja() {
                     </div>
                     {resumen.pagadoEnProducto > 0 && (
                       <div className="flex justify-between gap-2">
-                        <dt>Pagado en producto (incluido)</dt>
+                        <dt>Pagado en producto o descontado de deudas (incluido)</dt>
                         <dd className="tabular-nums">{formatCurrency(resumen.pagadoEnProducto)}</dd>
                       </div>
                     )}

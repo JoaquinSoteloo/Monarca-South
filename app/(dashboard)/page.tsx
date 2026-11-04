@@ -15,7 +15,9 @@ import {
   CreditCard,
   Clock,
   PackageSearch,
+  Wallet,
 } from "lucide-react"
+import { etiquetaMetodo } from "@/lib/metodo-pago"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { DatoSensible, OcultarDatosProvider, OcultarDatosToggle } from "@/components/ocultar-datos"
@@ -34,13 +36,18 @@ import { resumirMes, type VentaParaConsumo } from "@/lib/consumo"
 interface VentaHoy {
   id: string
   total: number
-  metodo_pago: "efectivo" | "transferencia" | "pendiente"
+  metodo_pago: "efectivo" | "transferencia" | "pendiente" | "mixto" | "retribucion"
   created_at: string
   socio: { nombre: string; apellido: string } | { nombre: string; apellido: string }[] | null
 }
 
-const metodoIcon = { efectivo: Banknote, transferencia: CreditCard, pendiente: Clock } as const
-const metodoLabel = { efectivo: "Efectivo", transferencia: "Transferencia", pendiente: "Pendiente" } as const
+const metodoIcon = {
+  efectivo: Banknote,
+  transferencia: CreditCard,
+  pendiente: Clock,
+  mixto: Wallet,
+  retribucion: Wallet,
+} as const
 
 const accesosRapidos = [
   { href: "/stock", label: "Stock" },
@@ -426,7 +433,7 @@ export default async function Dashboard() {
                           <div>
                             <p className="text-sm font-medium text-foreground">{socioNombre(v.socio)}</p>
                             <p className="text-xs text-muted-foreground">
-                              {metodoLabel[v.metodo_pago] ?? v.metodo_pago} · {formatHoraArgentina(v.created_at)}hs
+                              {etiquetaMetodo(v.metodo_pago)} · {formatHoraArgentina(v.created_at)}hs
                             </p>
                           </div>
                         </div>

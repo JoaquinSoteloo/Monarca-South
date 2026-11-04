@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -224,7 +225,7 @@ export function EquipoManager({ yo, hoy, perfiles, initialTareas, initialPlantil
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <Label htmlFor="fecha">Día</Label>
-              <Input id="fecha" type="date" value={fecha} onChange={(e) => cambiarFecha(e.target.value)} className="w-44" />
+              <DatePicker id="fecha" value={fecha} onChange={(f) => f && cambiarFecha(f)} className="w-48" />
             </div>
             {visibles.length > 1 && (
               <div className="space-y-1">
@@ -262,8 +263,8 @@ export function EquipoManager({ yo, hoy, perfiles, initialTareas, initialPlantil
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label>Para cuándo</Label>
-                    <Input type="date" value={nueva.fecha} onChange={(e) => setNueva({ ...nueva, fecha: e.target.value })} />
+                    <Label htmlFor="nueva-fecha">Para cuándo</Label>
+                    <DatePicker id="nueva-fecha" value={nueva.fecha} onChange={(fecha) => setNueva({ ...nueva, fecha })} />
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">

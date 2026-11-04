@@ -4,6 +4,7 @@ import type React from "react"
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { AlertTriangle } from "lucide-react"
@@ -61,8 +62,8 @@ export function Planificador({ salaId, salaNombre, inicial, otros, guardando, on
     <div className="space-y-4 rounded-md border p-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-1">
-          <Label>Entrada a {salaNombre} (18/6)</Label>
-          <Input type="date" value={b.fecha_inicio} onChange={(e) => e.target.value && setB({ ...b, fecha_inicio: e.target.value })} />
+          <Label htmlFor="plan-entrada">Entrada a {salaNombre} (18/6)</Label>
+          <DatePicker id="plan-entrada" value={b.fecha_inicio} onChange={(fecha) => fecha && setB({ ...b, fecha_inicio: fecha })} />
         </div>
         <div className="space-y-1">
           <Label>Días de vege en sala</Label>
@@ -73,8 +74,8 @@ export function Planificador({ salaId, salaNombre, inicial, otros, guardando, on
           <Input type="number" min={35} max={120} value={b.dias_flora} onChange={num("dias_flora")} />
         </div>
         <div className="space-y-1">
-          <Label>O elegí el día de corte</Label>
-          <Input type="date" value={f.cosecha} onChange={(e) => moverCosecha(e.target.value)} />
+          <Label htmlFor="plan-corte">O elegí el día de corte</Label>
+          <DatePicker id="plan-corte" value={f.cosecha} onChange={moverCosecha} />
         </div>
         <div className="space-y-1">
           <Label>Días de lavado (solo agua)</Label>

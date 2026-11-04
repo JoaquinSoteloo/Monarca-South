@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker, MonthPicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -625,13 +626,11 @@ function MiembroDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="miembro-desde">Cobra desde</Label>
-              <Input
+              <MonthPicker
                 id="miembro-desde"
-                type="month"
-                className="bg-white"
                 value={form.desde}
                 max={mesActual().slice(0, 7)}
-                onChange={(e) => setForm({ ...form, desde: e.target.value })}
+                onChange={(desde) => setForm({ ...form, desde })}
               />
             </div>
           </div>
@@ -827,13 +826,11 @@ function LiquidarDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="liq-fecha">Fecha de pago</Label>
-              <Input
+              <DatePicker
                 id="liq-fecha"
-                type="date"
-                className="bg-white"
                 value={form.fecha}
                 max={hoy()}
-                onChange={(e) => setForm({ ...form, fecha: e.target.value })}
+                onChange={(fecha) => fecha && setForm({ ...form, fecha })}
               />
             </div>
           </div>

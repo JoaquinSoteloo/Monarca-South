@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -101,12 +102,11 @@ export function NuevaTareaDialog({ abierto, onCerrar, yo, perfiles, hoy, supabas
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="nt-fecha">Para cuándo</Label>
-            <Input
+            <DatePicker
               id="nt-fecha"
-              type="date"
               className="h-11"
               value={form.fecha}
-              onChange={(e) => setForm({ ...form, fecha: e.target.value })}
+              onChange={(fecha) => fecha && setForm({ ...form, fecha })}
             />
           </div>
         </div>

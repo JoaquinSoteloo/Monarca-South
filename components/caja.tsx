@@ -5,11 +5,9 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Receipt, AlertTriangle, Info } from "lucide-react"
+import { Receipt, AlertTriangle, Info } from "lucide-react"
+import { DatePicker, fechaATexto, textoAFecha } from "@/components/ui/date-picker"
 import { format } from "date-fns"
-import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatMoneda } from "@/lib/format"
 import { cobradoEnPlata } from "@/lib/metodo-pago"
@@ -196,42 +194,28 @@ export function Caja() {
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="caja-fecha-desde" className="text-sm font-medium text-foreground">Desde</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button id="caja-fecha-desde" variant="outline" className="w-full justify-start bg-card text-left font-normal sm:w-[180px]">
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {format(fechaDesde, "dd/MM/yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fechaDesde}
-                    onSelect={(date) => date && setFechaDesde(date)}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                id="caja-fecha-desde"
+                className="sm:w-[190px]"
+                value={fechaATexto(fechaDesde)}
+                onChange={(texto) => {
+                  const fecha = textoAFecha(texto)
+                  if (fecha) setFechaDesde(fecha)
+                }}
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="caja-fecha-hasta" className="text-sm font-medium text-foreground">Hasta</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button id="caja-fecha-hasta" variant="outline" className="w-full justify-start bg-card text-left font-normal sm:w-[180px]">
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {format(fechaHasta, "dd/MM/yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fechaHasta}
-                    onSelect={(date) => date && setFechaHasta(date)}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                id="caja-fecha-hasta"
+                className="sm:w-[190px]"
+                value={fechaATexto(fechaHasta)}
+                onChange={(texto) => {
+                  const fecha = textoAFecha(texto)
+                  if (fecha) setFechaHasta(fecha)
+                }}
+              />
             </div>
 
             <Button onClick={calcularResumen} disabled={loading} className="w-full sm:w-auto">

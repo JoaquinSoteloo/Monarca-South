@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  CalendarIcon,
   Package,
   FileDown,
   Clock,
@@ -33,14 +32,12 @@ import {
   Wallet,
 } from "lucide-react"
 import { format, startOfDay, endOfDay } from "date-fns"
-import { es } from "date-fns/locale"
+import { DatePicker, fechaATexto, textoAFecha } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
 import { formatCurrency, formatGramos } from "@/lib/format"
 import { cobradoEnPlata, etiquetaMetodo } from "@/lib/metodo-pago"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
 import {
   Dialog,
   DialogContent,
@@ -89,8 +86,6 @@ export function HistorialVentas({
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined)
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined)
   const [exportando, setExportando] = useState(false)
-  const [popoverDesdeOpen, setPopoverDesdeOpen] = useState(false)
-  const [popoverHastaOpen, setPopoverHastaOpen] = useState(false)
   const [editingVenta, setEditingVenta] = useState<VentaConDetalles | null>(null)
   const [nuevoMetodoPago, setNuevoMetodoPago] = useState<"efectivo" | "transferencia">("efectivo")
   const [updatingPago, setUpdatingPago] = useState(false)
@@ -114,7 +109,6 @@ export function HistorialVentas({
   const [savingEdit, setSavingEdit] = useState(false)
   // Reglas de entrega que la edición no cumple (VB001): pedido de excepción.
   const [motivosBloqueoEdicion, setMotivosBloqueoEdicion] = useState<string[] | null>(null)
-  const [popoverEditFechaOpen, setPopoverEditFechaOpen] = useState(false)
   const router = useRouter()
 
   const [ventaABorrar, setVentaABorrar] = useState<VentaConDetalles | null>(null)
@@ -1346,33 +1340,16 @@ export function HistorialVentas({
           <div className="py-4 space-y-4">
             {/* Fecha */}
             <div className="space-y-2">
-              <Label>Fecha de Entrega</Label>
-              <Popover open={popoverEditFechaOpen} onOpenChange={setPopoverEditFechaOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal border-border bg-transparent"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {format(editFormData.fecha, "dd 'de' MMMM, yyyy", { locale: es })}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={editFormData.fecha}
-                    onSelect={(date) => {
-                      if (date) {
-                        setEditFormData({ ...editFormData, fecha: date })
-                      }
-                      setPopoverEditFechaOpen(false)
-                    }}
-                    locale={es}
-                    disabled={(date) => date > new Date()}
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label htmlFor="edit-fecha-entrega">Fecha de Entrega</Label>
+              <DatePicker
+                id="edit-fecha-entrega"
+                value={fechaATexto(editFormData.fecha)}
+                max={fechaATexto(new Date())}
+                onChange={(texto) => {
+                  const fecha = textoAFecha(texto)
+                  if (fecha) setEditFormData({ ...editFormData, fecha })
+                }}
+              />
             </div>
 
             {/* Socio */}
@@ -1740,60 +1717,24 @@ export function HistorialVentas({
 
             <div className="min-w-0 space-y-1.5">
               <label htmlFor="historial-desde" className="block text-sm font-medium text-foreground">Desde</label>
-              <Popover open={popoverDesdeOpen} onOpenChange={setPopoverDesdeOpen}>
-                <PopoverTrigger asChild>
-                  <Button id="historial-desde"
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start bg-card text-left font-normal",
-                      !fechaDesde && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {fechaDesde ? format(fechaDesde, "dd/MM/yyyy") : <span>Seleccionar</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fechaDesde}
-                    onSelect={(date) => {
-                      setFechaDesde(date)
-                      setPopoverDesdeOpen(false)
-                    }}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                id="historial-desde"
+                value={fechaATexto(fechaDesde)}
+                placeholder="Seleccionar"
+                clearable
+                onChange={(texto) => setFechaDesde(textoAFecha(texto))}
+              />
             </div>
 
             <div className="min-w-0 space-y-1.5">
               <label htmlFor="historial-hasta" className="block text-sm font-medium text-foreground">Hasta</label>
-              <Popover open={popoverHastaOpen} onOpenChange={setPopoverHastaOpen}>
-                <PopoverTrigger asChild>
-                  <Button id="historial-hasta"
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start bg-card text-left font-normal",
-                      !fechaHasta && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                    {fechaHasta ? format(fechaHasta, "dd/MM/yyyy") : <span>Seleccionar</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="monarca-theme w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fechaHasta}
-                    onSelect={(date) => {
-                      setFechaHasta(date)
-                      setPopoverHastaOpen(false)
-                    }}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                id="historial-hasta"
+                value={fechaATexto(fechaHasta)}
+                placeholder="Seleccionar"
+                clearable
+                onChange={(texto) => setFechaHasta(textoAFecha(texto))}
+              />
             </div>
 
           </div>

@@ -182,7 +182,7 @@ export function CiclosManager({ hoy, salas, initialCiclos, perfiles, yo }: Props
           const m = momentoCiclo(c, hoy)
           const obj = objetivos(m, c)
           const proximos = protocoloMonarca(c, sala.nombre)
-            .filter((t) => t.fecha >= hoy && !t.clave.startsWith("secado_"))
+            .filter((t) => t.fecha >= hoy && !t.clave.startsWith("secado_") && !t.clave.startsWith("king_crab_"))
             .slice(0, 5)
 
           return (

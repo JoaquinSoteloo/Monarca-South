@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   cicloActual,
+  esClaveAgregada,
   etapaRiegoDe,
   fechasCiclo,
   filasTareasCiclo,
@@ -124,5 +125,29 @@ describe("ciclos por sala", () => {
     expect(fecha("poda_bajos")).toBe(sumarDias(flip, 21))
     expect(fecha("prep_defoliacion")).toBe(sumarDias(flip, 19))
     expect(p.find((t) => t.clave === "prep_defoliacion")?.rol).toBe("mantenimiento")
+  })
+  it("nutrición de flora: King Crab semanal hasta el lavado, Calcis, Rhino Skin y Finis", () => {
+    const c = ciclo()
+    const p = protocoloMonarca(c, "Sala 2")
+    const fecha = (clave: string) => p.find((t) => t.clave === clave)?.fecha
+    const flip = fecha("flip")!
+    const lavado = fecha("lavado")!
+    const kc = p.filter((t) => t.clave.startsWith("king_crab_"))
+    expect(kc[0].fecha).toBe(flip)
+    expect(kc.every((t) => t.fecha < lavado)).toBe(true)
+    expect(sumarDias(kc[kc.length - 1].fecha, 7) >= lavado).toBe(true)
+    expect(kc[0].detalle).toContain("0,13 ml por litro")
+    expect(fecha("reglas_tanque_flora")).toBe(flip)
+    expect(fecha("calcis_baja")).toBe(sumarDias(flip, 21))
+    expect(fecha("rhino_corte")).toBe(sumarDias(flip, 42))
+    expect(fecha("finis")).toBe(sumarDias(lavado, -14))
+    expect(fecha("comprar_finis")).toBe(sumarDias(lavado, -21))
+    expect(p.find((t) => t.clave === "comprar_finis")?.rol).toBe("direccion")
+  })
+  it("las tareas agregadas después también entran en ciclos que ya tenían tareas", () => {
+    expect(esClaveAgregada("king_crab_3")).toBe(true)
+    expect(esClaveAgregada("calcis_baja")).toBe(true)
+    expect(esClaveAgregada("poda_bajos")).toBe(false)
+    expect(esClaveAgregada("prep_defoliacion")).toBe(true)
   })
 })

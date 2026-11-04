@@ -170,6 +170,26 @@ export function objetivos(m: Momento, c: Pick<CicloSala, "dias_flora">): Objetiv
 /** Tareas de defoliación (03/11/2026): se suman también a los ciclos que ya tenían tareas. */
 export const CLAVES_DEFOLIACION = ["prep_limpieza_bajos", "limpieza_bajos", "prep_defoliacion", "repaso_defoliacion"]
 
+/** Tareas de nutrición de flora (04/11/2026): también se suman a los ciclos que ya tenían tareas. */
+export const CLAVES_NUTRICION = ["reglas_tanque_flora", "calcis_baja", "comprar_finis", "finis", "rhino_corte"]
+
+/** Tareas que se agregaron después y se suman también a los ciclos que ya tenían tareas. */
+export function esClaveAgregada(clave: string): boolean {
+  return CLAVES_DEFOLIACION.includes(clave) || CLAVES_NUTRICION.includes(clave) || clave.startsWith("king_crab_")
+}
+
+/**
+ * Reglas del tanque en flora (pedido de Facundo, 04/11/2026). Van en las
+ * tareas para que estén a mano el día que se prepara la mezcla.
+ */
+export const REGLAS_TANQUE_FLORA =
+  "Orden: agua → Rhino Skin (hasta la semana 6) → Maikro AB → Calcis C → ajustar pH (máx. 6,0) → King Crab al final, solo el día que toca. " +
+  "Cada producto se mide solo, con su propia jeringa o vaso: nunca se mezclan dos productos concentrados. " +
+  "El día del King Crab no va agua oxigenada, hipoclorito ni nada que suba el ORP: eso va en otro riego, 2 o 3 días antes o después."
+
+/** King Crab: 0,5 ml por galón ≈ 0,13 ml por litro, una vez por semana. */
+export const KING_CRAB_ML_POR_L = 0.13
+
 export interface TareaCiclo {
   clave: string
   fecha: string
@@ -219,7 +239,7 @@ export function protocoloMonarca(c: CicloSala, nombreSala: string): TareaCiclo[]
       detalle: "Procedimiento «Defoliación». Hojas que tapan cogollos y ramitas bajas sin luz. Como máximo 20–30 % de las hojas. Revisar plagas y hermafroditas." },
     { clave: "lavado", fecha: f.lavado, rol: "cultivo", afecta: ["mantenimiento"], orden: 6,
       titulo: `${s} · Empieza el lavado: solo agua de ósmosis`,
-      detalle: "Drenaje buscado 20–30 %. El tanque de vege puede usarse como tanque de solo agua." },
+      detalle: "Drenaje buscado 20–30 %. El tanque de vege puede usarse como tanque de solo agua. Desde hoy, sin King Crab ni ningún otro producto." },
     { clave: "higiene", fecha: sumarDias(f.cosecha, -3), rol: "mantenimiento", afecta: ["cultivo"], orden: 5,
       titulo: `${s} · Higiene obligatoria antes del corte`, detalle: "Checklist del Manual 4: herramientas, redes, bandejas, ropa y sala de secado." },
     { clave: "pre_corte", fecha: sumarDias(f.cosecha, -1), rol: "mantenimiento", afecta: ["cultivo"], orden: 6,
@@ -245,6 +265,43 @@ export function protocoloMonarca(c: CicloSala, nombreSala: string): TareaCiclo[]
     t.push({ clave: "repaso_defoliacion", fecha: repaso, rol: "cultivo", afecta: [], orden: 20,
       titulo: `${s} · Repaso día 42: solo hojas amarillas o dañadas`,
       detalle: "Nada de defoliación fuerte desde acá hasta el corte." })
+  }
+  // Nutrición de flora (pedido de Facundo, 04/11/2026). Tabla Ryanodine AB+C para coco
+  // (versión 20/01/26): semanas 1–3 AB 4 + C 4; semanas 4 en adelante el Calcis baja a 2,8;
+  // las 2 últimas semanas antes del lavado, Mikro B 4 + Finis 0,91 g/L. Rhino Skin hasta la
+  // semana 6 y King Crab una vez por semana hasta el lavado.
+  const enFlora = (fecha: string) => fecha < f.lavado
+  t.push({ clave: "reglas_tanque_flora", fecha: f.flip, rol: "cultivo", afecta: ["mantenimiento"], orden: 7,
+    titulo: `${s} · Arranca la nutrición de flora: reglas del tanque`,
+    detalle: `Maikro AB 4 ml/L + Calcis 4 ml/L + Rhino Skin 2 ml/L (si la sala lo usa). ${REGLAS_TANQUE_FLORA}` })
+  for (let semana = 1, fecha = f.flip; enFlora(fecha); semana++, fecha = sumarDias(fecha, 7)) {
+    t.push({ clave: `king_crab_${semana}`, fecha, rol: "cultivo", afecta: [], orden: 8,
+      titulo: `${s} · King Crab de la semana ${semana} de flora`,
+      detalle:
+        `${String(KING_CRAB_ML_POR_L).replace(".", ",")} ml por litro, con jeringa de 1 ml (10 L → 1,3 ml · 50 L → 6,5 ml). ` +
+        "Va al final, con el pH ya ajustado, y se riega en el momento. " +
+        "Hoy nada de agua oxigenada, hipoclorito ni nada que suba el ORP. Cada producto se mide solo, con su jeringa." })
+  }
+  const bajaCalcis = sumarDias(f.flip, 21)
+  if (enFlora(bajaCalcis)) {
+    t.push({ clave: "calcis_baja", fecha: bajaCalcis, rol: "cultivo", afecta: [], orden: 7,
+      titulo: `${s} · Semana 4 de flora: bajar el Calcis a 2,8 ml/L`,
+      detalle: "Tabla Ryanodine AB+C coco: Maikro AB 4 ml/L + Calcis 2,8 ml/L, EC de la mezcla ~1,56 con agua de ósmosis. Sigue así hasta el cambio a Finis." })
+  }
+  const rhinoCorte = sumarDias(f.flip, 42)
+  if (enFlora(rhinoCorte)) {
+    t.push({ clave: "rhino_corte", fecha: rhinoCorte, rol: "cultivo", afecta: [], orden: 7,
+      titulo: `${s} · Cortar el Rhino Skin (semana 7 de flora)`,
+      detalle: "Si la sala usa Rhino Skin, desde hoy la mezcla va sin silicio: en el tramo final no aporta nada." })
+  }
+  const finis = sumarDias(f.lavado, -14)
+  if (finis > f.flip) {
+    t.push({ clave: "comprar_finis", fecha: sumarDias(finis, -7), rol: "direccion", afecta: ["cultivo"], orden: 10,
+      titulo: `${s} · Comprar Ryanodine Finis para el tramo final`,
+      detalle: `El ${fechaCorta(finis)} la sala pasa a Mikro B + Finis (0,91 g/L, en polvo). El Mikro B ya lo tenemos (línea verde).` })
+    t.push({ clave: "finis", fecha: finis, rol: "cultivo", afecta: [], orden: 7,
+      titulo: `${s} · Pasar a Mikro B + Finis hasta el lavado`,
+      detalle: "Sin Maikro AB ni Calcis. Primero Mikro B 4 ml/L, después Finis 0,91 g/L (pesar el polvo). EC de la mezcla ~1,33 con agua de ósmosis. Si en estas semanas no amarillea, el próximo ciclo se puede arrancar una semana antes." })
   }
   for (let i = 1; i < c.dias_secado; i++) {
     t.push({ clave: `secado_${i}`, fecha: sumarDias(f.cosecha, i), rol: "mantenimiento", afecta: [], orden: 15,

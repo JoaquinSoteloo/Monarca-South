@@ -7,6 +7,9 @@ export interface DeviceFormState {
   soporta_feedback: boolean
   simular_falla: boolean
   latencia_ms: string
+  /** Shelly Cloud: ID del dispositivo (app Shelly → Información del dispositivo) y canal del relé. */
+  shelly_device_id: string
+  shelly_canal: string
   requisito_ausente: "" | "encendido" | "apagado"
 }
 
@@ -17,6 +20,8 @@ export const initialDeviceForm: DeviceFormState = {
   soporta_feedback: false,
   simular_falla: false,
   latencia_ms: "",
+  shelly_device_id: "",
+  shelly_canal: "0",
   requisito_ausente: "",
 }
 

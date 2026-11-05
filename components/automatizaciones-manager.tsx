@@ -247,6 +247,7 @@ export function AutomatizacionesManager({
       latencia_ms: (d.proveedor_config as any)?.latenciaMs ? String((d.proveedor_config as any).latenciaMs) : "",
       shelly_device_id: typeof d.proveedor_config?.device_id === "string" ? d.proveedor_config.device_id : "",
       shelly_canal: typeof d.proveedor_config?.canal === "number" ? String(d.proveedor_config.canal) : "0",
+      broadlink_equipo: typeof d.proveedor_config?.equipo === "string" ? d.proveedor_config.equipo : "",
       requisito_ausente: d.requisito_ausente ?? "",
     })
     setIsDeviceDialogOpen(true)
@@ -265,6 +266,9 @@ export function AutomatizacionesManager({
     if (deviceForm.proveedor === "shelly_cloud") {
       proveedorConfig.device_id = deviceForm.shelly_device_id.trim()
       proveedorConfig.canal = Number(deviceForm.shelly_canal) || 0
+    }
+    if (deviceForm.proveedor === "broadlink_ir") {
+      proveedorConfig.equipo = deviceForm.broadlink_equipo.trim().toLowerCase()
     }
 
     const body = {

@@ -10,6 +10,8 @@ export interface DeviceFormState {
   /** Shelly Cloud: ID del dispositivo (app Shelly → Información del dispositivo) y canal del relé. */
   shelly_device_id: string
   shelly_canal: string
+  /** BroadLink: nombre del equipo en el puente de la sede (equipos.json de bridge/puente.py). */
+  broadlink_equipo: string
   requisito_ausente: "" | "encendido" | "apagado"
 }
 
@@ -22,6 +24,7 @@ export const initialDeviceForm: DeviceFormState = {
   latencia_ms: "",
   shelly_device_id: "",
   shelly_canal: "0",
+  broadlink_equipo: "",
   requisito_ausente: "",
 }
 

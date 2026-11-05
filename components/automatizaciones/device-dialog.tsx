@@ -13,7 +13,7 @@ import type { DeviceFormState } from "./form-types"
 
 export const proveedorOpciones: { value: ProveedorDispositivo; label: string; disponible: boolean }[] = [
   { value: "manual_noop", label: "Simulación (manual_noop) — sin hardware", disponible: true },
-  { value: "broadlink_ir", label: "BroadLink IR — próximamente", disponible: false },
+  { value: "broadlink_ir", label: "BroadLink (aire, por el puente de la sede)", disponible: true },
   { value: "shelly_local", label: "Shelly local — próximamente", disponible: false },
   { value: "shelly_cloud", label: "Shelly (por la nube de Shelly)", disponible: true },
   { value: "http_directo", label: "HTTP directo — próximamente", disponible: false },
@@ -128,6 +128,29 @@ export function DeviceDialog({ open, onOpenChange, editingDeviceId, salaNombre, 
                 </div>
               </div>
             </div>
+
+            {form.proveedor === "broadlink_ir" && (
+              <div className="space-y-3 rounded-md border border-border p-3">
+                <p className="text-xs font-semibold text-foreground">BroadLink por infrarrojo</p>
+                <p className="text-xs text-muted-foreground">
+                  Lo maneja la notebook de la sede (bridge/puente.py). Escribí el mismo nombre que tiene el BroadLink en el puente, por
+                  ejemplo sala5. Los códigos del control del aire se aprenden en la notebook, no acá. Si la notebook está apagada, el
+                  comando vence a los 2 minutos.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="dev_broadlink">Nombre en el puente</Label>
+                  <Input
+                    id="dev_broadlink"
+                    value={form.broadlink_equipo}
+                    onChange={(e) => setForm((f) => ({ ...f, broadlink_equipo: e.target.value }))}
+                    placeholder="sala5"
+                    pattern="[A-Za-z0-9_-]+"
+                    autoComplete="off"
+                    required
+                  />
+                </div>
+              </div>
+            )}
 
             {form.proveedor === "shelly_cloud" && (
               <div className="space-y-3 rounded-md border border-border p-3">

@@ -69,7 +69,10 @@ export const PANTALLAS: PantallaPermisos[] = [
     nombre: "Gastos",
     grupo: "Finanzas",
     ver: "gastos.ver",
-    acciones: [{ clave: "gastos.categorias", label: "Crear, renombrar y borrar categorías" }],
+    acciones: [
+      { clave: "gastos.todos", label: "Ver todos los gastos y los totales (sin esto, solo carga y ve los suyos)" },
+      { clave: "gastos.categorias", label: "Crear, renombrar y borrar categorías" },
+    ],
   },
   {
     ruta: "/aportes",

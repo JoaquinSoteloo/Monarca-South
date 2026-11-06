@@ -6,7 +6,11 @@ export default async function GastosPage() {
   const session = await getServerSession()
   return (
     <main className="container mx-auto px-4 py-8">
-      <GastosManager puedeEditarCategorias={tienePermiso(session?.permisos, "gastos.categorias")} />
+      <GastosManager
+        puedeEditarCategorias={tienePermiso(session?.permisos, "gastos.categorias")}
+        verTodo={tienePermiso(session?.permisos, "gastos.todos")}
+        usuarioId={session?.id ?? null}
+      />
     </main>
   )
 }

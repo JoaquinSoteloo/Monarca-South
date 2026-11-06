@@ -50,6 +50,9 @@ const EN_RESULTADO_LABEL: Record<EnResultado, string> = {
 interface GastosManagerProps {
   /** Permiso gastos.categorias: crear, renombrar o borrar categorías. */
   puedeEditarCategorias: boolean
+  /** Permiso gastos.todos: ver todos los gastos y los totales. Sin él, solo carga y ve los suyos (script 093). */
+  verTodo?: boolean
+  usuarioId?: string | null
 }
 
 type Aviso = { ok: boolean; texto: string } | null
@@ -89,7 +92,7 @@ function AvisoBox({ aviso, onClose }: { aviso: Aviso; onClose: () => void }) {
   )
 }
 
-export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
+export function GastosManager({ puedeEditarCategorias, verTodo = true, usuarioId = null }: GastosManagerProps) {
   const [gastos, setGastos] = useState<Gasto[]>([])
   const [categorias, setCategorias] = useState<CategoriaGasto[]>([])
   const [aportes, setAportes] = useState<AporteCapital[]>([])
@@ -127,9 +130,10 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
 
   async function fetchGastos() {
     setLoading(true)
-    const { data, error } = await supabase
-      .from("gastos")
-      .select("*")
+    let consulta = supabase.from("gastos").select("*")
+    // Sin gastos.todos solo se ven los propios (la base también lo exige, script 093).
+    if (!verTodo) consulta = usuarioId ? consulta.eq("cargado_por", usuarioId) : consulta.eq("id", "00000000-0000-0000-0000-000000000000")
+    const { data, error } = await consulta
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
 
@@ -427,13 +431,19 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Gastos</h2>
-          <p className="text-muted-foreground">Registrá y administrá los gastos de la asociación</p>
+          <p className="text-muted-foreground">
+            {verTodo
+              ? "Registrá y administrá los gastos de la asociación"
+              : "Cargá los gastos que pagaste. Acá ves solo los que cargaste vos."}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button className="bg-card" variant="outline" onClick={() => setShowCategoriasDialog(true)}>
-            <Tag className="h-4 w-4 mr-2" />
-            Categorías
-          </Button>
+          {verTodo && (
+            <Button className="bg-card" variant="outline" onClick={() => setShowCategoriasDialog(true)}>
+              <Tag className="h-4 w-4 mr-2" />
+              Categorías
+            </Button>
+          )}
           <Button onClick={() => setShowForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
             <Plus className="h-4 w-4 mr-2" />
             Nuevo gasto
@@ -443,7 +453,7 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
 
       <AvisoBox aviso={aviso} onClose={() => setAviso(null)} />
 
-      {cantidadSinClasificar > 0 && (
+      {verTodo && cantidadSinClasificar > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <span className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -459,6 +469,8 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
         </div>
       )}
 
+      {verTodo && (
+      <>
       {/* Filtros */}
       <div className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-3">
         <div className="space-y-1.5">
@@ -628,6 +640,8 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
 
       {reclasificando && (
         <ReclasificarGastosDialog
@@ -809,7 +823,7 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
 
       <Card className="min-w-0 gap-4 bg-card">
         <CardHeader>
-          <CardTitle className="text-base">Historial de gastos</CardTitle>
+          <CardTitle className="text-base">{verTodo ? "Historial de gastos" : "Tus gastos cargados"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {seleccion.size > 0 && (

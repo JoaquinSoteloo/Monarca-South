@@ -31,7 +31,7 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 EQUIPOS = os.path.join(AQUI, "equipos.json")
 CODIGOS = os.path.join(AQUI, "codigos.json")
 CONFIG = os.path.join(AQUI, "puente.env")
-INTERVALO_S = 4
+INTERVALO_S = 15
 
 logging.basicConfig(
     level=logging.INFO,

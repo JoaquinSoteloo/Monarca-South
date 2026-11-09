@@ -7,7 +7,8 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 // Reglas:
 // - Un comando que no se tomó (o no se resolvió) en VENCE_MS queda en
 //   "timeout": no tiene sentido prender el aire 10 minutos tarde, y el motor
-//   lo trata como falla.
+//   lo trata como falla. Lo marcan el puente al preguntar y el motor en cada
+//   corrida (con la notebook apagada, nadie más pregunta).
 // - Si hay varios pendientes para el mismo equipo, solo vale el último; los
 //   anteriores quedan "cancelado".
 
@@ -34,22 +35,24 @@ export function autorizado(request: Request): boolean {
   return request.headers.get("authorization") === `Bearer ${token}`
 }
 
-export async function tomarComandos(supabase: SupabaseClient, bridgeId: string, ahora = new Date()): Promise<ComandoParaPuente[]> {
-  const { data: dispositivos, error: errD } = await supabase
+async function dispositivosDelPuente(supabase: SupabaseClient): Promise<Map<number, Fila>> {
+  const { data, error } = await supabase
     .from("dispositivos_controlables")
     .select("id, nombre, tipo, proveedor, proveedor_config, activo, modo_ejecucion")
     .eq("modo_ejecucion", "bridge_polling")
-  if (errD) throw new Error(errD.message)
-  const porId = new Map<number, Fila>((dispositivos ?? []).filter((d: Fila) => d.activo !== false).map((d: Fila) => [d.id, d]))
-  if (porId.size === 0) return []
+  if (error) throw new Error(error.message)
+  return new Map<number, Fila>((data ?? []).filter((d: Fila) => d.activo !== false).map((d: Fila) => [d.id, d]))
+}
 
-  const { data: abiertos, error: errC } = await supabase
+/** Vence los comandos viejos de esos equipos y devuelve los pendientes que siguen vigentes. */
+async function vencerViejos(supabase: SupabaseClient, dispositivoIds: number[], ahora: Date): Promise<Fila[]> {
+  const { data: abiertos, error } = await supabase
     .from("comandos_dispositivo")
     .select("*")
-    .in("dispositivo_id", [...porId.keys()])
+    .in("dispositivo_id", dispositivoIds)
     .in("estado", ["pendiente", "en_proceso"])
     .order("creado_en", { ascending: true })
-  if (errC) throw new Error(errC.message)
+  if (error) throw new Error(error.message)
 
   const limite = ahora.getTime() - VENCE_MS
   const vigentes: Fila[] = []
@@ -66,6 +69,22 @@ export async function tomarComandos(supabase: SupabaseClient, bridgeId: string, 
       vigentes.push(c)
     }
   }
+  return vigentes
+}
+
+/**
+ * Para el motor: con la notebook apagada nadie pregunta, y sin esto los
+ * comandos quedarían "pendiente" para siempre, sin alerta y sin reintento.
+ */
+export async function vencerComandos(supabase: SupabaseClient, ahora = new Date()): Promise<void> {
+  const porId = await dispositivosDelPuente(supabase)
+  if (porId.size > 0) await vencerViejos(supabase, [...porId.keys()], ahora)
+}
+
+export async function tomarComandos(supabase: SupabaseClient, bridgeId: string, ahora = new Date()): Promise<ComandoParaPuente[]> {
+  const porId = await dispositivosDelPuente(supabase)
+  if (porId.size === 0) return []
+  const vigentes = await vencerViejos(supabase, [...porId.keys()], ahora)
 
   // Solo el último pendiente de cada equipo.
   const ultimo = new Map<number, Fila>()

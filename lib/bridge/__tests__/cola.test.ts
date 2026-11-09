@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { createFakeSupabase, type FakeSupabase } from "@/lib/automations/__tests__/fake-supabase"
-import { autorizado, resolverComando, tomarComandos } from "../cola"
+import { autorizado, resolverComando, tomarComandos, vencerComandos } from "../cola"
 
 const AHORA = new Date("2026-11-05T22:00:00.000Z")
 const hace = (s: number) => new Date(AHORA.getTime() - s * 1000).toISOString()
@@ -43,6 +43,19 @@ describe("cola del puente BroadLink", () => {
     expect(await tomarComandos(db as any, "notebook", AHORA)).toEqual([])
     expect(db.tables.comandos_dispositivo[0].estado).toBe("timeout")
     expect(db.tables.dispositivos_controlables[0].ultimo_comando_estado).toBe("timeout")
+  })
+
+  it("sin que nadie pregunte, vencerComandos marca solo los viejos del puente", async () => {
+    db.seed("comandos_dispositivo", [
+      { id: 40, dispositivo_id: 1, estado: "pendiente", payload: { accion: "encender" }, creado_en: hace(600), intentos: 0 },
+      { id: 41, dispositivo_id: 1, estado: "pendiente", payload: { accion: "apagar" }, creado_en: hace(30), intentos: 0 },
+      { id: 42, dispositivo_id: 2, estado: "pendiente", payload: { accion: "encender" }, creado_en: hace(600), intentos: 0 },
+    ])
+    await vencerComandos(db as any, AHORA)
+    const fila = (id: number) => db.tables.comandos_dispositivo.find((c) => c.id === id)!
+    expect(fila(40).estado).toBe("timeout")
+    expect(fila(41).estado).toBe("pendiente")
+    expect(fila(42).estado).toBe("pendiente") // no es del puente
   })
 
   it("resolver deja el resultado en el comando y en el equipo", async () => {

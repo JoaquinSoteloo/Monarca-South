@@ -1,10 +1,11 @@
 # Puente de la sede para los BroadLink
 
 La notebook de la sede (Windows) hace de puente entre el sistema y los
-BroadLink que manejan los aires. Cada 4 segundos le pregunta al sistema si
+BroadLink que manejan los aires. Cada 15 segundos le pregunta al sistema si
 hay órdenes, las manda por infrarrojo y avisa cómo le fue. Si la notebook
-está apagada, la orden vence a los 2 minutos y Automatizaciones la marca
-como vencida.
+está apagada, la orden no se ejecuta tarde: vence a los 2 minutos y, en la
+siguiente corrida del motor (cada 5 minutos), la pantalla de Automatizaciones
+muestra la alerta.
 
 ## 1. Lo que tiene que hacer Joaco (una vez)
 
@@ -49,12 +50,16 @@ Con el control remoto del split, apuntando al BroadLink:
 
 ```
 python puente.py aprender sala5 apagar
+python puente.py aprender sala5 encender
 python puente.py aprender sala5 frio_23
 python puente.py aprender sala5 frio_24
 python puente.py probar sala5 apagar
 ```
 
 - `apagar` es obligatorio.
+- `encender` es lo que manda el botón Encender de **Control manual**: en el
+  control, poner el aire como lo quieran por defecto (por ejemplo frío y
+  23 °C) y apretar el botón de encender.
 - `frio_23` = en el control, poner **frío y 23 °C** y apretar el botón de
   encender (el control manda todo junto). Aprender las temperaturas que usen
   las reglas (por ejemplo 23 y 24).

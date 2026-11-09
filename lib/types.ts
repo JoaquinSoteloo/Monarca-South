@@ -371,6 +371,8 @@ export interface DispositivoControlable {
   ultimo_comando_estado: EstadoComando | null
   ultimo_estado_confirmado_payload: Record<string, unknown> | null
   ultimo_estado_confirmado_en: string | null
+  /** Cuándo se avisó por push de la falla actual; NULL si no hay (scripts/092). */
+  falla_notificada_en?: string | null
   // NULL = no es crítico para Modo Ausente (default). Ver lib/modo-ausente/.
   requisito_ausente: RequisitoAusente | null
   created_at: string

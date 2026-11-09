@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { evaluateAutomations } from "@/lib/automations/engine"
+import { avisarOrdenesSinCumplir } from "@/lib/automations/aviso-fallas"
 import { getServerSession } from "@/lib/auth/session"
 import { withEngineLock } from "@/lib/automations/lock"
 import { checkModoAusente } from "@/lib/modo-ausente/engine"
@@ -28,7 +29,7 @@ export async function POST() {
   const supabase = await createClient()
   try {
     const resultado = await withEngineLock(supabase, async () => {
-      const evaluacion = await evaluateAutomations(supabase)
+      const evaluacion = await evaluateAutomations(supabase, { avisarFallas: avisarOrdenesSinCumplir })
       const modoAusente = await checkModoAusente(supabase)
       return { evaluacion, modoAusente }
     })

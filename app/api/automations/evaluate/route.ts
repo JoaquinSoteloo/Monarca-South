@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { evaluateAutomations } from "@/lib/automations/engine"
+import { avisarOrdenesSinCumplir } from "@/lib/automations/aviso-fallas"
 import { withEngineLock } from "@/lib/automations/lock"
 import { checkModoAusente } from "@/lib/modo-ausente/engine"
 
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
     // reutiliza la cadencia y la serialización del motor en vez de un cron
     // propio. No hace nada (costo cero) si Modo Ausente está inactivo.
     const resultado = await withEngineLock(supabase, async () => {
-      const evaluacion = await evaluateAutomations(supabase)
+      const evaluacion = await evaluateAutomations(supabase, { avisarFallas: avisarOrdenesSinCumplir })
       const modoAusente = await checkModoAusente(supabase)
       return { evaluacion, modoAusente }
     })

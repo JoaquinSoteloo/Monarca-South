@@ -245,6 +245,8 @@ export function AutomatizacionesManager({
       soporta_feedback: d.soporta_feedback,
       simular_falla: Boolean((d.proveedor_config as any)?.fallarSiempre),
       latencia_ms: (d.proveedor_config as any)?.latenciaMs ? String((d.proveedor_config as any).latenciaMs) : "",
+      shelly_device_id: typeof d.proveedor_config?.device_id === "string" ? d.proveedor_config.device_id : "",
+      shelly_canal: typeof d.proveedor_config?.canal === "number" ? String(d.proveedor_config.canal) : "0",
       requisito_ausente: d.requisito_ausente ?? "",
     })
     setIsDeviceDialogOpen(true)
@@ -259,6 +261,10 @@ export function AutomatizacionesManager({
     if (deviceForm.proveedor === "manual_noop") {
       if (deviceForm.simular_falla) proveedorConfig.fallarSiempre = true
       if (deviceForm.latencia_ms) proveedorConfig.latenciaMs = Number(deviceForm.latencia_ms)
+    }
+    if (deviceForm.proveedor === "shelly_cloud") {
+      proveedorConfig.device_id = deviceForm.shelly_device_id.trim()
+      proveedorConfig.canal = Number(deviceForm.shelly_canal) || 0
     }
 
     const body = {

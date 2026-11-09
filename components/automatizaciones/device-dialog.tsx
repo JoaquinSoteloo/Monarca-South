@@ -15,7 +15,7 @@ export const proveedorOpciones: { value: ProveedorDispositivo; label: string; di
   { value: "manual_noop", label: "Simulación (manual_noop) — sin hardware", disponible: true },
   { value: "broadlink_ir", label: "BroadLink IR — próximamente", disponible: false },
   { value: "shelly_local", label: "Shelly local — próximamente", disponible: false },
-  { value: "shelly_cloud", label: "Shelly Cloud — próximamente", disponible: false },
+  { value: "shelly_cloud", label: "Shelly (por la nube de Shelly)", disponible: true },
   { value: "http_directo", label: "HTTP directo — próximamente", disponible: false },
 ]
 
@@ -128,6 +128,39 @@ export function DeviceDialog({ open, onOpenChange, editingDeviceId, salaNombre, 
                 </div>
               </div>
             </div>
+
+            {form.proveedor === "shelly_cloud" && (
+              <div className="space-y-3 rounded-md border border-border p-3">
+                <p className="text-xs font-semibold text-foreground">Relé o enchufe Shelly</p>
+                <p className="text-xs text-muted-foreground">
+                  El ID está en la app Shelly Smart Control → el dispositivo → Configuración → Información del dispositivo (ej.
+                  a0b1c2d3e4f5). La clave de la nube la carga el administrador en el servidor, no acá.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+                  <div className="space-y-2">
+                    <Label htmlFor="dev_shelly_id">ID del dispositivo Shelly</Label>
+                    <Input
+                      id="dev_shelly_id"
+                      value={form.shelly_device_id}
+                      onChange={(e) => setForm((f) => ({ ...f, shelly_device_id: e.target.value }))}
+                      placeholder="a0b1c2d3e4f5"
+                      autoComplete="off"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dev_shelly_canal">Canal</Label>
+                    <Input
+                      id="dev_shelly_canal"
+                      type="number"
+                      min={0}
+                      value={form.shelly_canal}
+                      onChange={(e) => setForm((f) => ({ ...f, shelly_canal: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {form.proveedor === "manual_noop" && (
               <div className="space-y-3 rounded-md border border-accent/40 bg-accent/5 p-3">

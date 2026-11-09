@@ -1,6 +1,7 @@
 import type { ProveedorDispositivo } from "@/lib/types"
 import type { AdapterServidorDirecto } from "./types"
 import { manualNoopAdapter } from "./manual-noop"
+import { shellyCloudAdapter } from "./shelly-cloud"
 
 // Solo providers con modo_ejecucion = 'servidor_directo' tienen entrada acá:
 // el motor los invoca directo, en el mismo request que encola el comando.
@@ -12,6 +13,7 @@ import { manualNoopAdapter } from "./manual-noop"
 // objeto; el motor de reglas no cambia.
 const registry: Partial<Record<ProveedorDispositivo, AdapterServidorDirecto>> = {
   manual_noop: manualNoopAdapter,
+  shelly_cloud: shellyCloudAdapter,
 }
 
 export function getServerAdapter(proveedor: ProveedorDispositivo): AdapterServidorDirecto | null {

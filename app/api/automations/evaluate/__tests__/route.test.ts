@@ -103,7 +103,7 @@ describe("POST /api/automations/evaluate", () => {
     // El mismo cliente que devuelve createServiceClient() es el que se le
     // pasa al lock y al motor — nunca uno creado por otro lado.
     expect(withEngineLockMock).toHaveBeenCalledWith(FAKE_SERVICE_CLIENT, expect.any(Function))
-    expect(evaluateAutomationsMock).toHaveBeenCalledWith(FAKE_SERVICE_CLIENT)
+    expect(evaluateAutomationsMock).toHaveBeenCalledWith(FAKE_SERVICE_CLIENT, { avisarFallas: expect.any(Function) })
     expect(checkModoAusenteMock).toHaveBeenCalledWith(FAKE_SERVICE_CLIENT)
 
     const body = await response.json()

@@ -282,7 +282,17 @@ async function intentarDisparo(
   return { disparado: true, comandoId: comando?.id ?? null }
 }
 
-export async function evaluateAutomations(supabase: SupabaseClient): Promise<EvaluateSummary> {
+export interface OpcionesEvaluacion {
+  /**
+   * Avisa de las órdenes que no se pudieron cumplir. Corre después de vencer
+   * los comandos y antes de evaluar las reglas, porque una regla puede
+   * reintentar y pisar el estado del equipo. Lo pasan las rutas del motor:
+   * este archivo también llega al navegador (vía alerts.ts) y web-push no.
+   */
+  avisarFallas?: (supabase: SupabaseClient, ahora: Date) => Promise<unknown>
+}
+
+export async function evaluateAutomations(supabase: SupabaseClient, opciones: OpcionesEvaluacion = {}): Promise<EvaluateSummary> {
   const ahora = new Date()
   const resumen: EvaluateSummary = {
     lecturasInsertadas: 0,
@@ -299,6 +309,11 @@ export async function evaluateAutomations(supabase: SupabaseClient): Promise<Eva
     await vencerComandos(supabase, ahora)
   } catch (err) {
     console.error("[automations/engine] Error venciendo comandos del puente:", err)
+  }
+  try {
+    await opciones.avisarFallas?.(supabase, ahora)
+  } catch (err) {
+    console.error("[automations/engine] Error avisando órdenes sin cumplir:", err)
   }
 
   // 1) Snapshot en vivo de Pulse + persistencia mínima que necesita el motor

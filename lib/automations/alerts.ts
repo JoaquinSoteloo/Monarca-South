@@ -1,6 +1,6 @@
-// Cálculo puro de alertas operativas para la UI de Automatizaciones. No hay
-// todavía un sistema de notificaciones (push/email/WhatsApp) — esto solo
-// produce una lista de estados relevantes para pintar en la pantalla.
+// Cálculo puro de alertas operativas para la UI de Automatizaciones: produce
+// una lista de estados relevantes para pintar en la pantalla. El push al
+// celular de las órdenes sin cumplir lo manda lib/automations/aviso-fallas.ts.
 //
 // Deliberadamente NO reevalúa condiciones de automatización acá (eso es
 // responsabilidad exclusiva de evaluateAutomations en engine.ts): estas

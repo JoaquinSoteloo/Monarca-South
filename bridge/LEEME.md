@@ -5,7 +5,7 @@ BroadLink que manejan los aires. Cada 15 segundos le pregunta al sistema si
 hay órdenes, las manda por infrarrojo y avisa cómo le fue. Si la notebook
 está apagada, la orden no se ejecuta tarde: vence a los 2 minutos y, en la
 siguiente corrida del motor (cada 5 minutos), la pantalla de Automatizaciones
-muestra la alerta.
+muestra la alerta y llega un aviso al celular.
 
 ## 1. Lo que tiene que hacer Joaco (una vez)
 

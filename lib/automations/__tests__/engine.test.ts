@@ -126,6 +126,54 @@ describe("evaluateAutomations", () => {
     expect(comandos.filter((c) => c.estado === "pendiente")).toHaveLength(1)
   })
 
+  it("avisa de la falla antes de que la regla reintente y pise el estado", async () => {
+    const supabase = createFakeSupabase()
+    const pedido = { accion: "encender" }
+    supabase.seed("dispositivos_controlables", [
+      makeDispositivo({
+        proveedor: "broadlink_ir",
+        modo_ejecucion: "bridge_polling",
+        ultimo_comando_payload: pedido,
+        ultimo_comando_estado: "pendiente",
+      }),
+    ])
+    supabase.seed("comandos_dispositivo", [
+      { id: 100, dispositivo_id: 1, estado: "pendiente", payload: pedido, creado_en: new Date(AHORA.getTime() - 10 * 60 * 1000).toISOString(), intentos: 0 },
+    ])
+    supabase.seed("automatizaciones", [makeAutomatizacion()])
+    seedLectura(supabase, { leido_en: AHORA.toISOString(), temperatura_c: 26 })
+
+    let estadoAlAvisar: unknown
+    let comandosAlAvisar = -1
+    const resumen = await evaluateAutomations(db(supabase), {
+      avisarFallas: async () => {
+        estadoAlAvisar = supabase.tables["dispositivos_controlables"][0].ultimo_comando_estado
+        comandosAlAvisar = supabase.tables["comandos_dispositivo"].length
+      },
+    })
+
+    expect(estadoAlAvisar).toBe("timeout")
+    expect(comandosAlAvisar).toBe(1)
+    expect(resumen.comandosEncolados).toBe(1)
+  })
+
+  it("si el aviso se rompe, las reglas se evalúan igual", async () => {
+    const supabase = createFakeSupabase()
+    supabase.seed("dispositivos_controlables", [makeDispositivo()])
+    supabase.seed("automatizaciones", [makeAutomatizacion()])
+    seedLectura(supabase, { leido_en: AHORA.toISOString(), temperatura_c: 26 })
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    const resumen = await evaluateAutomations(db(supabase), {
+      avisarFallas: async () => {
+        throw new Error("push caído")
+      },
+    })
+
+    expect(resumen.comandosEncolados).toBe(1)
+    error.mockRestore()
+  })
+
   it("activa una regla cuando la condición instantánea se cumple", async () => {
     const supabase = createFakeSupabase()
     supabase.seed("dispositivos_controlables", [makeDispositivo()])

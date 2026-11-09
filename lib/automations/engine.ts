@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { getPulseSnapshots } from "@/lib/pulse-grow/service"
 import { STALE_AFTER_MINUTES } from "@/lib/pulse-grow/format"
 import { getServerAdapter } from "./adapters"
+import { vencerComandos } from "@/lib/bridge/cola"
 import type { Automatizacion, DispositivoControlable, OperadorComparacion, VariableAmbiental } from "@/lib/types"
 
 export interface EvaluateSummary {
@@ -124,8 +125,8 @@ async function condicionSostenida(
 /**
  * Encola un comando abstracto para el dispositivo. Si modo_ejecucion es
  * 'servidor_directo', lo resuelve en el mismo request invocando el adapter
- * correspondiente. Si es 'bridge_polling', lo deja 'pendiente' para que un
- * bridge externo lo tome (no implementado todavía).
+ * correspondiente. Si es 'bridge_polling', lo deja 'pendiente' para que lo
+ * tome el puente de la sede (bridge/puente.py).
  */
 export async function encolarComando(
   supabase: SupabaseClient,
@@ -184,8 +185,7 @@ export async function encolarComando(
       .eq("id", comando.id)
   }
   // modo_ejecucion === 'bridge_polling': el comando queda 'pendiente'; lo
-  // resuelve un bridge externo vía /api/bridge/commands (diseñado, no
-  // implementado todavía).
+  // resuelve el puente de la sede vía /api/bridge/commands.
 
   await supabase
     .from("dispositivos_controlables")
@@ -289,6 +289,16 @@ export async function evaluateAutomations(supabase: SupabaseClient): Promise<Eva
     reglasEvaluadas: 0,
     comandosEncolados: 0,
     errores: [],
+  }
+
+  // 0) Comandos del puente que nadie resolvió (por ejemplo, con la notebook
+  // apagada): vencen acá para que el equipo quede en "timeout", la pantalla
+  // muestre la alerta y la regla pueda reintentar. Si esto falla, las reglas
+  // se evalúan igual.
+  try {
+    await vencerComandos(supabase, ahora)
+  } catch (err) {
+    console.error("[automations/engine] Error venciendo comandos del puente:", err)
   }
 
   // 1) Snapshot en vivo de Pulse + persistencia mínima que necesita el motor

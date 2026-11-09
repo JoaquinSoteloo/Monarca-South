@@ -11,13 +11,19 @@ const PUBLIC_PAGES = ["/login", "/reservar"]
 //   sesión de usuario. automations/evaluate/manual SÍ requiere sesión.
 // - chat/notificar: la llama la base (pg_net, script 090) con el mismo
 //   AUTOMATIONS_CRON_SECRET.
+// - bridge/commands: la notebook de la sede (bridge/puente.py), autenticada
+//   con su propio BRIDGE_TOKEN vía header Authorization. Las rutas lo validan.
 const PUBLIC_API_PATHS = [
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/session",
   "/api/automations/evaluate",
   "/api/chat/notificar",
+  "/api/bridge/commands",
 ]
+
+// Igual que las de arriba, pero con un id al final (/api/bridge/commands/123).
+const PUBLIC_API_PREFIXES = ["/api/bridge/commands/"]
 
 // setAll() puede haber agregado o eliminado cookies (refresh de sesión) en
 // `response` durante supabase.auth.getUser(). Toda respuesta que devolvamos
@@ -60,7 +66,8 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
   const isPublicPage = PUBLIC_PAGES.includes(pathname)
-  const isPublicApi = PUBLIC_API_PATHS.includes(pathname)
+  const isPublicApi =
+    PUBLIC_API_PATHS.includes(pathname) || PUBLIC_API_PREFIXES.some((prefijo) => pathname.startsWith(prefijo))
 
   if (!user && !isPublicPage && !isPublicApi) {
     if (pathname.startsWith("/api/")) {

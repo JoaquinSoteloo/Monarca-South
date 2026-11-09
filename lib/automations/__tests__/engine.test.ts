@@ -100,6 +100,32 @@ afterEach(() => {
 })
 
 describe("evaluateAutomations", () => {
+  it("vence el comando que el puente no tomó y la regla vuelve a intentar", async () => {
+    const supabase = createFakeSupabase()
+    const pedido = { accion: "encender" }
+    supabase.seed("dispositivos_controlables", [
+      makeDispositivo({
+        proveedor: "broadlink_ir",
+        modo_ejecucion: "bridge_polling",
+        ultimo_comando_payload: pedido,
+        ultimo_comando_estado: "pendiente",
+      }),
+    ])
+    supabase.seed("comandos_dispositivo", [
+      { id: 100, dispositivo_id: 1, estado: "pendiente", payload: pedido, creado_en: new Date(AHORA.getTime() - 10 * 60 * 1000).toISOString(), intentos: 0 },
+    ])
+    supabase.seed("automatizaciones", [makeAutomatizacion()])
+    seedLectura(supabase, { leido_en: AHORA.toISOString(), temperatura_c: 26 })
+
+    const resumen = await evaluateAutomations(db(supabase))
+
+    const comandos = supabase.tables["comandos_dispositivo"]
+    expect(comandos.find((c) => c.id === 100)?.estado).toBe("timeout")
+    // Sin vencerlo, el motor lo vería como "ya pedido" y no reintentaría nunca.
+    expect(resumen.comandosEncolados).toBe(1)
+    expect(comandos.filter((c) => c.estado === "pendiente")).toHaveLength(1)
+  })
+
   it("activa una regla cuando la condición instantánea se cumple", async () => {
     const supabase = createFakeSupabase()
     supabase.seed("dispositivos_controlables", [makeDispositivo()])

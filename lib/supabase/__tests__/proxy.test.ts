@@ -63,6 +63,8 @@ describe("updateSession (proxy)", () => {
     "/api/auth/session",
     "/api/automations/evaluate",
     "/api/chat/notificar",
+    "/api/bridge/commands",
+    "/api/bridge/commands/123",
   ])(
     "deja pasar la ruta pública %s sin sesión",
     async (path) => {

@@ -4,6 +4,7 @@ import { headers } from "next/headers"
 import { ShieldX } from "lucide-react"
 import { AppSidebar, AppMobileNav } from "@/components/app-nav"
 import { AppBottomNav } from "@/components/app-bottom-nav"
+import { BotonActualizar } from "@/components/boton-actualizar"
 import { getServerSession } from "@/lib/auth/session"
 import { permisoDeRuta, tienePermiso } from "@/lib/permisos"
 import { cn } from "@/lib/utils"
@@ -47,6 +48,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </div>
+
+      {session && (
+        <BotonActualizar className={cn("fixed right-4 z-40", conBarra ? "bottom-24 lg:bottom-6" : "bottom-6")} />
+      )}
 
       {conBarra && session && (
         <Suspense>

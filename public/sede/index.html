@@ -139,7 +139,7 @@ if (new URLSearchParams(location.search).get('modo') === 'sistema') document.doc
 <canvas id="c"></canvas>
 <div id="labels"></div>
 <div id="hud">
-  <h1>Monarca virtual <span class="demo">DEMO v0.9</span></h1>
+  <h1>Monarca virtual <span class="demo">DEMO v1.0</span></h1>
   <div class="sub">Sede Balbastro + Sala 4 Itaquí · plano dibujado por Facundo (31/10) con medidas de las salas · datos de ejemplo</div>
   <div style="display:flex;align-items:baseline;gap:8px"><span id="clock">--:--</span><span id="day" style="font-size:12px;color:#5b665f"></span></div>
   <div class="row" id="filaTiempo">
@@ -167,7 +167,7 @@ if (new URLSearchParams(location.search).get('modo') === 'sistema') document.doc
 <div id="ftBg"><form id="ft"></form></div>
 <button id="chatBtn">💬 Chat del equipo<span class="n" id="chatN" style="display:none"></span></button>
 <div id="chat"><header><div>Chat del equipo<small>Canal «Todos» para el equipo, un chat privado con cada uno y el 🤖 Asistente de cultivo con IA. Al conectar el simulador al sistema, es el mismo chat de Equipo.</small></div><button id="chatX" style="background:none;border:none;color:#f4f1e8;font-size:16px">✕</button></header><div id="chatCanales"></div><div id="chatPara"></div><div id="chatMsgs"></div><form id="chatF"><select id="chatQuien"></select><input id="chatTxt" placeholder="Escribir un mensaje" autocomplete="off"><button>Enviar</button></form></div>
-<div id="help">Arrastrá para mover la vista · rueda o pellizco para zoom · tocá a una persona para ver sus tareas o una sala para ver su ficha · ✓ la hace (las de riego piden EC y pH), ! marca un problema.</div>
+<div id="help">Arrastrá para mover la vista · rueda o pellizco para zoom · tocá a una persona para ver sus tareas o a un ayudante de IA para hablarle o una sala para ver su ficha · ✓ la hace (las de riego piden EC y pH), ! marca un problema.</div>
 
 <script>
 // Modo sistema: los textos de la demo, cambiados antes de que se vea la página (sin
@@ -726,6 +726,36 @@ const chango = { g: new THREE.Group(), el: helperLabel('Changuito'), bubble: 'Li
   chango.items = new THREE.Group(); chango.g.add(chango.items);
   const r = rooms.aten; chango.g.position.set(2.2, 0, 13.0); world.add(chango.g);
 }
+// Gota: gota de agua en la sala de agua (estudia cada riego)
+const gota = { g: new THREE.Group(), el: helperLabel('Gota'), bubble: 'Esperando el próximo riego' };
+{
+  const agua = new THREE.MeshStandardMaterial({ color: '#4fb3ff', emissive: '#1a7fd0', emissiveIntensity: .35, transparent: true, opacity: .85, roughness: .15 });
+  const cuerpo = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 16), agua); cuerpo.position.y = 0.16; gota.g.add(cuerpo);
+  const punta = new THREE.Mesh(new THREE.ConeGeometry(0.115, 0.2, 20), agua); punta.position.y = 0.36; gota.g.add(punta);
+  for (const x of [-0.05, 0.05]) { const ojo = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), M('#0b2540')); ojo.position.set(x, 0.2, 0.145); gota.g.add(ojo); }
+  gota.g.position.set(2.0, 0.75, -5.2); world.add(gota.g);
+}
+// Asistente: terminal con pantalla en el patio de trabajo (dudas de cultivo y procedimientos)
+const asis = { g: new THREE.Group(), el: helperLabel('Asistente'), bubble: 'Preguntame lo que necesites' };
+{
+  box(0.05, 0.7, 0.05, M('#555'), 0, 0.35, 0, asis.g);
+  box(0.3, 0.04, 0.3, M('#444'), 0, 0.02, 0, asis.g);
+  const pantalla = box(0.5, 0.34, 0.04, new THREE.MeshStandardMaterial({ color: '#0f1d17', emissive: '#3f7d3a', emissiveIntensity: .7 }), 0, 0.9, 0, asis.g);
+  asis.pantalla = pantalla;
+  for (const x of [-0.09, 0.09]) { const ojo = box(0.06, 0.06, 0.01, new THREE.MeshStandardMaterial({ color: '#d9ffd0', emissive: '#d9ffd0' }), x, 0.93, 0.025, asis.g); }
+  asis.g.position.set(-0.6, 0, -4.6); world.add(asis.g);
+}
+const ayudantes3D = [[nubi, 'Nubi'], [chango, 'Changuito'], [gota, 'Gota'], [asis, 'Asistente']];
+ayudantes3D.forEach(([a, n]) => a.g.traverse(o => { o.userData.ayudante = n; }));
+function tocarAyudante(n) {
+  if (n === 'Asistente') {
+    chatAbierto = true; _g('chat').style.display = 'flex'; canal = 'ia:' + yoChat(); pintarChat(); _g('chatTxt').focus();
+    return;
+  }
+  const txt = { Nubi: nubi.bubble, Changuito: chango.bubble, Gota: gota.bubble }[n];
+  log(`<b>${n}</b>: ${esc(txt || '')}`);
+  const ia = document.getElementById('ia'); if (ia) ia.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 function nubiCheck(k) {
   nubi.checks++;
   const c = clima[k]; c[0] += (Math.random() - .5) * 0.6; c[1] += (Math.random() - .5) * 3;
@@ -1240,6 +1270,8 @@ canvas.addEventListener('pointerdown', e => downAt = [e.clientX, e.clientY]);
 canvas.addEventListener('pointerup', e => {
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
   ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ptr, cam);
+  const hitIA = ray.intersectObjects(ayudantes3D.map(([a]) => a.g), true)[0];
+  if (hitIA) { tocarAyudante(hitIA.object.userData.ayudante); return; }
   const hit = ray.intersectObjects(people.map(p => p.g), true)[0];
   if (hit) { selected = hit.object.userData.person; renderPanel(); return; }
   // La sala de lo primero que se toca (cama, planta, pared o piso), no la del piso
@@ -1306,6 +1338,24 @@ function tick(now) {
       else { v3.normalize(); chango.g.position.addScaledVector(v3, st); chango.g.rotation.y = Math.atan2(v3.x, v3.z) + Math.PI; for (const w of chango.wheels) w.rotation.x += st * 8; }
     }
     v3.copy(chango.g.position); v3.y = 1.25; v3.project(cam); chango.el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; chango.el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; chango.el.querySelector('.b').textContent = chango.bubble;
+    const tt = now / 1000;
+    gota.g.position.y = 0.75 + Math.sin(tt * 2) * 0.05; gota.g.rotation.y = Math.sin(tt * 0.7) * 0.4;
+    // La lectura del último riego se calcula solo cuando llega uno nuevo (no en cada cuadro);
+    // si el riego es de una sala que el 3D no conoce, Gota sigue esperando en vez de cortar la animación.
+    const ur = riegos[riegos.length - 1];
+    if (ur !== gota.ultimo) {
+      gota.ultimo = ur;
+      let txt = 'Esperando el próximo riego';
+      try { if (ur) txt = evaluar(ur)[0].txt; } catch {}
+      gota.bubble = txt.length > 46 ? txt.slice(0, 46) + '…' : txt;
+    }
+    asis.bubble = iaOcupada ? 'Respondiendo una consulta…' : 'Tocame y preguntame';
+    asis.pantalla.material.emissiveIntensity = iaOcupada ? 0.7 + Math.sin(tt * 8) * 0.4 : 0.7;
+    for (const [a, y] of [[gota, 0.55], [asis, 1.25]]) {
+      v3.copy(a.g.position); v3.y += y; v3.project(cam);
+      a.el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; a.el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px';
+      a.el.querySelector('.b').textContent = a.bubble;
+    }
   }
   const min = Math.floor(h * 60);
   if (min !== lastMin) {

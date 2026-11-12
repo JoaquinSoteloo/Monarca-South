@@ -1,6 +1,6 @@
 -- Excepciones a las reglas de entrega sin escribir motivo (pedido de Facundo, 04/11/2026).
 --
--- NO SE EJECUTÓ TODAVÍA. Correr después de 084_roles_y_permisos.sql. (Era el 092 en el PR #30; se renumeró porque el 092 ya se usó.)
+-- Ejecutado en producción el 12/11/2026. Correr después de 084_roles_y_permisos.sql. (Era el 092 en el PR #30; se renumeró porque el 092 ya se usó.)
 -- Se puede volver a correr.
 --
 -- Antes, crear_autorizacion_entrega pedía un motivo de al menos 3 letras

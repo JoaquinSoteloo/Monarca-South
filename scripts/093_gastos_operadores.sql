@@ -1,7 +1,7 @@
 -- Gastos: los operadores cargan, pero no ven los gastos de la asociación
 -- (pedido de Facundo, 06/11/2026).
 --
--- NO SE EJECUTÓ TODAVÍA. Correr después de 084_roles_y_permisos.sql y antes
+-- Ejecutado en producción el 12/11/2026. Correr después de 084_roles_y_permisos.sql y antes
 -- de publicar el cambio de la pantalla Gastos. Se puede volver a correr.
 --
 -- - gastos.cargado_por: quién cargó cada gasto (se completa solo con el

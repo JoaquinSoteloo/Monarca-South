@@ -19,6 +19,7 @@ const salud = {
   enferma: { label: "Enferma", color: "bg-red-100 text-red-800", icon: AlertCircle },
 }
 const selectClass = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+const macetas = (n: number) => `${n} ${n === 1 ? "maceta" : "macetas"}`
 
 function Tiempo({ cama }: { cama: CamaCultivo }) {
   const vege = diasEntre(cama.fecha_vegetativo ?? null, cama.fecha_floracion || cama.fecha_cosecha || null)
@@ -114,10 +115,10 @@ export function CamaMapa({ cama, geneticas, onChange, onEdit }: {
         reemplazar: carga.reemplazar,
       })
     } catch (err) { setError(err instanceof Error ? err.message : "Revisá los datos."); return }
-    if (carga.reemplazar && ocupadas > 0 && !confirm(`Se van a borrar las ${ocupadas} macetas cargadas en ${cama.nombre}, con sus observaciones. ¿Seguir?`)) return
+    if (carga.reemplazar && ocupadas > 0 && !confirm(`Se van a borrar ${macetas(ocupadas)} de ${cama.nombre}, con sus observaciones. ¿Seguir?`)) return
     if (await guardar(resultado.mapa)) {
       setCargaOpen(false)
-      setNotice(`${resultado.cargadas} ${resultado.cargadas === 1 ? "maceta cargada" : "macetas cargadas"}`)
+      setNotice(`${macetas(resultado.cargadas)} ${resultado.cargadas === 1 ? "cargada" : "cargadas"}`)
     }
   }
 
@@ -224,7 +225,7 @@ export function CamaMapa({ cama, geneticas, onChange, onEdit }: {
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Cuántas macetas</legend>
             <label className="flex items-center gap-2 text-sm"><input type="radio" name={`carga-cant-${cama.id}`} checked={carga.todas} onChange={() => setCarga({ ...carga, todas: true })} />
-              {carga.reemplazar || ocupadas === 0 ? `Toda la cama (${total} macetas)` : `Todo lo que falta (${total - ocupadas} macetas)`}</label>
+              {carga.reemplazar || ocupadas === 0 ? `Toda la cama (${macetas(total)})` : `Todo lo que falta (${macetas(total - ocupadas)})`}</label>
             <label className="flex items-center gap-2 text-sm"><input type="radio" name={`carga-cant-${cama.id}`} checked={!carga.todas} onChange={() => setCarga({ ...carga, todas: false })} />
               Una cantidad:
               <Input aria-label="Cantidad de macetas" type="number" min={1} max={total} step={1} className="h-8 w-24" disabled={carga.todas} required={!carga.todas}
@@ -232,7 +233,7 @@ export function CamaMapa({ cama, geneticas, onChange, onEdit }: {
           </fieldset>
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-1" checked={carga.reemplazar} onChange={e => setCarga({ ...carga, reemplazar: e.target.checked })} />
-            <span>Reemplazar lo cargado<span className="block text-xs text-muted-foreground">Borra las {ocupadas} macetas que ya tiene la cama y arranca de cero.</span></span>
+            <span>Reemplazar lo cargado<span className="block text-xs text-muted-foreground">{ocupadas === 0 ? "La cama está vacía: no hay nada que borrar." : `Borra ${ocupadas === 1 ? "la maceta" : `las ${ocupadas} macetas`} que ya tiene la cama y arranca de cero.`}</span></span>
           </label>
           {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
           <div className="flex justify-end gap-2 border-t pt-4">

@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getPerfilActual } from "@/lib/auth/perfil"
 import { getArgentinaDateString } from "@/lib/timezone"
 import { CiclosManager } from "@/components/ciclos-manager"
-import { filasTareasCiclo, type CicloSala } from "@/lib/ciclo"
+import { esClaveAgregada, filasTareasCiclo, type CicloSala } from "@/lib/ciclo"
 import type { Perfil } from "@/lib/equipo"
 import type { SalaCultivo } from "@/lib/types"
 
@@ -46,9 +46,14 @@ export default async function CiclosPage() {
       .select("ciclo_id")
       .in("ciclo_id", abiertos.map((c) => c.id))
     const ya = new Set((conTareas || []).map((t) => t.ciclo_id as number))
-    const filas = abiertos
-      .filter((c) => !ya.has(c.id))
-      .flatMap((c) => filasTareasCiclo(c, salas.find((s) => s.id === c.sala_id)?.nombre ?? `Sala ${c.sala_id}`, perfiles, hoy))
+    // A los ciclos que ya tenían tareas solo se les suman las que se agregaron
+    // después (defoliación 03/11/2026, nutrición de flora 04/11/2026); las que
+    // ya existen no se tocan.
+    const filas = abiertos.flatMap((c) =>
+      filasTareasCiclo(c, salas.find((s) => s.id === c.sala_id)?.nombre ?? `Sala ${c.sala_id}`, perfiles, hoy).filter(
+        (f) => !ya.has(c.id) || esClaveAgregada(f.clave),
+      ),
+    )
     if (filas.length > 0) {
       await supabase.from("tareas").upsert(filas, { onConflict: "ciclo_id,clave", ignoreDuplicates: true })
     }

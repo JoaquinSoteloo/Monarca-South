@@ -509,7 +509,7 @@ export function VentasManager({
                   </p>
                   {limiteAlcanzado || excedeLimit ? (
                     <p className="text-destructive">
-                      Superó su límite: sólo puede llevar enrolados, salvo autorización de la comisión.
+                      Superó su límite: sólo puede llevar enrolados, salvo autorización.
                     </p>
                   ) : (
                     <p className="text-muted-foreground">Los enrolados no cuentan para el límite.</p>
@@ -529,7 +529,7 @@ export function VentasManager({
                 />
                 <p className={`text-sm ${entregasMes >= maxEntregasExterno ? "font-medium text-destructive" : "text-foreground"}`}>
                   Externo: {entregasMes} de {maxEntregasExterno} entregas este mes
-                  {entregasMes >= maxEntregasExterno && " — necesita autorización de la comisión"}
+                  {entregasMes >= maxEntregasExterno && " — necesita autorización"}
                 </p>
               </div>
             )}

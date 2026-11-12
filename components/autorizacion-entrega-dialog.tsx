@@ -3,8 +3,9 @@
 /**
  * Diálogo que aparece cuando una entrega no cumple las reglas (error VB001 de
  * registrar_entrega/editar_entrega, scripts/066). Muestra los motivos y deja
- * pedir una excepción: la autoriza alguien de la comisión directiva, con su
- * propio usuario, y queda registrada con su nombre y el motivo.
+ * pedir una excepción: la autoriza alguien con el permiso entregas.autorizar,
+ * con su propio usuario, y queda registrada con su nombre. El motivo es
+ * opcional (script 094): si no se escribe, se guarda "Sin motivo".
  *
  * Quien lo usa lo monta sólo mientras está abierto, así cada pedido arranca
  * con el formulario vacío.
@@ -62,10 +63,6 @@ export function AutorizacionEntregaDialog({ open, onOpenChange, socioId, motivos
 
   const autorizar = async () => {
     setError(null)
-    if (motivo.trim().length < 3) {
-      setError("Escribí el motivo de la excepción")
-      return
-    }
     setEnviando(true)
     try {
       let autorizacionId: string
@@ -111,7 +108,7 @@ export function AutorizacionEntregaDialog({ open, onOpenChange, socioId, motivos
             <div>
               <DialogTitle className="text-foreground">No se puede guardar la entrega</DialogTitle>
               <DialogDescription className="text-muted-foreground">
-                Sólo con autorización de la comisión directiva.
+                {esComision ? "Podés autorizar la excepción vos." : "Necesita la autorización de alguien con permiso."}
               </DialogDescription>
             </div>
           </div>
@@ -125,7 +122,9 @@ export function AutorizacionEntregaDialog({ open, onOpenChange, socioId, motivos
 
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="motivo-excepcion">Motivo de la excepción</Label>
+            <Label htmlFor="motivo-excepcion">
+              Motivo <span className="font-normal text-muted-foreground">(opcional)</span>
+            </Label>
             <Textarea
               id="motivo-excepcion"
               value={motivo}
@@ -137,7 +136,7 @@ export function AutorizacionEntregaDialog({ open, onOpenChange, socioId, motivos
 
           {autorizaOtro ? (
             <div className="space-y-3 rounded-lg border border-border p-3">
-              <p className="text-sm text-muted-foreground">Autoriza alguien de la comisión con su usuario:</p>
+              <p className="text-sm text-muted-foreground">Autoriza alguien con permiso, con su usuario:</p>
               <div className="space-y-1.5">
                 <Label htmlFor="email-comision">Email</Label>
                 <Input
@@ -166,7 +165,7 @@ export function AutorizacionEntregaDialog({ open, onOpenChange, socioId, motivos
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Autoriza: <strong className="text-foreground">{usuarioActual.nombre}</strong> (comisión).{" "}
+              Autoriza: <strong className="text-foreground">{usuarioActual.nombre}</strong>.{" "}
               <button type="button" className="text-primary underline" onClick={() => setAutorizaOtro(true)}>
                 Autoriza otra persona
               </button>

@@ -40,9 +40,17 @@ python puente.py buscar
 python puente.py agregar sala5 192.168.0.50
 ```
 
-`buscar` muestra la IP de cada BroadLink. Conviene reservar esa IP en el
-router para que no cambie. El nombre (`sala5`) es el mismo que después se
+`buscar` muestra la IP de cada BroadLink. Si no aparece, desenchufalo, volvé
+a enchufarlo y buscá de nuevo: a veces queda dormido en la red.
+
+`agregar` guarda también la MAC del BroadLink. Si el router le cambia la IP,
+el puente lo vuelve a encontrar solo y guarda la nueva. No hace falta tocar
+el router. El nombre (`sala5`) es el mismo que después se
 escribe en Automatizaciones → dispositivo → "Nombre en el puente".
+
+**Pasarlo a otra notebook:** copiá la carpeta `bridge` entera, incluidos
+`equipos.json` y `codigos.json`. Ahí quedan los botones grabados, así que no
+hace falta volver a aprenderlos.
 
 ## 4. Enseñarle los botones del control del aire
 

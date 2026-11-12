@@ -7,6 +7,8 @@ para el aire, las manda por infrarrojo y avisa cómo le fue.
 Uso (ver LEEME.md):
   python puente.py buscar                      lista los BroadLink de la red
   python puente.py agregar sala5 192.168.0.50  le pone nombre a un BroadLink
+                                               (guarda su MAC: si el router le
+                                               cambia la IP, lo vuelve a encontrar)
   python puente.py aprender sala5 apagar       guarda un botón del control
   python puente.py probar sala5 apagar         manda ese botón
   python puente.py                             queda corriendo (modo puente)
@@ -23,9 +25,12 @@ import os
 import sys
 import time
 import base64
+import socket
 import logging
+import ipaddress
 import urllib.request
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 EQUIPOS = os.path.join(AQUI, "equipos.json")
@@ -80,13 +85,80 @@ def broadlink_mod():
 _conexiones = {}
 
 
+def ip_local():
+    """IP de la notebook en el WiFi (no manda nada: solo elige la placa de red)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    finally:
+        s.close()
+
+
+def barrer_red():
+    """Le pregunta a cada dirección de la red si es un BroadLink.
+
+    Más lento que la búsqueda general (unos 20 segundos), pero encuentra
+    BroadLink que no contestan a esa búsqueda. Recorre las 1.022 direcciones
+    alrededor de la de la notebook, que cubren las redes de casa y de oficina.
+    """
+    bl = broadlink_mod()
+    propia = ip_local()
+    red = ipaddress.ip_network(f"{propia}/22", strict=False)
+
+    def preguntar(ip):
+        try:
+            return bl.discover(timeout=2, local_ip_address=propia, discover_ip_address=ip)
+        except Exception:  # noqa: BLE001  (no es un BroadLink o no contesta)
+            return []
+
+    ips = [str(ip) for ip in red.hosts() if str(ip) != propia]
+    with ThreadPoolExecutor(128) as ex:
+        return [d for encontrados in ex.map(preguntar, ips) for d in encontrados]
+
+
+def mac_de(dev):
+    return dev.mac.hex(":")
+
+
+def datos_equipo(equipos, nombre):
+    """equipos.json guarda {"ip", "mac"}; las versiones viejas guardaban solo la IP."""
+    valor = equipos[nombre]
+    return valor if isinstance(valor, dict) else {"ip": valor, "mac": None}
+
+
+def reencontrar(nombre, mac):
+    """Busca el BroadLink por su MAC si el router le cambió la IP."""
+    log(f"'{nombre}' no contesta en su IP; lo busco en la red por su MAC {mac}…")
+    for d in barrer_red():
+        if mac_de(d) == mac:
+            equipos = leer_json(EQUIPOS, {})
+            equipos[nombre] = {"ip": d.host[0], "mac": mac}
+            guardar_json(EQUIPOS, equipos)
+            log(f"'{nombre}' ahora está en {d.host[0]}. Lo guardé.")
+            return d
+    raise RuntimeError(
+        f"No encuentro el BroadLink '{nombre}' en la red. ¿Está enchufado? "
+        "Si la luz está normal, desenchufalo, enchufalo y probá de nuevo."
+    )
+
+
 def conectar(nombre):
     equipos = leer_json(EQUIPOS, {})
     if nombre not in equipos:
         raise RuntimeError(f"No hay ningún BroadLink llamado '{nombre}' en equipos.json")
     if nombre in _conexiones:
         return _conexiones[nombre]
-    dev = broadlink_mod().hello(equipos[nombre])
+    datos = datos_equipo(equipos, nombre)
+    try:
+        dev = broadlink_mod().hello(datos["ip"])
+    except Exception:
+        if not datos["mac"]:
+            raise
+        dev = reencontrar(nombre, datos["mac"])
+    if datos["mac"] is None:  # equipo agregado con una versión vieja: guardo su MAC
+        equipos[nombre] = {"ip": datos["ip"], "mac": mac_de(dev)}
+        guardar_json(EQUIPOS, equipos)
     dev.auth()
     _conexiones[nombre] = dev
     return dev
@@ -123,6 +195,22 @@ def mandar(nombre, payload):
     return boton
 
 
+def saludar_equipos():
+    """Le habla a cada BroadLink para que la notebook no se olvide de dónde está.
+
+    El BroadLink dormita para ahorrar energía y no escucha los mensajes que
+    van a toda la red: si la notebook se olvida de su dirección, no lo puede
+    volver a encontrar. Saludarlo seguido la mantiene fresca.
+    """
+    bl = broadlink_mod()
+    for nombre in leer_json(EQUIPOS, {}):
+        ip = datos_equipo(leer_json(EQUIPOS, {}), nombre)["ip"]
+        try:
+            bl.hello(ip, timeout=3)
+        except Exception:  # noqa: BLE001  (si no contesta, lo busca al mandar la próxima orden)
+            pass
+
+
 def pedir(cfg, metodo, ruta, cuerpo=None):
     req = urllib.request.Request(
         cfg["MONARCA_URL"].rstrip("/") + ruta,
@@ -144,7 +232,11 @@ def correr():
         sys.exit("Falta BRIDGE_TOKEN en puente.env (la misma clave que tiene Vercel).")
     log("Puente de la sede andando. Para cortarlo, cerrá esta ventana.")
     errores = 0
+    vuelta = 0
     while True:
+        vuelta += 1
+        if vuelta % 2 == 0:  # cada 30 segundos
+            saludar_equipos()
         try:
             comandos = pedir(cfg, "GET", "/api/bridge/commands").get("comandos", [])
             errores = 0
@@ -172,19 +264,27 @@ def correr():
 
 
 def buscar():
-    dispositivos = broadlink_mod().discover(timeout=5)
+    dispositivos = broadlink_mod().discover(timeout=5, local_ip_address=ip_local())
     if not dispositivos:
-        print("No encontré ningún BroadLink. ¿La notebook está en el mismo WiFi?")
+        print("La búsqueda rápida no encontró nada; pregunto dirección por dirección (unos 20 segundos)…")
+        dispositivos = barrer_red()
+    if not dispositivos:
+        print("No encontré ningún BroadLink. ¿Está enchufado y en el mismo WiFi? Probá desenchufarlo y enchufarlo.")
     for d in dispositivos:
-        print(f"{d.host[0]}  MAC {d.mac.hex(':')}  {d.model or d.type}")
-    print("\nTip: en el router, reservá esa IP para cada BroadLink así no cambia.")
+        bloqueado = "  ¡BLOQUEADO! (desbloquealo en la app BroadLink)" if d.is_locked else ""
+        print(f"{d.host[0]}  MAC {mac_de(d)}  {d.model or d.type}{bloqueado}")
 
 
 def agregar(nombre, ip):
+    nombre = nombre.lower()
+    try:
+        mac = mac_de(broadlink_mod().hello(ip))
+    except Exception:  # noqa: BLE001
+        sys.exit(f"No hay ningún BroadLink contestando en {ip}. Corré  python puente.py buscar")
     equipos = leer_json(EQUIPOS, {})
-    equipos[nombre.lower()] = ip
+    equipos[nombre] = {"ip": ip, "mac": mac}
     guardar_json(EQUIPOS, equipos)
-    print(f"Listo: '{nombre.lower()}' = {ip}")
+    print(f"Listo: '{nombre}' = {ip} (MAC {mac}). Si el router le cambia la IP, el puente lo encuentra solo.")
 
 
 def aprender(nombre, boton):
@@ -229,4 +329,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    try:
+        main(sys.argv[1:])
+    except RuntimeError as e:  # errores esperables: mostrar el aviso, no el detalle técnico
+        sys.exit(str(e))

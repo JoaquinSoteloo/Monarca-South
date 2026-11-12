@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { AlertCircle, Check, CircleHelp, Flower2, Grid2X2, Plus, Settings2, Sprout } from "lucide-react"
+import { AlertCircle, Check, CircleHelp, Flower2, Grid2X2, Layers, Plus, Settings2, Sprout } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { CamaCultivo, Genetica, MacetaCultivo, MapaMacetas } from "@/lib/types"
-import { diasEntre, MAPA_VACIO, redimensionarMapa } from "@/lib/mapa-macetas"
+import { cargarCama, diasEntre, MAPA_VACIO, redimensionarMapa } from "@/lib/mapa-macetas"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -41,7 +41,10 @@ export function CamaMapa({ cama, geneticas, onChange, onEdit }: {
   const [error, setError] = useState("")
   const [conflict, setConflict] = useState(false)
   const [notice, setNotice] = useState("")
+  const [cargaOpen, setCargaOpen] = useState(false)
+  const [carga, setCarga] = useState({ genetica: "", nombre: "", todas: true, cantidad: "", reemplazar: false })
   const ocupadas = mapa.macetas.length
+  const total = mapa.filas * mapa.columnas
   const atencion = mapa.macetas.filter(m => m.salud === "enferma" || m.salud === "observacion").length
 
   function abrir(fila: number, columna: number) {
@@ -92,6 +95,32 @@ export function CamaMapa({ cama, geneticas, onChange, onEdit }: {
     if (await guardar({ ...mapa, macetas: mapa.macetas.filter(m => m.fila !== draft.fila || m.columna !== draft.columna) })) setDraft(null)
   }
 
+  function abrirCarga() {
+    setError(""); setConflict(false); setBaseVersion(cama.mapa_version ?? 0)
+    setCarga({ genetica: "", nombre: "", todas: true, cantidad: "", reemplazar: false })
+    setCargaOpen(true)
+  }
+
+  async function guardarCarga(event: FormEvent) {
+    event.preventDefault()
+    setError("")
+    const otra = carga.genetica === "otra"
+    let resultado
+    try {
+      resultado = cargarCama(mapa, {
+        genetica_id: otra || !carga.genetica ? null : carga.genetica,
+        etiqueta: otra ? carga.nombre : "",
+        cantidad: carga.todas ? "todas" : Number(carga.cantidad),
+        reemplazar: carga.reemplazar,
+      })
+    } catch (err) { setError(err instanceof Error ? err.message : "Revisá los datos."); return }
+    if (carga.reemplazar && ocupadas > 0 && !confirm(`Se van a borrar las ${ocupadas} macetas cargadas en ${cama.nombre}, con sus observaciones. ¿Seguir?`)) return
+    if (await guardar(resultado.mapa)) {
+      setCargaOpen(false)
+      setNotice(`${resultado.cargadas} ${resultado.cargadas === 1 ? "maceta cargada" : "macetas cargadas"}`)
+    }
+  }
+
   async function guardarTamano(event: FormEvent) {
     event.preventDefault()
     try {
@@ -107,6 +136,7 @@ export function CamaMapa({ cama, geneticas, onChange, onEdit }: {
       </div>
       <div className="flex items-center gap-1">
         {atencion > 0 && <span className="mr-2 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs text-red-800"><AlertCircle size={13} />{atencion} para revisar</span>}
+        <Button variant="ghost" size="sm" aria-label={`Cargar varias macetas de ${cama.nombre} con una genética`} onClick={abrirCarga}><Layers size={17} />Cargar cama</Button>
         <Button variant="ghost" size="icon" aria-label={`Configurar distribución de ${cama.nombre}`} onClick={() => {
           setSize({ filas: mapa.filas, columnas: mapa.columnas }); setError(""); setConflict(false)
           setBaseVersion(cama.mapa_version ?? 0); setConfigOpen(true)
@@ -176,6 +206,40 @@ export function CamaMapa({ cama, geneticas, onChange, onEdit }: {
             <div className="flex gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setDraft(null)}>Cancelar</Button><Button disabled={busy || conflict} type="submit">{busy ? "Guardando…" : "Guardar ficha"}</Button></div>
           </div>
         </form>}
+      </DialogContent>
+    </Dialog>
+    <Dialog open={cargaOpen} onOpenChange={open => { if (!busy) setCargaOpen(open) }}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
+        <DialogHeader><DialogTitle>Cargar cama · {cama.nombre}</DialogTitle>
+          <DialogDescription>Llena las posiciones vacías en orden (A1, A2…) con una genética. Repetilo con otra para completar el resto. Cada maceta se puede corregir después.</DialogDescription></DialogHeader>
+        <form onSubmit={guardarCarga} className="space-y-4">
+          <div><Label htmlFor={`carga-gen-${cama.id}`}>Genética</Label>
+            <select id={`carga-gen-${cama.id}`} required className={selectClass} value={carga.genetica} onChange={e => setCarga({ ...carga, genetica: e.target.value })}>
+              <option value="" disabled>Elegí una genética</option>
+              {geneticas.map(g => <option key={g.id} value={String(g.id)}>{g.nombre}</option>)}
+              <option value="otra">Otra, que no está en Stock…</option>
+            </select></div>
+          {carga.genetica === "otra" && <div><Label htmlFor={`carga-nombre-${cama.id}`}>Nombre de la genética</Label>
+            <Input id={`carga-nombre-${cama.id}`} required maxLength={80} value={carga.nombre} onChange={e => setCarga({ ...carga, nombre: e.target.value })} placeholder="Ej.: GMO" /></div>}
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Cuántas macetas</legend>
+            <label className="flex items-center gap-2 text-sm"><input type="radio" name={`carga-cant-${cama.id}`} checked={carga.todas} onChange={() => setCarga({ ...carga, todas: true })} />
+              {carga.reemplazar || ocupadas === 0 ? `Toda la cama (${total} macetas)` : `Todo lo que falta (${total - ocupadas} macetas)`}</label>
+            <label className="flex items-center gap-2 text-sm"><input type="radio" name={`carga-cant-${cama.id}`} checked={!carga.todas} onChange={() => setCarga({ ...carga, todas: false })} />
+              Una cantidad:
+              <Input aria-label="Cantidad de macetas" type="number" min={1} max={total} step={1} className="h-8 w-24" disabled={carga.todas} required={!carga.todas}
+                value={carga.cantidad} onChange={e => setCarga({ ...carga, cantidad: e.target.value })} /></label>
+          </fieldset>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={carga.reemplazar} onChange={e => setCarga({ ...carga, reemplazar: e.target.checked })} />
+            <span>Reemplazar lo cargado<span className="block text-xs text-muted-foreground">Borra las {ocupadas} macetas que ya tiene la cama y arranca de cero.</span></span>
+          </label>
+          {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+          <div className="flex justify-end gap-2 border-t pt-4">
+            <Button type="button" variant="outline" disabled={busy} onClick={() => setCargaOpen(false)}>Cancelar</Button>
+            <Button type="submit" disabled={busy || conflict}>{busy ? "Guardando…" : "Cargar"}</Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
     <Dialog open={configOpen} onOpenChange={open => { if (!busy) setConfigOpen(open) }}>

@@ -50,9 +50,15 @@ const EN_RESULTADO_LABEL: Record<EnResultado, string> = {
 interface GastosManagerProps {
   /** Permiso gastos.categorias: crear, renombrar o borrar categorías. */
   puedeEditarCategorias: boolean
+  /** Permiso gastos.todos: ver todos los gastos y los totales. Sin él, solo carga y ve los suyos (script 093). */
+  verTodo?: boolean
+  usuarioId?: string | null
 }
 
 type Aviso = { ok: boolean; texto: string } | null
+
+/** La base no dejó tocar el gasto (script 093): sin gastos.todos, solo lo propio de las últimas 24 h. */
+const SOLO_24_HORAS = "Solo podés corregir o borrar los gastos que cargaste vos en las últimas 24 horas."
 
 function MetodoPago({ metodo }: { metodo: Gasto["metodo_pago"] }) {
   if (metodo === "producto") {
@@ -89,7 +95,7 @@ function AvisoBox({ aviso, onClose }: { aviso: Aviso; onClose: () => void }) {
   )
 }
 
-export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
+export function GastosManager({ puedeEditarCategorias, verTodo = true, usuarioId = null }: GastosManagerProps) {
   const [gastos, setGastos] = useState<Gasto[]>([])
   const [categorias, setCategorias] = useState<CategoriaGasto[]>([])
   const [aportes, setAportes] = useState<AporteCapital[]>([])
@@ -127,9 +133,10 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
 
   async function fetchGastos() {
     setLoading(true)
-    const { data, error } = await supabase
-      .from("gastos")
-      .select("*")
+    let consulta = supabase.from("gastos").select("*")
+    // Sin gastos.todos solo se ven los propios (la base también lo exige, script 093).
+    if (!verTodo) consulta = usuarioId ? consulta.eq("cargado_por", usuarioId) : consulta.eq("id", "00000000-0000-0000-0000-000000000000")
+    const { data, error } = await consulta
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
 
@@ -194,10 +201,17 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
       fecha: format(formData.fecha, "yyyy-MM-dd"),
     }
 
-    const { error } = editingGasto
-      ? await supabase.from("gastos").update(gastoData).eq("id", editingGasto.id)
+    // Al editar se pide la fila de vuelta: sin gastos.todos, la base solo deja
+    // tocar lo propio de las últimas 24 h y, si no, no cambia nada sin dar error.
+    const resultado = editingGasto
+      ? await supabase.from("gastos").update(gastoData).eq("id", editingGasto.id).select("id")
       : await supabase.from("gastos").insert([gastoData])
+    const { error } = resultado
 
+    if (!error && editingGasto && !resultado.data?.length) {
+      setFormError(SOLO_24_HORAS)
+      return
+    }
     if (error) {
       setFormError(
         /^(GA|EQ)00\d$/.test(error.code || "")
@@ -248,9 +262,11 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
   async function handleDelete(id: string) {
     if (!confirm("¿Estás seguro de eliminar este gasto?")) return
 
-    const { error } = await supabase.from("gastos").delete().eq("id", id)
+    const { data: borrados, error } = await supabase.from("gastos").delete().eq("id", id).select("id")
     if (error) {
       setAviso({ ok: false, texto: error.code === "EQ006" ? error.message : "No se pudo eliminar el gasto." })
+    } else if (!borrados?.length) {
+      setAviso({ ok: false, texto: SOLO_24_HORAS })
     } else {
       setAviso({ ok: true, texto: "Gasto eliminado." })
       setSeleccion((s) => {
@@ -427,13 +443,19 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Gastos</h2>
-          <p className="text-muted-foreground">Registrá y administrá los gastos de la asociación</p>
+          <p className="text-muted-foreground">
+            {verTodo
+              ? "Registrá y administrá los gastos de la asociación"
+              : "Cargá los gastos que pagaste. Acá ves solo los que cargaste vos."}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button className="bg-card" variant="outline" onClick={() => setShowCategoriasDialog(true)}>
-            <Tag className="h-4 w-4 mr-2" />
-            Categorías
-          </Button>
+          {verTodo && (
+            <Button className="bg-card" variant="outline" onClick={() => setShowCategoriasDialog(true)}>
+              <Tag className="h-4 w-4 mr-2" />
+              Categorías
+            </Button>
+          )}
           <Button onClick={() => setShowForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
             <Plus className="h-4 w-4 mr-2" />
             Nuevo gasto
@@ -443,7 +465,7 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
 
       <AvisoBox aviso={aviso} onClose={() => setAviso(null)} />
 
-      {cantidadSinClasificar > 0 && (
+      {verTodo && cantidadSinClasificar > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <span className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -459,6 +481,8 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
         </div>
       )}
 
+      {verTodo && (
+      <>
       {/* Filtros */}
       <div className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-3">
         <div className="space-y-1.5">
@@ -628,6 +652,8 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
 
       {reclasificando && (
         <ReclasificarGastosDialog
@@ -809,7 +835,7 @@ export function GastosManager({ puedeEditarCategorias }: GastosManagerProps) {
 
       <Card className="min-w-0 gap-4 bg-card">
         <CardHeader>
-          <CardTitle className="text-base">Historial de gastos</CardTitle>
+          <CardTitle className="text-base">{verTodo ? "Historial de gastos" : "Tus gastos cargados"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {seleccion.size > 0 && (

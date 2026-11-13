@@ -1,6 +1,6 @@
 -- Nubi propone (pedido de Joaquín, 13/11/2026).
 --
--- NO SE EJECUTÓ TODAVÍA. Correr antes de publicar la app que lo usa.
+-- Ejecutado en producción el 13/11/2026, antes de publicar la app que lo usa.
 --
 -- Cuando una sala tiene una alerta de temperatura (alertas_clima, script 095)
 -- y un aire controlable, Nubi mira cómo está el aire y propone una orden

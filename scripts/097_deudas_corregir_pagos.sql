@@ -1,4 +1,4 @@
--- 095 — Deudas: corregir o anular un pago cargado por error.
+-- 097 — Deudas: corregir o anular un pago cargado por error.
 --
 -- Pedido de Facundo (12/11/2026): en Deudas se puede ver el historial de las
 -- deudas saldadas y corregir un pago mal cargado (monto, método, fecha, notas)

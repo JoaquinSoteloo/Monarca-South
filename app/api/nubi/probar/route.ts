@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   }
 
   const lado = temperatura > max ? "alto" : "bajo"
-  const motivo = `PRUEBA con ${temperatura} °C simulados · ${sala.nombre}: ${textoProblema({ variable: "temperatura", lado, valor: temperatura, limite: lado === "alto" ? max : min })}, aire ${textoEstadoAire(estado)}`
+  const motivo = `${sala.nombre}: ${textoProblema({ variable: "temperatura", lado, valor: temperatura, limite: lado === "alto" ? max : min })}, aire ${textoEstadoAire(estado)} (PRUEBA con ${temperatura} °C simulados)`
   const ahora = new Date()
 
   // Una sola pendiente por aire: la anterior (real o de prueba) se da por vencida.
@@ -74,8 +74,8 @@ export async function POST(request: Request) {
     [session.id],
     propuesta.tipo === "orden"
       ? {
-          title: `🛰 Nubi: ${propuesta.resumen}?`,
-          body: `${motivo}. Vence en ${MINUTOS_VIGENCIA} minutos.`,
+          title: `🛰 ¿${propuesta.resumen.charAt(0).toUpperCase()}${propuesta.resumen.slice(1)}?`,
+          body: `Nubi · ${motivo}. Vence en ${MINUTOS_VIGENCIA} minutos.`,
           url: "/control-manual",
           tag: `nubi-${fila.id}`,
           acciones: [

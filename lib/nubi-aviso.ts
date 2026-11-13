@@ -123,8 +123,8 @@ export async function proponerNubi(supabase: SupabaseClient, ahora: Date = new D
         quienes,
         propuesta.tipo === "orden"
           ? {
-              title: `🛰 Nubi: ${propuesta.resumen}?`,
-              body: `${motivo}. Vence en ${MINUTOS_VIGENCIA} minutos.`,
+              title: `🛰 ¿${propuesta.resumen.charAt(0).toUpperCase()}${propuesta.resumen.slice(1)}?`,
+              body: `Nubi · ${motivo}. Vence en ${MINUTOS_VIGENCIA} minutos.`,
               url: "/control-manual",
               tag: `nubi-${fila.id}`,
               acciones: [

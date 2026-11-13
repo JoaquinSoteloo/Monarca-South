@@ -46,7 +46,7 @@ describe("proponerNubi", () => {
     expect(p).toMatchObject({ estado: "pendiente", resumen: "bajar el aire de 23 a 21 °C", payload: { accion: "encender", modo: "frio", setpoint: 21, fan: "auto" } })
     expect(p.motivo).toBe("Sala 5: temperatura 27,4 °C (máx 26), aire en frío 23 °C")
     expect(sendPushToUsers).toHaveBeenCalledWith(["u-joaco"], expect.objectContaining({
-      title: "🛰 Nubi: bajar el aire de 23 a 21 °C?",
+      title: "🛰 ¿Bajar el aire de 23 a 21 °C?",
       acciones: [{ action: "mandar", title: "Mandar" }, { action: "no", title: "No" }],
       datos: { propuestaId: p.id },
     }))

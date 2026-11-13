@@ -42,12 +42,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const propuesta = tomadas?.[0]
   if (!propuesta) {
-    const { data: actual } = await supabase.from("propuestas_nubi").select("estado, resuelta_por_nombre").eq("id", Number(id)).maybeSingle()
+    const { data: actual } = await supabase
+      .from("propuestas_nubi")
+      .select("estado, resuelta_por_nombre, vence_en, resuelta_en")
+      .eq("id", Number(id))
+      .maybeSingle()
+    // Cerrada antes de su vencimiento = la reemplazó una más nueva para el mismo aire.
+    const reemplazada = actual?.estado === "vencida" && actual.resuelta_en && actual.vence_en && actual.resuelta_en < actual.vence_en
     const motivo = !actual
       ? "La propuesta no existe"
-      : actual.estado === "vencida" || actual.estado === "pendiente"
-        ? "La propuesta venció (pasaron más de 30 minutos)"
-        : `Ya la contestó ${actual.resuelta_por_nombre ?? "otra persona"}`
+      : reemplazada
+        ? "Nubi ya hizo una propuesta más nueva para este aire: contestá esa (está en Control manual)"
+        : actual.estado === "vencida" || actual.estado === "pendiente"
+          ? "La propuesta venció (pasaron más de 30 minutos)"
+          : `Ya la contestó ${actual.resuelta_por_nombre ?? "otra persona"}`
     return NextResponse.json({ error: motivo }, { status: 409 })
   }
 

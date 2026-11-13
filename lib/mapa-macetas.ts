@@ -32,3 +32,39 @@ export function redimensionarMapa(mapa: MapaMacetas, filas: number, columnas: nu
   if (mapa.macetas.some(m => m.fila >= filas || m.columna >= columnas)) throw new Error("Hay macetas fuera del nuevo tamaño. Quitalas de esas posiciones antes de reducir la cama.")
   return { ...mapa, filas, columnas }
 }
+
+export interface CargaCama {
+  /** Genética del Stock, o null si se carga solo con un nombre (genéticas que no están en Stock). */
+  genetica_id: string | null
+  /** Nombre que se muestra cuando la genética no está en Stock; vacío si viene del Stock. */
+  etiqueta: string
+  /** Cuántas macetas cargar, o "todas" para completar la cama. */
+  cantidad: number | "todas"
+  /** true: vacía la cama antes de cargar (pisa lo que había). */
+  reemplazar: boolean
+}
+
+/**
+ * Carga varias macetas de una vez con la misma genética (pedido de Facundo, 06/11/2026).
+ * Llena las posiciones vacías en orden de lectura (A1, A2… B1…) y deja como están las
+ * que ya tenían maceta, salvo con `reemplazar`. Se puede repetir con otra genética para
+ * completar el resto de la cama.
+ */
+export function cargarCama(mapa: MapaMacetas, carga: CargaCama): { mapa: MapaMacetas; cargadas: number } {
+  const etiqueta = carga.etiqueta.trim()
+  if (!carga.genetica_id && !etiqueta) throw new Error("Elegí una genética o escribí su nombre.")
+  const base = carga.reemplazar ? [] : mapa.macetas
+  const ocupada = new Set(base.map(m => `${m.fila}-${m.columna}`))
+  const libres: Array<[number, number]> = []
+  for (let fila = 0; fila < mapa.filas; fila++)
+    for (let columna = 0; columna < mapa.columnas; columna++)
+      if (!ocupada.has(`${fila}-${columna}`)) libres.push([fila, columna])
+  if (libres.length === 0) throw new Error("La cama ya está completa. Usá «Reemplazar lo cargado» para pisarla.")
+  const pedidas = carga.cantidad === "todas" ? libres.length : carga.cantidad
+  if (!Number.isInteger(pedidas) || pedidas < 1) throw new Error("Indicá cuántas macetas cargar (1 o más).")
+  if (pedidas > libres.length) throw new Error(`Solo quedan ${libres.length} posiciones libres en la cama.`)
+  const nuevas = libres.slice(0, pedidas).map(([fila, columna]) => ({
+    fila, columna, etiqueta, genetica_id: carga.genetica_id, salud: "sin_evaluar" as const, notas: "",
+  }))
+  return { mapa: { ...mapa, macetas: [...base, ...nuevas] }, cargadas: nuevas.length }
+}

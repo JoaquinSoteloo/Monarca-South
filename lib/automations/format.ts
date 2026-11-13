@@ -99,12 +99,14 @@ export function formatComandoDispositivo(tipo: TipoDispositivoControlable, paylo
       const partes = ["Encendido"]
       if (modo) partes.push(MODO_AC_LABELS[modo] ?? modo)
       if (setpoint !== null) partes.push(`${setpoint} °C`)
-      if (fan) partes.push(`Fan ${FAN_LABELS[fan] ?? fan}`)
+      if (fan && fan !== "auto") partes.push(`Fan ${FAN_LABELS[fan] ?? fan}`) // auto es lo normal: no se muestra
 
       return `${icono} ${partes.join(" · ")}`
     }
 
-    return `${iconoPorDefecto} Encendido`
+    // Shelly por WiFi informa cuánto consume (lib/bridge/estado.ts).
+    const potencia = typeof payload.potencia_w === "number" ? payload.potencia_w : null
+    return `${iconoPorDefecto} Encendido${potencia !== null ? ` · ${Math.round(potencia)} W` : ""}`
   }
 
   // Acción desconocida (proveedor futuro con payload propio): mostramos algo
@@ -135,7 +137,7 @@ export function formatDetalleAccion(tipo: TipoDispositivoControlable, payload: R
   const partes: string[] = []
   if (modo) partes.push(MODO_AC_LABELS[modo] ?? modo)
   if (setpoint !== null) partes.push(`${setpoint} °C`)
-  if (fan) partes.push(`Fan ${FAN_LABELS[fan] ?? fan}`)
+  if (fan && fan !== "auto") partes.push(`Fan ${FAN_LABELS[fan] ?? fan}`) // auto es lo normal: no se muestra
   return partes.join(" · ")
 }
 

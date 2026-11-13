@@ -31,6 +31,13 @@ vi.mock("@/lib/modo-ausente/engine", () => ({
 vi.mock("@/lib/automations/lock", () => ({
   withEngineLock: withEngineLockMock,
 }))
+// El chequeo de clima (Nubi) tiene sus propios tests; acá solo no tiene que mandar pushes.
+vi.mock("@/lib/clima-alertas-aviso", () => ({
+  avisarClima: vi.fn().mockResolvedValue(0),
+}))
+vi.mock("@/lib/nubi-aviso", () => ({
+  proponerNubi: vi.fn().mockResolvedValue(0),
+}))
 
 import { POST } from "../route"
 
@@ -107,7 +114,7 @@ describe("POST /api/automations/evaluate", () => {
     expect(checkModoAusenteMock).toHaveBeenCalledWith(FAKE_SERVICE_CLIENT)
 
     const body = await response.json()
-    expect(body).toEqual({ skipped: false, evaluadas: 0, modoAusente: { activo: false } })
+    expect(body).toEqual({ skipped: false, evaluadas: 0, modoAusente: { activo: false }, avisosClima: 0, propuestasNubi: 0 })
   })
 
   it("si el lock ya está tomado, responde 200 con skipped:true y no evalúa nada", async () => {

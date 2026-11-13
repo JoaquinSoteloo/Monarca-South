@@ -263,7 +263,7 @@ export function AutomatizacionesManager({
       if (deviceForm.simular_falla) proveedorConfig.fallarSiempre = true
       if (deviceForm.latencia_ms) proveedorConfig.latenciaMs = Number(deviceForm.latencia_ms)
     }
-    if (deviceForm.proveedor === "shelly_cloud") {
+    if (deviceForm.proveedor === "shelly_cloud" || deviceForm.proveedor === "shelly_local") {
       proveedorConfig.device_id = deviceForm.shelly_device_id.trim()
       proveedorConfig.canal = Number(deviceForm.shelly_canal) || 0
     }
@@ -373,7 +373,7 @@ export function AutomatizacionesManager({
     if (esAireAcondicionado) {
       accionEncendido.modo = reglaForm.accion_modo
       accionEncendido.setpoint = Number(reglaForm.accion_setpoint)
-      accionEncendido.fan = reglaForm.accion_fan
+      accionEncendido.fan = "auto" // el ventilador del aire va siempre en automático
     }
 
     const body = {

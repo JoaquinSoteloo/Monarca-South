@@ -20,6 +20,7 @@ const PUBLIC_API_PATHS = [
   "/api/automations/evaluate",
   "/api/chat/notificar",
   "/api/bridge/commands",
+  "/api/bridge/estado",
 ]
 
 // Igual que las de arriba, pero con un id al final (/api/bridge/commands/123).

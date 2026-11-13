@@ -11,6 +11,7 @@ Uso (ver LEEME.md):
                                                cambia la IP, lo vuelve a encontrar)
   python puente.py aprender sala5 apagar       guarda un botón del control
   python puente.py probar sala5 apagar         manda ese botón
+  python puente.py shelly 28372f26420c encender  prende o apaga un Shelly por el WiFi
   python puente.py                             queda corriendo (modo puente)
 
 Nombres de botones que usa el sistema:
@@ -383,18 +384,29 @@ def correr():
         vuelta += 1
         if vuelta % 2 == 0:  # cada 30 segundos
             saludar_equipos()
+        if vuelta % 4 == 1:  # cada minuto (y al arrancar): estado real de los Shelly
+            informar_shellys(cfg)
         try:
             comandos = pedir(cfg, "GET", "/api/bridge/commands").get("comandos", [])
             errores = 0
+            hubo_shelly = False
             for c in comandos:
-                nombre = str(c["dispositivo"]["proveedor_config"].get("equipo", "")).lower()
+                config = c["dispositivo"].get("proveedor_config") or {}
+                nombre = str(config.get("equipo", "")).lower()
                 try:
-                    boton = mandar(nombre, c.get("payload") or {})
+                    if c["dispositivo"].get("proveedor") == "shelly_local":
+                        boton = mandar_shelly(config, c.get("payload") or {})
+                        hubo_shelly = True
+                    else:
+                        boton = mandar(nombre, c.get("payload") or {})
                     pedir(cfg, "POST", f"/api/bridge/commands/{c['id']}", {"estado": "ejecutado"})
                     log(f"{c['dispositivo']['nombre']}: {boton}")
                 except Exception as e:  # noqa: BLE001
                     pedir(cfg, "POST", f"/api/bridge/commands/{c['id']}", {"estado": "fallido", "error": str(e)[:250]})
                     log(f"{c['dispositivo']['nombre']}: FALLÓ ({e})")
+            if hubo_shelly:  # que la app muestre enseguida el estado real nuevo
+                time.sleep(1)
+                informar_shellys(cfg)
         except urllib.error.HTTPError as e:
             errores += 1
             if e.code == 401:
@@ -455,12 +467,138 @@ def aprender(nombre, boton):
     print(f"Guardado «{boton}» para '{nombre}'.")
 
 
+# --- Shelly por el WiFi (proveedor shelly_local) ---------------------------------
+# Relés Shelly Gen2/Gen3 por su API local (http://IP/rpc/Switch.Set), sin pasar
+# por la nube: no hacen falta las claves de la cuenta dueña. La app manda el ID
+# del Shelly (proveedor_config.device_id) y el canal; el puente lo encuentra en
+# la red por el ID y guarda la IP en equipos.json ("shelly:<id>").
+# Si el Shelly tiene contraseña, todavía no está soportado (avisa el error).
+
+def _shelly_get(ip, ruta, timeout=4):
+    with urllib.request.urlopen(f"http://{ip}{ruta}", timeout=timeout) as r:
+        return json.loads(r.read() or b"{}")
+
+
+def _id_de_shelly(info):
+    return str(info.get("mac") or "").lower().replace(":", "")
+
+
+def buscar_shelly(device_id):
+    """Pregunta en cada dirección de la red quién es ese Shelly (unos 20 segundos)."""
+    propia = ip_local()
+    red = ipaddress.ip_network(f"{propia}/22", strict=False)
+
+    def preguntar(ip):
+        try:
+            return ip if _id_de_shelly(_shelly_get(ip, "/shelly", timeout=2)) == device_id else None
+        except Exception:  # noqa: BLE001
+            return None
+
+    with ThreadPoolExecutor(128) as ex:
+        for ip in ex.map(preguntar, [str(i) for i in red.hosts() if str(i) != propia]):
+            if ip:
+                return ip
+    return None
+
+
+def mandar_shelly(config, payload):
+    device_id = str(config.get("device_id") or "").strip().lower().replace(":", "")
+    canal = int(config.get("canal") or 0)
+    accion = payload.get("accion")
+    if not device_id:
+        raise RuntimeError("El dispositivo no tiene cargado el ID del Shelly")
+    if accion not in ("encender", "apagar"):
+        raise RuntimeError(f"El Shelly solo prende o apaga (pidieron {accion})")
+    clave = f"shelly:{device_id}"
+    equipos = leer_json(EQUIPOS, {})
+    ruta = f"/rpc/Switch.Set?id={canal}&on={'true' if accion == 'encender' else 'false'}"
+
+    ip = (equipos.get(clave) or {}).get("ip")
+    if ip:
+        try:
+            if _id_de_shelly(_shelly_get(ip, "/shelly")) == device_id:
+                _shelly_get(ip, ruta)
+                return f"Shelly {accion}"
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise RuntimeError("El Shelly tiene contraseña: el puente todavía no la soporta") from e
+            raise
+        except Exception:  # noqa: BLE001  (cambió de IP o no contesta: buscarlo)
+            pass
+    log(f"Busco el Shelly {device_id} en la red…")
+    ip = buscar_shelly(device_id)
+    if not ip:
+        raise RuntimeError(f"No encuentro el Shelly {device_id} en la red. ¿Está enchufado y en el WiFi?")
+    equipos = leer_json(EQUIPOS, {})
+    equipos[clave] = {"ip": ip}
+    guardar_json(EQUIPOS, equipos)
+    log(f"Shelly {device_id} en {ip}. Lo guardé.")
+    try:
+        _shelly_get(ip, ruta)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            raise RuntimeError("El Shelly tiene contraseña: el puente todavía no la soporta") from e
+        raise
+    return f"Shelly {accion}"
+
+
+_shellys = []  # los Shelly por WiFi que la app le pidió leer (lo devuelve /api/bridge/estado)
+_shelly_buscado = {}  # device_id -> cuándo se lo buscó en la red (para no barrer la red cada minuto)
+
+
+def ip_de_shelly(device_id):
+    """IP guardada del Shelly; si no hay, lo busca en la red (como mucho cada 5 minutos)."""
+    ip = (leer_json(EQUIPOS, {}).get(f"shelly:{device_id}") or {}).get("ip")
+    if ip:
+        return ip
+    if time.time() - _shelly_buscado.get(device_id, 0) < REINTENTO_S:
+        return None
+    _shelly_buscado[device_id] = time.time()
+    ip = buscar_shelly(device_id)
+    if ip:
+        equipos = leer_json(EQUIPOS, {})
+        equipos[f"shelly:{device_id}"] = {"ip": ip}
+        guardar_json(EQUIPOS, equipos)
+    return ip
+
+
+def leer_shelly(device_id, canal):
+    """Estado real del relé: (prendido, watts), o None si no contesta."""
+    ip = ip_de_shelly(device_id)
+    if not ip:
+        return None
+    try:
+        st = _shelly_get(ip, f"/rpc/Switch.GetStatus?id={canal}")
+        return bool(st.get("output")), st.get("apower")
+    except Exception:  # noqa: BLE001  (cambió de IP: la próxima vez lo busca)
+        equipos = leer_json(EQUIPOS, {})
+        equipos.pop(f"shelly:{device_id}", None)
+        guardar_json(EQUIPOS, equipos)
+        return None
+
+
+def informar_shellys(cfg):
+    """Le cuenta a la app el estado real de cada Shelly por WiFi y recibe la lista actualizada."""
+    global _shellys
+    lecturas = []
+    for sh in _shellys:
+        estado = leer_shelly(str(sh["device_id"]).lower(), int(sh.get("canal") or 0))
+        if estado:
+            lecturas.append({"dispositivo_id": sh["id"], "encendido": estado[0], "potencia_w": estado[1]})
+    try:
+        _shellys = pedir(cfg, "POST", "/api/bridge/estado", {"lecturas": lecturas}).get("shelly", [])
+    except Exception:  # noqa: BLE001  (sin internet o versión vieja de la app: se reintenta)
+        pass
+
+
 def main(args):
     if not args:
         return correr()
     cmd = args[0]
     if cmd == "buscar":
         return buscar()
+    if cmd == "shelly" and len(args) == 3 and args[2].lower() in ("encender", "apagar"):
+        return print(mandar_shelly({"device_id": args[1]}, {"accion": args[2].lower()}) + ": listo.")
     if cmd == "agregar" and len(args) == 3:
         return agregar(args[1], args[2])
     if cmd == "aprender" and len(args) == 3:

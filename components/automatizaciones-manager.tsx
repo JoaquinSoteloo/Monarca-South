@@ -263,7 +263,7 @@ export function AutomatizacionesManager({
       if (deviceForm.simular_falla) proveedorConfig.fallarSiempre = true
       if (deviceForm.latencia_ms) proveedorConfig.latenciaMs = Number(deviceForm.latencia_ms)
     }
-    if (deviceForm.proveedor === "shelly_cloud") {
+    if (deviceForm.proveedor === "shelly_cloud" || deviceForm.proveedor === "shelly_local") {
       proveedorConfig.device_id = deviceForm.shelly_device_id.trim()
       proveedorConfig.canal = Number(deviceForm.shelly_canal) || 0
     }

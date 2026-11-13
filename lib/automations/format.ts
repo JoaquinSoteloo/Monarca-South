@@ -104,7 +104,9 @@ export function formatComandoDispositivo(tipo: TipoDispositivoControlable, paylo
       return `${icono} ${partes.join(" · ")}`
     }
 
-    return `${iconoPorDefecto} Encendido`
+    // Shelly por WiFi informa cuánto consume (lib/bridge/estado.ts).
+    const potencia = typeof payload.potencia_w === "number" ? payload.potencia_w : null
+    return `${iconoPorDefecto} Encendido${potencia !== null ? ` · ${Math.round(potencia)} W` : ""}`
   }
 
   // Acción desconocida (proveedor futuro con payload propio): mostramos algo

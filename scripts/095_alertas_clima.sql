@@ -1,6 +1,6 @@
 -- Alertas de clima: Nubi de verdad (pedido de Joaquín, 13/11/2026).
 --
--- NO SE EJECUTÓ TODAVÍA. Correr antes de publicar la app que lo usa.
+-- Ejecutado en producción el 13/11/2026, antes de publicar la app que lo usa.
 --
 -- El motor (cada 5 minutos) compara el Pulse de cada sala con el rango de su
 -- etapa (lib/clima-alertas.ts). Si lleva ~15 minutos fuera de rango, abre una

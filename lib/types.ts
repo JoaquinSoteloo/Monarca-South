@@ -293,6 +293,12 @@ export interface RegistroRiego {
   ec_runoff: number | null
   ph_runoff: number | null
   drenaje_pct: number | null
+  /** Pincho de EC en las testigo (script 098; antes del 16/11 queda vacío). */
+  pincho_t1_humedad?: number | null
+  pincho_t1_ec?: number | null
+  pincho_t2_humedad?: number | null
+  pincho_t2_ec?: number | null
+  pincho_humedad_despues?: number | null
   notas: string | null
   created_at: string
 }

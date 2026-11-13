@@ -15,6 +15,26 @@ export interface LecturaRiego {
   ec_runoff: number | null
   ph_runoff: number | null
   drenaje_pct: number | null
+  /**
+   * Pincho de EC (Bluelab) en las 2 testigo, antes de regar (desde el
+   * 16/11/2026 reemplaza al runoff de cada riego; el runoff queda los jueves,
+   * solo para el pH). Opcional: los riegos viejos no lo tienen.
+   */
+  pincho?: PinchoRiego | null
+}
+
+export interface PinchoRiego {
+  t1_humedad: number | null
+  t1_ec: number | null
+  t2_humedad: number | null
+  t2_ec: number | null
+  humedad_despues: number | null
+}
+
+/** Promedio de los valores cargados (null si no hay ninguno). */
+export function promedio(...vs: (number | null | undefined)[]): number | null {
+  const ok = vs.filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+  return ok.length ? redondear(ok.reduce((a, b) => a + b, 0) / ok.length) : null
 }
 
 export type NivelAlerta = "atencion" | "info"
@@ -153,8 +173,33 @@ export function evaluarRiego(l: LecturaRiego): AlertaRiego[] {
     }
   }
 
-  if (!esLavado && l.etapa !== "esqueje" && (l.ec_runoff === null || l.drenaje_pct === null)) {
-    alertas.push({ nivel: "info", mensaje: "Falta el runoff de las macetas testigo." })
+  // Pincho en las testigo (Lucho, 10/11/2026): la EC del sustrato más de 1
+  // punto arriba de la mezcla es acumulación de sales; 0,5 abajo, falta
+  // alimento. Las 2 testigo con humedad muy distinta: una se riega distinto.
+  const p = l.pincho
+  const ecPincho = p ? promedio(p.t1_ec, p.t2_ec) : null
+  if (!esLavado && l.etapa !== "esqueje" && ecPincho === null) {
+    alertas.push({ nivel: "info", mensaje: "Faltan las mediciones del pincho en las 2 testigo." })
+  }
+  if (ecPincho !== null && l.ec_entrada !== null && !esLavado) {
+    const dif = redondear(ecPincho - l.ec_entrada)
+    if (dif > 1) {
+      alertas.push({
+        nivel: "atencion",
+        mensaje: `EC del pincho ${fmt(ecPincho, 2)}, más de 1 punto arriba de la mezcla: posible acumulación de sales. Regar con más drenaje.`,
+      })
+    } else if (dif < -0.5) {
+      alertas.push({
+        nivel: "info",
+        mensaje: `EC del pincho ${fmt(ecPincho, 2)}, bastante por debajo de la mezcla: puede estar faltando alimento.`,
+      })
+    }
+  }
+  if (p && p.t1_humedad !== null && p.t2_humedad !== null && Math.abs(p.t1_humedad - p.t2_humedad) > 10) {
+    alertas.push({
+      nivel: "info",
+      mensaje: `Las 2 testigo tienen humedad muy distinta (${fmt(p.t1_humedad)} % y ${fmt(p.t2_humedad)} %).`,
+    })
   }
 
   return alertas

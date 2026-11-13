@@ -46,6 +46,11 @@ class FakeQueryBuilder {
     return this
   }
 
+  is(col: string, val: null) {
+    this.filters.push((r) => (r[col] ?? null) === val)
+    return this
+  }
+
   gte(col: string, val: string) {
     this.filters.push((r) => r[col] != null && new Date(r[col]).getTime() >= new Date(val).getTime())
     return this

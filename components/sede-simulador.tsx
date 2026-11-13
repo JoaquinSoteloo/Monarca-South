@@ -165,7 +165,7 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
           const medianoche = new Date(`${hoy}T00:00:00-03:00`).toISOString()
           const hace2horas = new Date(Date.now() - 2 * 3600_000).toISOString()
           const desde = medianoche < hace2horas ? medianoche : hace2horas
-          const [lecturas, tareas, riegos] = await Promise.all([
+          const [lecturas, tareas, riegos, alertas] = await Promise.all([
             supabase
               .from("lecturas_ambientales")
               .select("sala_id, temperatura_c, humedad_rh, vpd, luz_lux, leido_en")
@@ -180,6 +180,8 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
               .order("fecha", { ascending: false })
               .order("id", { ascending: false })
               .limit(200),
+            // Nubi: alertas de clima abiertas (las abre el motor, script 095).
+            supabase.from("alertas_clima").select("sala_id, mensaje, desde").is("resuelta_en", null),
           ])
           const filas = (lecturas.data ?? []) as LecturaSala[]
           // «Ahora» solo si la lectura tiene menos de 2 horas: si no, el sensor está sin conexión.
@@ -198,6 +200,10 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
           for (const r of (riegos.data ?? []) as Riego[]) if (!ultimoRiego.has(r.sala_id)) ultimoRiego.set(r.sala_id, r)
           return {
             actualizado: masNueva ? horaDe(masNueva) : null,
+            alertas: ((alertas.data ?? []) as { sala_id: number; mensaje: string; desde: string }[]).flatMap((a) => {
+              const sala = salas.find((x) => x.id === a.sala_id)
+              return sala ? [{ sala: sala.nombre, mensaje: a.mensaje, desde: horaDe(a.desde) }] : []
+            }),
             salas: salas.map((s) => {
               const c = cicloActual(ciclos, s.id, hoy)
               const l = ultimas.get(s.id)

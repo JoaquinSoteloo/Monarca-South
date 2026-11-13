@@ -757,6 +757,15 @@ function tocarAyudante(n) {
   const ia = document.getElementById('ia'); if (ia) ia.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function nubiCheck(k) {
+  if (MODO_SISTEMA) {
+    // Nubi de verdad (13/11/2026): no inventa nada. La alerta la decide el motor
+    // con el Pulse (lib/clima-alertas.ts) y acá solo se muestra.
+    const r = rooms[k], c = clima[k];
+    nubi.bubble = r.climaAlert ? `⚠ ${r.name}: ${r.climaAlert}`
+      : c ? `${r.name}: ${c[0].toFixed(1).replace('.', ',')} °C · ${Math.round(c[1])} % ✓`
+      : `${r.name}: sin lecturas del Pulse`;
+    return;
+  }
   nubi.checks++;
   const c = clima[k]; c[0] += (Math.random() - .5) * 0.6; c[1] += (Math.random() - .5) * 3;
   if (nubi.checks === 3) { k = 's5'; clima.s5[1] = 73; }
@@ -1317,15 +1326,16 @@ function tick(now) {
   }
   for (const [k, el] of Object.entries(signEls)) { const r = rooms[k]; v3.set(k === 's5' ? r.x1 - 0.4 : k === 's2' || k === 's3' ? r.x0 + 0.6 : (r.x0 + r.x1) / 2, 2.5, k === 'aten' ? r.z0 + 1 : r.z0 + 0.4); v3.project(cam); el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; }
   for (const f of fans) f.rotation.z += dt * 14;
-  // Nubi: recorre las salas y mide (en modo sistema el clima es el real de Pulse)
-  if (!MODO_SISTEMA) {
+  // Nubi: recorre las salas y mide (en modo sistema el clima es el real de Pulse
+  // y las alertas, las que abrió el motor; va más seguido a las salas con alerta)
+  {
     const spd = playing ? Math.min(6, Math.max(1, speed / 60)) : 1;
-    if (!nubi.target) { const ks = ['s1', 's2', 's5', 's3', 's4']; const k = ks[nubi.idx++ % ks.length]; const c = center(k); nubi.target = { k, v: new THREE.Vector3(c.x, 2.45, c.z) }; nubi.wait = 0; }
+    if (!nubi.target) { const todas = ['s1', 's2', 's5', 's3', 's4']; const ks = MODO_SISTEMA ? [...todas.filter(x => rooms[x].climaAlert), ...todas] : todas; const k = ks[nubi.idx++ % ks.length]; const c = center(k); nubi.target = { k, v: new THREE.Vector3(c.x, 2.45, c.z) }; nubi.wait = 0; }
     v3.copy(nubi.target.v).sub(nubi.g.position); const d = v3.length();
     if (d > 0.05) { v3.normalize(); nubi.g.position.addScaledVector(v3, Math.min(d, 1.2 * dt * spd)); nubi.g.rotation.y = Math.atan2(v3.x, v3.z); }
     else { nubi.wait += dt * spd; if (nubi.wait > 3) { nubiCheck(nubi.target.k); nubi.target = null; } }
     nubi.g.position.y = 2.45 + Math.sin(now / 400) * 0.06; nubi.tip.material.emissiveIntensity = 0.6 + Math.sin(now / 150) * 0.5;
-    const hh = simHour(); const night = hh >= 20 || hh < 10;
+    const hh = simHour(); const night = !MODO_SISTEMA && (hh >= 20 || hh < 10);
     const nt = document.getElementById('nubiTxt'); if (nt) nt.textContent = (night ? 'Turno noche · ' : '') + nubi.bubble;
     v3.copy(nubi.g.position); v3.y += 0.45; v3.project(cam); nubi.el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; nubi.el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; nubi.el.querySelector('.b').textContent = nubi.bubble;
   }
@@ -1517,13 +1527,21 @@ async function cargarDatosSistema() {
     rooms[k].riego = s.riego || null;
     if (s.lectura && s.lectura.t != null && s.lectura.h != null) clima[k] = [s.lectura.t, s.lectura.h]; else delete clima[k];
   }
+  // Alertas de clima abiertas (Nubi): se marcan en el cartel y la ficha de cada sala.
+  for (const r of Object.values(rooms)) r.climaAlert = null;
+  for (const a of d.alertas || []) {
+    const k = Object.keys(rooms).find(x => rooms[x].name === a.sala || rooms[x].name.startsWith(a.sala + ' '));
+    if (k) rooms[k].climaAlert = `${a.mensaje} desde las ${a.desde}`;
+  }
+  if (nubi.target) nubiCheck(nubi.target.k);
   equipoReal = d.equipo || [];
   pulseActualizado = d.actualizado || '';
   for (const p of people) { const e = equipoDe(p.id); p.bubble = e && e.total ? `${e.hechas} de ${e.total}${e.problemas ? ` · ⚠ ${e.problemas}` : ''}` : ''; }
   updatePlants(); applyLights(); renderSigns(); renderPanel();
 }
 if (MODO_SISTEMA) {
-  for (const ayudante of [nubi, chango]) { ayudante.g.visible = false; ayudante.el.style.display = 'none'; }
+  for (const ayudante of [chango]) { ayudante.g.visible = false; ayudante.el.style.display = 'none'; }
+  nubi.bubble = 'Mirando el Pulse…';
   for (const p of people) { p.tasks = []; p.done = {}; p.prob = {}; p.bubble = ''; }
   for (const k of Object.keys(clima)) delete clima[k]; // nada de clima de ejemplo hasta que llegue el real
   const hud = document.getElementById('hud');

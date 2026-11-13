@@ -4,6 +4,7 @@ import { evaluateAutomations } from "@/lib/automations/engine"
 import { avisarOrdenesSinCumplir } from "@/lib/automations/aviso-fallas"
 import { withEngineLock } from "@/lib/automations/lock"
 import { checkModoAusente } from "@/lib/modo-ausente/engine"
+import { avisarClima } from "@/lib/clima-alertas-aviso"
 
 // Dispara una corrida del motor de automatizaciones. Pensado para ser
 // invocado por un pinger EXTERNO (ej. cron-job.org) cada 1 minuto — Vercel
@@ -59,12 +60,23 @@ export async function POST(request: Request) {
     const resultado = await withEngineLock(supabase, async () => {
       const evaluacion = await evaluateAutomations(supabase, { avisarFallas: avisarOrdenesSinCumplir })
       const modoAusente = await checkModoAusente(supabase)
-      return { evaluacion, modoAusente }
+      // Nubi: salas fuera del rango de clima de su etapa (script 095). Si falla,
+      // no frena al motor: se reintenta en la próxima corrida.
+      const clima = await avisarClima(supabase).catch((err) => {
+        console.error("[automations/evaluate] Error revisando el clima:", err)
+        return null
+      })
+      return { evaluacion, modoAusente, clima }
     })
     if (!resultado.ejecuto) {
       return NextResponse.json({ skipped: true, motivo: "Ya había una evaluación en curso" })
     }
-    return NextResponse.json({ skipped: false, ...resultado.resultado.evaluacion, modoAusente: resultado.resultado.modoAusente })
+    return NextResponse.json({
+      skipped: false,
+      ...resultado.resultado.evaluacion,
+      modoAusente: resultado.resultado.modoAusente,
+      avisosClima: resultado.resultado.clima,
+    })
   } catch (error) {
     console.error("[automations/evaluate] Error evaluando automatizaciones:", error)
     return NextResponse.json({ error: "Error evaluando automatizaciones" }, { status: 500 })

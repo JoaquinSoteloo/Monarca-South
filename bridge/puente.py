@@ -129,7 +129,14 @@ def mac_de(dev):
 def datos_equipo(equipos, nombre):
     """equipos.json guarda {"ip", "mac"}; las versiones viejas guardaban solo la IP."""
     valor = equipos[nombre]
-    return valor if isinstance(valor, dict) else {"ip": valor, "mac": None}
+    if isinstance(valor, dict):
+        return {"ip": valor.get("ip"), "mac": valor.get("mac")}
+    return {"ip": valor, "mac": None}
+
+
+def broadlinks(equipos):
+    """Los BroadLink de equipos.json (ahí también se guarda la IP de los Shelly: "shelly:<id>")."""
+    return {k: v for k, v in equipos.items() if not k.startswith("shelly:")}
 
 
 _fijadas = {}  # nombre -> IP que se fijó en Windows en esta corrida
@@ -301,9 +308,9 @@ def conectar_equipo(nombre):
 def conectar_todos():
     """Al arrancar, se conecta a cada BroadLink sin esperar a que llegue una orden."""
     equipos = leer_json(EQUIPOS, {})
-    if not equipos:
+    if not broadlinks(equipos):
         log("No hay BroadLink cargados: corré  python puente.py agregar sala5 <IP>")
-    for nombre in equipos:
+    for nombre in broadlinks(equipos):
         datos = datos_equipo(equipos, nombre)
         fijar_direccion(nombre, datos["ip"], datos["mac"])
         if conectar_equipo(nombre):
@@ -319,7 +326,7 @@ def saludar_equipos():
     lo vuelve a conectar (buscándolo por MAC) sin esperar a la próxima orden.
     """
     bl = broadlink_mod()
-    for nombre in leer_json(EQUIPOS, {}):
+    for nombre in broadlinks(leer_json(EQUIPOS, {})):
         if nombre in _perdidos:
             if time.time() - _perdidos[nombre] >= REINTENTO_S:
                 conectar_equipo(nombre)

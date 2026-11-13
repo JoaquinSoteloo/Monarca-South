@@ -71,18 +71,31 @@ python puente.py probar sala5 apagar
 - `frio_23` = en el control, poner **frío y 23 °C** y apretar el botón de
   encender (el control manda todo junto). Aprender las temperaturas que usen
   las reglas (por ejemplo 23 y 24).
-- Si una regla pide una temperatura que no está aprendida, usa `frio` y, si
-  tampoco está, `encender`. Si no hay ninguno, el comando falla con el
-  aviso "Falta aprender el botón…".
+- Se manda solo el botón exacto. Si una regla o Control manual pide una
+  temperatura que no está aprendida (por ejemplo frío a 25 sin `frio_25`),
+  la orden **falla**: en la app figura como fallida con "Falta aprender el
+  botón frio_25…" y llega el aviso al celular. Aprender las temperaturas
+  que usen las reglas.
 
 Los botones quedan en `codigos.json`, solo en la notebook.
 
 ## 5. Dejarlo corriendo solo
 
-- Probar primero a mano: `python puente.py` (muestra lo que hace).
-- Para que arranque solo: Win+R → `shell:startup` → poner ahí un acceso
-  directo a `iniciar-puente.bat`. Corre sin ventana; lo que hace queda
-  anotado en `puente.log`.
+- Probar primero a mano: `python puente.py` (muestra lo que hace). Al
+  arrancar se conecta a cada BroadLink y avisa "conectado en …".
+- Lo normal: **doble clic en `Abrir puente.bat`** → Windows pide permiso
+  de administrador → **Sí**. La primera vez deja instalada la tarea
+  "Puente Monarca", que lo arranca solo (sin ventana) cada vez que se entra
+  a Windows. Después abre el puente en esa ventana. Si ya había uno
+  corriendo, no arranca otro: muestra en vivo lo que va haciendo (lo que
+  hace queda anotado en `puente.log`).
+- ¿Por qué administrador? El BroadLink dormita y no contesta cuando la
+  notebook pregunta "¿quién tiene esta IP?" a toda la red. Como
+  administrador, el puente le dice a Windows la MAC del BroadLink al
+  arrancar y así lo encuentra siempre. Sin administrador anda igual, pero
+  después de un reinicio puede no encontrarlo hasta que se reenchufe.
+- Si antes se puso un acceso directo en `shell:startup`, borrarlo para que
+  no corran dos puentes.
 
 ## 6. Conectar en el sistema
 

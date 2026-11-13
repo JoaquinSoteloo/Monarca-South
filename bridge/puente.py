@@ -17,8 +17,9 @@ Nombres de botones que usa el sistema:
   apagar
   frio_23, frio_24, ...  (modo y temperatura; los modos del sistema son
                           frio, calor y ventilador)
-  frio, calor, ventilador (si no está la temperatura exacta)
-  encender               (último recurso)
+  frio, calor, ventilador (si piden el modo sin temperatura)
+  encender               (si piden encender sin modo)
+Se manda solo el botón exacto: si no está grabado, la orden falla y avisa.
 """
 import json
 import os
@@ -27,6 +28,7 @@ import time
 import base64
 import socket
 import logging
+import subprocess
 import ipaddress
 import urllib.request
 import urllib.error
@@ -127,6 +129,62 @@ def datos_equipo(equipos, nombre):
     return valor if isinstance(valor, dict) else {"ip": valor, "mac": None}
 
 
+_fijadas = {}  # nombre -> IP que se fijó en Windows en esta corrida
+_SIN_VENTANA = {"creationflags": 0x08000000} if os.name == "nt" else {}  # que no aparezcan ventanas negras
+
+
+def es_admin():
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:  # noqa: BLE001  (no es Windows)
+        return False
+
+
+def fijar_direccion(nombre, ip, mac):
+    """Le dice a Windows cuál es la MAC de esta IP, para no tener que preguntarla a la red.
+
+    El BroadLink dormita y no escucha esa pregunta (va a toda la red), así que
+    sin esto la notebook a veces no lo encuentra al arrancar. Queda solo
+    mientras la notebook esté prendida (store=active): cada vez que arranca el
+    puente lo vuelve a poner, con la IP del momento. Necesita administrador.
+    """
+    if os.name != "nt" or not mac or _fijadas.get(nombre) == ip:
+        return
+    if not es_admin():
+        if "__aviso_admin" not in _fijadas:
+            _fijadas["__aviso_admin"] = ""
+            log("Aviso: el puente no corre como administrador, así que no puede fijar la dirección del BroadLink. "
+                "Anda igual, pero si la notebook se reinicia puede tardar en encontrarlo (ver LEEME, paso 5).")
+        return
+    anterior = _fijadas.get(nombre)
+    # Si ya estaba fijada con esta MAC (por ejemplo, a mano con netsh) se deja como está;
+    # si estaba con otra MAC o es una IP vieja de este BroadLink, se reemplaza.
+    script = f"""
+$ErrorActionPreference = 'Stop'
+$i = (Get-NetIPAddress -IPAddress '{ip_local()}').InterfaceIndex
+$m = '{mac.replace(':', '-').upper()}'
+{f"Remove-NetNeighbor -InterfaceIndex $i -IPAddress '{anterior}' -Confirm:$false -ErrorAction SilentlyContinue" if anterior and anterior != ip else ""}
+$n = Get-NetNeighbor -InterfaceIndex $i -IPAddress '{ip}' -ErrorAction SilentlyContinue | Where-Object State -eq 'Permanent'
+if ($n -and $n.LinkLayerAddress -eq $m) {{ 'ya estaba' }} else {{
+  Remove-NetNeighbor -InterfaceIndex $i -IPAddress '{ip}' -Confirm:$false -ErrorAction SilentlyContinue
+  New-NetNeighbor -InterfaceIndex $i -IPAddress '{ip}' -LinkLayerAddress $m -PolicyStore ActiveStore | Out-Null
+  'fijada'
+}}
+"""
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                           capture_output=True, text=True, timeout=30, **_SIN_VENTANA)
+        salida = r.stdout.strip()
+        if r.returncode == 0 and salida in ("ya estaba", "fijada"):
+            _fijadas[nombre] = ip
+            log(f"BroadLink '{nombre}': dirección {salida} en Windows ({ip} = {mac}).")
+        else:
+            log(f"BroadLink '{nombre}': no pude fijar la dirección ({(r.stderr or salida).strip()[:160]}).")
+    except Exception as e:  # noqa: BLE001
+        log(f"BroadLink '{nombre}': no pude fijar la dirección ({e}).")
+
+
 def reencontrar(nombre, mac):
     """Busca el BroadLink por su MAC si el router le cambió la IP."""
     log(f"'{nombre}' no contesta en su IP; lo busco en la red por su MAC {mac}…")
@@ -136,6 +194,7 @@ def reencontrar(nombre, mac):
             equipos[nombre] = {"ip": d.host[0], "mac": mac}
             guardar_json(EQUIPOS, equipos)
             log(f"'{nombre}' ahora está en {d.host[0]}. Lo guardé.")
+            fijar_direccion(nombre, d.host[0], mac)
             return d
     raise RuntimeError(
         f"No encuentro el BroadLink '{nombre}' en la red. ¿Está enchufado? "
@@ -170,14 +229,14 @@ def boton_para(payload):
         return ["apagar"]
     if accion != "encender":
         return []
+    # Solo el botón exacto (decisión de Joaquín, 13/11/2026): si piden frío a 25 y no
+    # está grabado frio_25, la orden falla y avisa, en vez de mandar otra cosa.
     modo = str(payload.get("modo") or "").lower()
-    candidatos = []
     if modo and payload.get("setpoint") is not None:
-        candidatos.append(f"{modo}_{int(round(float(payload['setpoint'])))}")
+        return [f"{modo}_{int(round(float(payload['setpoint'])))}"]
     if modo:
-        candidatos.append(modo)
-    candidatos.append("encender")
-    return candidatos
+        return [modo]
+    return ["encender"]
 
 
 def mandar(nombre, payload):
@@ -185,7 +244,10 @@ def mandar(nombre, payload):
     candidatos = boton_para(payload)
     boton = next((b for b in candidatos if b in codigos), None)
     if not boton:
-        raise RuntimeError(f"Falta aprender el botón {candidatos[0] if candidatos else '?'} para {nombre}")
+        grabados = ", ".join(sorted(b for b in codigos if b != "apagar")) or "ninguno"
+        raise RuntimeError(
+            f"Falta aprender el botón {candidatos[0] if candidatos else '?'} para {nombre} (grabados: {grabados})"
+        )
     paquete = base64.b64decode(codigos[boton])
     try:
         conectar(nombre).send_data(paquete)
@@ -220,6 +282,8 @@ def conectar_todos():
     if not equipos:
         log("No hay BroadLink cargados: corré  python puente.py agregar sala5 <IP>")
     for nombre in equipos:
+        datos = datos_equipo(equipos, nombre)
+        fijar_direccion(nombre, datos["ip"], datos["mac"])
         if conectar_equipo(nombre):
             log(f"BroadLink '{nombre}': conectado en {_conexiones[nombre].host[0]}.")
 
@@ -263,10 +327,33 @@ def pedir(cfg, metodo, ruta, cuerpo=None):
         return json.loads(r.read() or b"{}")
 
 
+_lugar = None
+PUERTO_UNICO = 47231  # puerto local que ocupa el puente para saber si ya hay otro corriendo
+
+
+def ocupar_lugar():
+    """Que nunca corran dos puentes a la vez en la misma notebook (se pisarían las órdenes)."""
+    global _lugar
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        if os.name == "nt":
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        s.bind(("127.0.0.1", PUERTO_UNICO))
+        s.listen(1)
+    except OSError:
+        s.close()
+        return False
+    _lugar = s
+    return True
+
+
 def correr():
     cfg = leer_config()
     if len(cfg["BRIDGE_TOKEN"]) < 16:
         sys.exit("Falta BRIDGE_TOKEN en puente.env (la misma clave que tiene Vercel).")
+    if not ocupar_lugar():
+        log("Ya hay un puente corriendo en esta notebook (puede estar sin ventana). No arranco otro.")
+        sys.exit(3)  # «Abrir puente.bat» muestra entonces lo que va haciendo el que ya corre
     log("Puente de la sede andando. Para cortarlo, cerrá esta ventana.")
     conectar_todos()
     errores = 0

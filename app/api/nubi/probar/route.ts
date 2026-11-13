@@ -5,7 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service"
 import { sendPushToUsers } from "@/lib/push/send"
 import { cicloActual, type CicloSala } from "@/lib/ciclo"
 import { rangoClima, textoProblema } from "@/lib/clima-alertas"
-import { estadoAire, proponer, textoEstadoAire, MINUTOS_VIGENCIA } from "@/lib/nubi"
+import { estadoAire, estadoOnOff, proponer, proponerDeshumidificador, textoEstadoAire, textoEstadoOnOff, MINUTOS_VIGENCIA } from "@/lib/nubi"
 import type { DispositivoControlable } from "@/lib/types"
 
 // "Probar Nubi" (pedido de Joaquín, 13/11/2026): corre el mismo análisis que el
@@ -19,39 +19,53 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null)
   const dispositivoId = Number(body?.dispositivoId)
-  const temperatura = Math.round(Number(body?.temperatura) * 10) / 10
-  if (!Number.isFinite(dispositivoId) || !Number.isFinite(temperatura) || temperatura < 0 || temperatura > 50) {
-    return NextResponse.json({ error: "Elegí el aire y una temperatura entre 0 y 50 °C" }, { status: 400 })
+  // `valor`: temperatura simulada (°C) para el aire, humedad (%) para el deshumidificador.
+  const valor = Math.round(Number(body?.valor ?? body?.temperatura) * 10) / 10
+  if (!Number.isFinite(dispositivoId) || !Number.isFinite(valor) || valor < 0 || valor > 100) {
+    return NextResponse.json({ error: "Elegí el equipo y un valor válido" }, { status: 400 })
   }
 
   const supabase = createServiceClient()
-  const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })
+  const ahora = new Date()
+  const hoy = ahora.toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })
   const { data: aire } = await supabase.from("dispositivos_controlables").select("*").eq("id", dispositivoId).maybeSingle()
-  if (!aire || aire.tipo !== "aire_acondicionado" || !aire.sala_id) {
-    return NextResponse.json({ error: "Ese equipo no es un aire de una sala" }, { status: 400 })
+  if (!aire || !["aire_acondicionado", "deshumidificador"].includes(aire.tipo) || !aire.sala_id) {
+    return NextResponse.json({ error: "Ese equipo no es un aire ni un deshumidificador de una sala" }, { status: 400 })
   }
   const [{ data: sala }, { data: ciclos }] = await Promise.all([
     supabase.from("salas_cultivo").select("id, nombre").eq("id", aire.sala_id).maybeSingle(),
     supabase.from("ciclos_sala").select("*").eq("estado", "abierto"),
   ])
-  if (!sala) return NextResponse.json({ error: "No encuentro la sala del aire" }, { status: 400 })
+  if (!sala) return NextResponse.json({ error: "No encuentro la sala del equipo" }, { status: 400 })
 
   const rango = rangoClima(sala.nombre, cicloActual((ciclos ?? []) as CicloSala[], sala.id, hoy), hoy)
   if (!rango) return NextResponse.json({ error: `${sala.nombre} no tiene un rango de clima hoy (sin ciclo)` }, { status: 400 })
 
-  const estado = estadoAire(aire as DispositivoControlable)
-  const propuesta = proponer(rango, temperatura, estado)
-  const [min, max] = rango.temperatura
-  if (!propuesta) {
-    return NextResponse.json({
-      ok: true,
-      mensaje: `Con ${temperatura} °C y el aire ${textoEstadoAire(estado)}, Nubi no propone nada (rango de ${rango.etapa}: ${min}–${max} °C).`,
-    })
+  let propuesta
+  let motivo: string
+  if (aire.tipo === "deshumidificador") {
+    const estado = estadoOnOff(aire as DispositivoControlable, ahora)
+    const humedad = Math.round(valor)
+    const [min, max] = rango.humedad
+    propuesta = proponerDeshumidificador(rango, humedad, estado)
+    motivo = `${sala.nombre}: humedad ${humedad} % (rango ${min}–${max}), ${aire.nombre.toLowerCase()} ${textoEstadoOnOff(estado)} (PRUEBA con ${humedad} % simulado)`
+    if (!propuesta) {
+      return NextResponse.json({ ok: true, mensaje: `Con ${humedad} % y el ${aire.nombre.toLowerCase()} ${textoEstadoOnOff(estado)}, Nubi no propone nada (rango de ${rango.etapa}: ${min}–${max} %).` })
+    }
+  } else {
+    const temperatura = valor
+    const estado = estadoAire(aire as DispositivoControlable)
+    const [min, max] = rango.temperatura
+    propuesta = proponer(rango, temperatura, estado)
+    if (!propuesta) {
+      return NextResponse.json({
+        ok: true,
+        mensaje: `Con ${temperatura} °C y el aire ${textoEstadoAire(estado)}, Nubi no propone nada (rango de ${rango.etapa}: ${min}–${max} °C).`,
+      })
+    }
+    const lado = temperatura > max ? "alto" : "bajo"
+    motivo = `${sala.nombre}: ${textoProblema({ variable: "temperatura", lado, valor: temperatura, limite: lado === "alto" ? max : min })}, aire ${textoEstadoAire(estado)} (PRUEBA con ${temperatura} °C simulados)`
   }
-
-  const lado = temperatura > max ? "alto" : "bajo"
-  const motivo = `${sala.nombre}: ${textoProblema({ variable: "temperatura", lado, valor: temperatura, limite: lado === "alto" ? max : min })}, aire ${textoEstadoAire(estado)} (PRUEBA con ${temperatura} °C simulados)`
-  const ahora = new Date()
 
   // Una sola pendiente por aire: la anterior (real o de prueba) se da por vencida.
   await supabase.from("propuestas_nubi").update({ estado: "vencida", resuelta_en: ahora.toISOString() }).eq("dispositivo_id", aire.id).eq("estado", "pendiente")

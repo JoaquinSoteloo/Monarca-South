@@ -119,3 +119,71 @@ export function temperaturaEn(lecturas: { leido_en: string; temperatura_c: numbe
   }
   return mejor ? Math.round(Number(mejor.temperatura_c) * 10) / 10 : null
 }
+
+// --- Deshumidificador (pedido de Joaquín, 13/11/2026) -----------------------
+// Equipo de prender y apagar. Si informa su estado real (Shelly por WiFi,
+// soporta_feedback) se usa eso; si no, la última orden cumplida.
+
+/** Si el estado real tiene más de esto, no se le cree (el puente informa cada minuto). */
+const ESTADO_REAL_VALIDO_MIN = 5
+/** Por debajo de esto, prendido pero sin consumir (tanque lleno, desenchufado, apagado con su botón). */
+export const SIN_CONSUMO_W = 5
+/** Cuánto tiene que durar sin consumir para avisar. */
+export const MINUTOS_SIN_CONSUMO = 15
+
+export type EstadoOnOff =
+  | { tipo: "prendido"; potenciaW: number | null; sinConsumoDesde: string | null }
+  | { tipo: "apagado" }
+  | { tipo: "en_curso" }
+  | { tipo: "desconocido" }
+
+export function estadoOnOff(
+  d: Pick<DispositivoControlable, "ultimo_comando_estado" | "ultimo_comando_payload" | "soporta_feedback" | "ultimo_estado_confirmado_payload" | "ultimo_estado_confirmado_en">,
+  ahora: Date = new Date(),
+): EstadoOnOff {
+  if (d.ultimo_comando_estado === "pendiente" || d.ultimo_comando_estado === "en_proceso") return { tipo: "en_curso" }
+  const real = d.soporta_feedback && d.ultimo_estado_confirmado_payload && d.ultimo_estado_confirmado_en
+    && (ahora.getTime() - new Date(d.ultimo_estado_confirmado_en).getTime()) / 60000 <= ESTADO_REAL_VALIDO_MIN
+    ? d.ultimo_estado_confirmado_payload
+    : null
+  const p = real ?? (d.ultimo_comando_estado === "ejecutado" ? d.ultimo_comando_payload : null)
+  if (!p) return { tipo: "desconocido" }
+  if (p.accion === "apagar") return { tipo: "apagado" }
+  if (p.accion !== "encender") return { tipo: "desconocido" }
+  return {
+    tipo: "prendido",
+    potenciaW: typeof p.potencia_w === "number" ? p.potencia_w : null,
+    sinConsumoDesde: typeof p.sin_consumo_desde === "string" ? p.sin_consumo_desde : null,
+  }
+}
+
+/**
+ * - Humedad sobre el máximo y apagado: prenderlo.
+ * - Prendido y la humedad ya bajó a la mitad del rango (o quedó por debajo del mínimo):
+ *   apagarlo. Se espera a la mitad, no al máximo, para que no prenda y apague a cada rato.
+ */
+export function proponerDeshumidificador(rango: RangoClima, humedad: number, estado: EstadoOnOff): Propuesta | null {
+  const [min, max] = rango.humedad
+  if (estado.tipo === "apagado" && humedad > max) {
+    return { tipo: "orden", payload: { accion: "encender" }, resumen: "prender el deshumidificador" }
+  }
+  if (estado.tipo === "prendido" && (humedad <= (min + max) / 2 || humedad < min)) {
+    return { tipo: "orden", payload: { accion: "apagar" }, resumen: "apagar el deshumidificador" }
+  }
+  return null
+}
+
+/** Prendido pero sin consumir hace 15 minutos o más. */
+export function sinConsumoLargo(estado: EstadoOnOff, ahora: Date = new Date()): boolean {
+  return (
+    estado.tipo === "prendido" &&
+    estado.sinConsumoDesde !== null &&
+    (ahora.getTime() - new Date(estado.sinConsumoDesde).getTime()) / 60000 >= MINUTOS_SIN_CONSUMO
+  )
+}
+
+export function textoEstadoOnOff(e: EstadoOnOff): string {
+  if (e.tipo === "prendido") return e.potenciaW !== null ? `prendido (${Math.round(e.potenciaW)} W)` : "prendido"
+  if (e.tipo === "apagado") return "apagado"
+  return e.tipo === "en_curso" ? "con una orden en camino" : "en un estado desconocido"
+}

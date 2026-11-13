@@ -72,3 +72,30 @@ describe("temperaturaEn", () => {
     expect(temperaturaEn(l, "2026-11-13T17:00:00Z")).toBeNull()
   })
 })
+
+import { estadoOnOff, proponerDeshumidificador, sinConsumoLargo } from "./nubi"
+
+describe("deshumidificador", () => {
+  const ahora = new Date("2026-11-13T18:30:00Z")
+  const hace = (m: number) => new Date(ahora.getTime() - m * 60000).toISOString()
+  const base = { ultimo_comando_estado: "ejecutado" as const, ultimo_comando_payload: { accion: "apagar" }, soporta_feedback: true }
+
+  it("usa el estado real si es reciente; si no, la última orden", () => {
+    expect(estadoOnOff({ ...base, ultimo_estado_confirmado_payload: { accion: "encender", potencia_w: 561 }, ultimo_estado_confirmado_en: hace(1) }, ahora))
+      .toEqual({ tipo: "prendido", potenciaW: 561, sinConsumoDesde: null })
+    expect(estadoOnOff({ ...base, ultimo_estado_confirmado_payload: { accion: "encender" }, ultimo_estado_confirmado_en: hace(30) }, ahora).tipo).toBe("apagado")
+  })
+  it("prende con humedad alta y apaga recién a la mitad del rango", () => {
+    expect(proponerDeshumidificador(flora, 73, { tipo: "apagado" })).toMatchObject({ payload: { accion: "encender" }, resumen: "prender el deshumidificador" })
+    const prendido = { tipo: "prendido" as const, potenciaW: 560, sinConsumoDesde: null }
+    expect(proponerDeshumidificador(flora, 53, prendido)).toBeNull()
+    expect(proponerDeshumidificador(flora, 50, prendido)).toMatchObject({ payload: { accion: "apagar" } })
+    expect(proponerDeshumidificador(flora, 60, prendido)).toBeNull()
+    expect(proponerDeshumidificador(flora, 50, { tipo: "apagado" })).toBeNull()
+  })
+  it("avisa si está prendido sin consumir hace 15 minutos", () => {
+    expect(sinConsumoLargo({ tipo: "prendido", potenciaW: 0, sinConsumoDesde: hace(16) }, ahora)).toBe(true)
+    expect(sinConsumoLargo({ tipo: "prendido", potenciaW: 0, sinConsumoDesde: hace(5) }, ahora)).toBe(false)
+    expect(sinConsumoLargo({ tipo: "prendido", potenciaW: 560, sinConsumoDesde: null }, ahora)).toBe(false)
+  })
+})

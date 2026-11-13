@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { SIN_CONSUMO_W } from "@/lib/nubi"
 
 // Estado real de los Shelly por WiFi (proveedor shelly_local): la notebook de
 // la sede (bridge/puente.py) los lee cada minuto por la red local y lo informa
@@ -26,7 +27,7 @@ export async function registrarEstados(
 ): Promise<ShellyDelPuente[]> {
   const { data, error } = await supabase
     .from("dispositivos_controlables")
-    .select("id, nombre, proveedor, proveedor_config, activo")
+    .select("id, nombre, proveedor, proveedor_config, activo, ultimo_estado_confirmado_payload")
     .eq("proveedor", "shelly_local")
     .eq("activo", true)
   if (error) throw new Error(error.message)
@@ -40,12 +41,22 @@ export async function registrarEstados(
     // Solo equipos de este puente: no se puede escribir el estado de cualquier dispositivo.
     if (!shellys.some((s) => s.id === l.dispositivo_id) || typeof l.encendido !== "boolean") continue
     const potencia = typeof l.potencia_w === "number" && Number.isFinite(l.potencia_w) ? Math.round(l.potencia_w * 10) / 10 : null
+    // Desde cuándo está prendido sin consumir (Nubi avisa a los 15 minutos: tanque lleno, desenchufado…).
+    const anterior = ((data ?? []) as Record<string, any>[]).find((d) => d.id === l.dispositivo_id)?.ultimo_estado_confirmado_payload
+    const sinConsumo = l.encendido && potencia !== null && potencia < SIN_CONSUMO_W
+    const sinConsumoDesde = sinConsumo
+      ? typeof anterior?.sin_consumo_desde === "string" ? anterior.sin_consumo_desde : ahora.toISOString()
+      : null
     await supabase
       .from("dispositivos_controlables")
       .update({
         soporta_feedback: true,
         ultimo_estado_confirmado_payload: l.encendido
-          ? { accion: "encender", ...(potencia !== null ? { potencia_w: potencia } : {}) }
+          ? {
+              accion: "encender",
+              ...(potencia !== null ? { potencia_w: potencia } : {}),
+              ...(sinConsumoDesde ? { sin_consumo_desde: sinConsumoDesde } : {}),
+            }
           : { accion: "apagar" },
         ultimo_estado_confirmado_en: ahora.toISOString(),
       })

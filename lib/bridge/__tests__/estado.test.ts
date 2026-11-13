@@ -36,3 +36,15 @@ describe("registrarEstados", () => {
     expect(d.tables["dispositivos_controlables"][1].ultimo_estado_confirmado_payload).toBeUndefined()
   })
 })
+
+describe("registrarEstados: sin consumo", () => {
+  it("anota desde cuándo está prendido sin consumir y lo conserva", async () => {
+    const d = db()
+    const t1 = new Date("2026-11-13T20:00:00.000Z")
+    await registrarEstados(d as never, [{ dispositivo_id: 5, encendido: true, potencia_w: 0 }], t1)
+    await registrarEstados(d as never, [{ dispositivo_id: 5, encendido: true, potencia_w: 1.2 }], AHORA)
+    expect(d.tables["dispositivos_controlables"][0].ultimo_estado_confirmado_payload).toEqual({ accion: "encender", potencia_w: 1.2, sin_consumo_desde: t1.toISOString() })
+    await registrarEstados(d as never, [{ dispositivo_id: 5, encendido: true, potencia_w: 540 }], AHORA)
+    expect(d.tables["dispositivos_controlables"][0].ultimo_estado_confirmado_payload).toEqual({ accion: "encender", potencia_w: 540 })
+  })
+})

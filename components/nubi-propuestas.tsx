@@ -38,7 +38,7 @@ export function NubiPropuestas({
   pendientes: PropuestaNubi[]
   recientes: PropuestaNubi[]
   /** Solo para la comisión: aires reales con los que se puede probar a Nubi. */
-  airesParaProbar?: { id: number; nombre: string }[]
+  airesParaProbar?: { id: number; nombre: string; tipo?: string }[]
 }) {
   const router = useRouter()
   const [ocupada, setOcupada] = useState<number | null>(null)
@@ -46,6 +46,7 @@ export function NubiPropuestas({
   const [aireProbar, setAireProbar] = useState(airesParaProbar[0] ? String(airesParaProbar[0].id) : "")
   const [tempProbar, setTempProbar] = useState("28")
   const [probando, setProbando] = useState(false)
+  const esDeshu = airesParaProbar.find((a) => String(a.id) === aireProbar)?.tipo === "deshumidificador"
 
   if (pendientes.length === 0 && recientes.length === 0 && airesParaProbar.length === 0) return null
 
@@ -57,7 +58,7 @@ export function NubiPropuestas({
       const r = await fetch("/api/nubi/probar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dispositivoId: Number(aireProbar), temperatura: Number(tempProbar.replace(",", ".")) }),
+        body: JSON.stringify({ dispositivoId: Number(aireProbar), valor: Number(tempProbar.replace(",", ".")) }),
       })
       const j = await r.json().catch(() => ({}))
       setAviso(r.ok ? { ok: true, texto: j.mensaje } : { ok: false, texto: j.error || "No se pudo probar." })
@@ -119,15 +120,15 @@ export function NubiPropuestas({
         <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-sky-300 p-3">
           <div className="text-xs text-sky-950/80 basis-full">
             <FlaskConical className="mr-1 inline h-3.5 w-3.5" />
-            Probar Nubi: simula la temperatura de la sala y te manda la propuesta solo a vos.
+            Probar Nubi: simula la temperatura (aire) o la humedad (deshumidificador) de la sala y te manda la propuesta solo a vos.
           </div>
-          <select aria-label="Aire para probar" className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={aireProbar} onChange={(e) => setAireProbar(e.target.value)}>
+          <select aria-label="Equipo para probar" className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={aireProbar} onChange={(e) => { setAireProbar(e.target.value); setTempProbar(airesParaProbar.find((a) => String(a.id) === e.target.value)?.tipo === "deshumidificador" ? "73" : "28") }}>
             {airesParaProbar.map((a) => (
               <option key={a.id} value={String(a.id)}>{a.nombre}</option>
             ))}
           </select>
-          <Input aria-label="Temperatura simulada (°C)" inputMode="decimal" className="h-9 w-20" value={tempProbar} onChange={(e) => setTempProbar(e.target.value)} />
-          <span className="pb-2 text-sm">°C</span>
+          <Input aria-label={esDeshu ? "Humedad simulada (%)" : "Temperatura simulada (°C)"} inputMode="decimal" className="h-9 w-20" value={tempProbar} onChange={(e) => setTempProbar(e.target.value)} />
+          <span className="pb-2 text-sm">{esDeshu ? "% de humedad" : "°C"}</span>
           <Button size="sm" variant="outline" disabled={probando || !aireProbar} onClick={probar}>
             {probando ? "Probando…" : "Probar Nubi"}
           </Button>

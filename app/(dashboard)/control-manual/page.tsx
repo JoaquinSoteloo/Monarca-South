@@ -31,8 +31,8 @@ export default async function ControlManualPage() {
   const airesParaProbar =
     session?.rol === ROL_COMISION
       ? (data || [])
-          .filter((d: any) => d.tipo === "aire_acondicionado" && d.proveedor !== "manual_noop" && d.sala_id)
-          .map((d: any) => ({ id: d.id as number, nombre: `${d.nombre}${d.sala?.nombre ? ` — ${Array.isArray(d.sala) ? d.sala[0]?.nombre : d.sala.nombre}` : ""}` }))
+          .filter((d: any) => (d.tipo === "aire_acondicionado" || d.tipo === "deshumidificador") && d.proveedor !== "manual_noop" && d.sala_id)
+          .map((d: any) => ({ id: d.id as number, tipo: d.tipo as string, nombre: `${d.nombre}${d.sala?.nombre ? ` — ${Array.isArray(d.sala) ? d.sala[0]?.nombre : d.sala.nombre}` : ""}` }))
       : []
 
   // PostgREST puede devolver el embed to-one como array; lo normalizamos

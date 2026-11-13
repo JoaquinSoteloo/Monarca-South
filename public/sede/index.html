@@ -100,7 +100,8 @@ if (new URLSearchParams(location.search).get('modo') === 'sistema') document.doc
   /* Modo sistema (/sede en la compu, rediseño del 03/11/2026): sin controles de
      demo, ayudantes ni chat flotante; el clima, los ciclos y las tareas vienen
      del sistema. Sin «?modo=sistema» el simulador queda como antes. */
-  .sistema .demo, .sistema #filaTiempo, .sistema #iaT, .sistema #ia, .sistema #logT, .sistema #log, .sistema #chatBtn, .sistema #chat{display:none!important}
+  .sistema .demo, .sistema #filaTiempo, .sistema #chatBtn, .sistema #chat, .sistema .solo-demo{display:none!important}
+  /* Los ayudantes de IA y los avisos también en el sistema (pedido de Facundo, 13/11/2026: «el mismo simulador, con los agentes»). */
   .links{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
   .links button{background:#13201a;color:#f4f1e8;border-color:#13201a}
   .links button.sec{background:#fff;color:#1c2620;border-color:#1c262033}
@@ -571,9 +572,9 @@ box(1.8, 2.1, 0.08, mat.door, 3.1, 1.05, 20.5);
 // ---------- Personas ----------
 const people = [
   { id: 'Vilela', pants: '#33507a', look: { cap: '#2f7d5c' }, start: 'patio', role: 'Mantenimiento y limpieza de apertura · reporta a Lucho', sup: 'Lucho',
-    tasks: [ [10.0, 's1', 'Revisar el monitoreo de la noche'], [10.2, 'aten', 'Atención al socio: limpiar y dejar todo listo para Demian'], [10.6, 's3', 'Limpieza de salas al iniciar el día'], [11.0, 's5', 'Recorrer las salas: plagas'], [11.3, 's3', 'Preventivos en vege que indicó Lucho'], [11.5, 's2', 'Controlar aires y extractores'], [12.0, 'agua', 'Llenar el tanque de ósmosis'], [15.9, 's1', 'Regar Sala 1 y medir runoff (con Lucho)'], [16.9, 'aten', 'Lo que retiré hoy quedó registrado'] ] },
+    tasks: [ [10.0, 's1', 'Revisar el monitoreo de la noche'], [10.2, 'aten', 'Atención al socio: limpiar y dejar todo listo para Demian'], [10.6, 's3', 'Limpieza de salas al iniciar el día'], [11.0, 's5', 'Recorrer las salas: plagas'], [11.3, 's3', 'Preventivos en vege que indicó Lucho'], [11.5, 's2', 'Controlar aires y extractores'], [12.0, 'agua', 'Llenar el tanque de ósmosis'], [15.9, 's1', 'Regar Sala 1 y medir las testigo con el pincho (con Lucho)'], [16.9, 'aten', 'Lo que retiré hoy quedó registrado'] ] },
   { id: 'Lucho', pants: '#4a4a4a', look: { hair: '#1a120c', beard: true }, start: 'pas', role: 'Cultivo · criterio técnico', sup: 'Facundo',
-    tasks: [ [15.0, 'patio', 'Leer el reporte de Vilela'], [15.3, 'agua', 'Preparar el tanque de solución'], [15.8, 's2', 'Regar Sala 2 y medir runoff'], [16.5, 's5', 'Regar Sala 5 y medir runoff'], [17.3, 's3', 'Revisar madres y esquejes'], [19.7, 'aten', 'Lo que retiré hoy quedó registrado'] ] },
+    tasks: [ [15.0, 'patio', 'Leer el reporte de Vilela'], [15.3, 'agua', 'Preparar el tanque de solución'], [15.45, 'agua', 'King Crab de la semana: jeringa de 1 ml, al final y hoy sin agua oxigenada'], [15.8, 's2', 'Regar Sala 2 y medir las testigo con el pincho'], [16.5, 's5', 'Regar Sala 5 y medir las testigo con el pincho'], [17.3, 's3', 'Revisar madres y esquejes'], [19.7, 'aten', 'Lo que retiré hoy quedó registrado'] ] },
   { id: 'Demian', pants: '#2c3e5c', look: { hair: '#120d09', glasses: true }, start: 'aten', role: 'Atención y stock · reporta a Facundo', sup: 'Facundo',
     tasks: [ [12.0, 'aten', 'Control de stock del día'], [12.15, 'aten', 'Consumo del equipo: entregado y registrado por mí'], [12.3, 'aten', 'Stock bajo: avisar y mirar los próximos cortes'], [12.5, 'aten', 'Empaquetado de flor'], [12.9, 'aten', 'Armado de enrolados'], [13.2, 'aten', 'Rosin y hash: preparar la manicura y registrar lo que entra'], [13.5, 'aten', 'Frasco de exhibición: armarlo y rotar genéticas'], [13.65, 's3', 'Sala de vege: semillas y madres (supervisa Lucho)'], [13.8, 'aten', 'Apertura de caja'], [14.0, 'aten', 'Revisar los turnos del día'], [14.2, 'aten', 'Atender socios y anotar cada movimiento en el sistema'], [19.5, 'aten', 'Control de stock de cierre: todo cargado en el sistema'], [19.65, 'aten', 'Lo que retiré hoy quedó registrado'], [19.8, 'aten', 'Cierre de caja'] ] },
   { id: 'Pato', pants: '#6b6b6b', look: { cap: '#2d6fd0' }, start: 'patio', role: 'Apoyo y limpieza de cierre · cubre a Vilela', sup: 'Lucho',
@@ -581,6 +582,43 @@ const people = [
   { id: 'Facundo', pants: '#b8a78a', look: { hair: '#2a1d14' }, start: 'aten', role: 'Dirección · ve todo', sup: null,
     tasks: [ [11.0, 'aten', 'Mirar el monitoreo y los avisos'], [12.0, 'aten', 'Autorizar y pagar gastos'], [12.4, 'aten', 'Hacer el pedido de insumos'], [20.0, 'aten', 'Controlar el cierre de caja'], [20.1, 'aten', 'Lo que retiré hoy quedó registrado'] ] },
 ];
+// (Antes: limpieza los jueves; desde el 11/11 días 1 y 15.)
+// Limpieza de tanque y lanza: días 1 y 15 de cada mes (Lucho, 11/11/2026).
+if ([1, 15].includes(new Date().getDate())) people.find(p => p.id === 'Vilela').tasks.splice(7, 0, [12.3, 'agua', 'Día 1/15: limpieza de tanque y lanza (ORP 650+ y enjuagar)']);
+// Foliar de algas en vege, 2 veces por día (10 ml en 5 L) y calibración de medidores cada 10 días (Lucho, 11/11/2026).
+{ const vi = people.find(p => p.id === 'Vilela');
+  if (new Date().getDay() !== 0) { vi.tasks.push([9.4, 's3', 'Foliar de algas en vege (10 ml en 5 L) · mañana']); vi.tasks.push([16.4, 's3', 'Foliar de algas en vege (10 ml en 5 L) · tarde']); }
+  if ([1, 11, 21].includes(new Date().getDate())) vi.tasks.push([12.6, 'agua', 'Calibrar medidores de pH y EC (cada 10 días)']); }
+// Jueves: runoff semanal de pH (provisorio, a confirmar por Lucho; 10/11/2026).
+if (new Date().getDay() === 4) people.find(p => p.id === 'Lucho').tasks.push([16.8, 's1', 'Jueves: runoff semanal de pH en cada sala (una testigo por sala)']);
+// Regla de nutrición desde el 06/11/2026: todos los días.
+people.find(p => p.id === 'Lucho').tasks.push([15.25, 'agua', 'Mezcla: cada producto con su propia jeringa o vaso']);
+// Miércoles: King Crab en las salas de flora (06/11/2026).
+if (new Date().getDay() === 3) people.find(p => p.id === 'Lucho').tasks.push([15.5, 'agua', 'Miércoles: King Crab al final de la mezcla (0,13 ml/L) · sin agua oxigenada']);
+// Agenda acordada en la reunión del 06/11/2026: tareas de un día puntual.
+const AGENDA = {
+  '2026-11-07': { Lucho: [[15.2, 's5', 'Sala 5: sacar esquejes (con Demian)'], [16.4, 'ofi', 'Cultivo: cargar y chequear la Sala 4']], Demian: [[15.2, 's5', 'Sala 5: esquejes con Lucho']], Vilela: [[12.6, 's1', 'Cultivo: chequear que Sala 1 y Sala 2 coincidan con la realidad']] },
+  '2026-11-09': { Lucho: [[15.0, 's3', 'Contar los esquejes (~100 plantados + ~300 del 08/11) y pasarle el número a Facundo'], [15.1, 'agua', 'Ajustar litros de mezcla: ~250 ml por maceta + 10 %']], Facundo: [[17.3, 'aten', 'Comprar Ryanodine Finis 800 g (antes del 05/12)']], Demian: [[15.5, 's5', 'Cultivo: chequear que la Sala 5 coincida con la realidad']] },
+  '2026-11-11': { Lucho: [[15.2, 's5', 'Sala 5 pasa a flora: luz de 17 a 05 h'], [16.0, 's4', 'Sala 4: sacar los aerosoles de arriba del tablero eléctrico'], [16.1, 's4', 'Sala 4: sacar herramientas de la tapa del tanque de 300 L'], [16.2, 's4', 'Sala 4: Calcis y nutrientes a un estante (nada en el piso)'], [16.3, 's4', 'Sala 4: limpiar el moho del techo del baño, pintar con antihongos y buscar de dónde viene la humedad'], [16.4, 's4', 'Sala 4: pasar a Facundo las genéticas de las 3 camas (32 plantas cada una)']] },
+  '2026-11-14': { Lucho: [[15.3, 's2', 'Sala 2: poda del día 21'], [15.6, 's2', 'Prueba Calcis 10:7 · 1) marcar la cama de prueba'], [15.7, 'agua', 'Prueba Calcis 10:7 · 2) balde aparte: 10 ml AB por 7 ml Calcis hasta EC 1,6–1,8'], [15.8, 's2', 'Prueba Calcis 10:7 · 3) regar solo esa cama y medir las testigo con el pincho'], [15.9, 's2', 'Prueba Calcis 10:7 · 4) revisar hojas nuevas (manchas = volver a 1:1)']] },
+  '2026-11-21': { Lucho: [[15.8, 's2', 'Sala 2: revisar la cama de prueba de Calcis (2 fotos)']] },
+  '2026-11-28': { Lucho: [[15.8, 's2', 'Sala 2: revisar la cama de prueba de Calcis (2 fotos)']] },
+  '2026-12-05': { Lucho: [[15.8, 's2', 'Sala 2: revisar la cama de prueba de Calcis (2 fotos)']] },
+  '2026-11-30': { Lucho: [[15.0, 's4', 'Sala 4 pasa a flora (objetivo 30/11; como mucho primeros días de diciembre)']] },
+  // Plan de cortes: próximas tandas de esquejes (08/11/2026). Fecha con unos días de margen.
+  '2026-11-23': { Lucho: [[15.2, 's3', 'Esquejes para Sala 5: sacar ~220 (meta ~176 plantas)']], Demian: [[15.2, 's3', 'Esquejes para Sala 5 con Lucho']] },
+  '2026-12-15': { Lucho: [[15.2, 'ofi', 'Sala nueva: entran las plantas (~176 en macetas de 7 L)']], Demian: [[15.2, 'ofi', 'Sala nueva: entran las plantas, con Lucho']] },
+  '2026-12-14': { Lucho: [[15.2, 's3', 'Esquejes para Sala 4: sacar ~130 (meta ~106 plantas)']], Demian: [[15.2, 's3', 'Esquejes para Sala 4 con Lucho']] },
+  '2027-01-04': { Lucho: [[15.2, 's3', 'Esquejes para Sala 1: sacar ~220 (meta ~176 plantas)']], Demian: [[15.2, 's3', 'Esquejes para Sala 1 con Lucho']] },
+};
+{
+  const d = new Date(), hoy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  for (const [quien, ts] of Object.entries(AGENDA[hoy] || {})) {
+    const p = people.find(x => x.id === quien);
+    if (p) { p.tasks.push(...ts); p.tasks.sort((a, b) => a[0] - b[0]); }
+  }
+}
+people.forEach(p => p.tasks.sort((a, b) => a[0] - b[0]));
 const labelsEl = document.getElementById('labels');
 const SKIN = M('#c99a76', { roughness: .7 }), TEE = M('#141414'), WHITE = M('#f2f2f2'), EYE = M('#1b1b1b'), GOLD = M('#d4a63a', { emissive: '#6b4d10', emissiveIntensity: .4 });
 function limb(r1, r2, len, m) { const g = new THREE.CylinderGeometry(r1, r2, len, 10); g.translate(0, -len / 2, 0); const o = new THREE.Mesh(g, m); o.castShadow = true; return o; }
@@ -810,9 +848,9 @@ let playing = false, speed = 60, simOffset = 0, last = performance.now();
 const simNow = () => Date.now() + simOffset;
 const simHour = () => { const s = new Date(simNow()).toLocaleTimeString('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour12: false }); const [h, m] = s.split(':').map(Number); return h + m / 60; };
 // Horarios reales de luces (Facundo, 01/11/2026). Hora de encendido; vege 18 h, flora 12 h.
-// Sala 1: apagada 03:40–09:40 · Sala 2: apagada 22:20–10:20 · Sala 3: apagada 08:00–14:00 · Sala 5: apagada 03:30–09:30.
+// Sala 1: apagada 03:40–09:40 · Sala 2: apagada 22:20–10:20 · Sala 3: apagada 00:00–06:00 (desde 12/11) · Sala 5 en flora: prendida 17:00–05:00 (desde 11/11).
 // Sala 4: prende 09:00 y apaga 03:00. Al pasar a flora se toma el mismo encendido con 12 h, hasta que Lucho cargue el real.
-const LUZ = { s1: 9 + 40 / 60, s2: 10 + 20 / 60, s3: 14, s4: 9, s5: 9.5 };
+const LUZ = { s1: 9 + 40 / 60, s2: 10 + 20 / 60, s3: 6, s4: 9, s5: 17 };
 const hhmm = x => { const t = ((x % 24) + 24) % 24; return String(Math.floor(t)).padStart(2, '0') + ':' + String(Math.round((t % 1) * 60)).padStart(2, '0'); };
 const hl = (k, horas) => LUZ[k] === undefined ? '' : ` · ${hhmm(LUZ[k])} a ${hhmm(LUZ[k] + horas)}`;
 // Pulse da la luz como un nivel de 0 a ~100 (0 = apagada): en modo sistema
@@ -869,7 +907,7 @@ function renderSigns() {
     else if (k === 'agua') { html += '<br>4 tanques · ósmosis'; cls += ' agua'; }
     else if (k === 'ofi') html += '<br>Equipo · elaborados';
     else if (k === 'bano') html = '<b>BAÑO</b>';
-    else if (k === 'aten') { html += '<br>Lun, mié y vie · 14 a 20 h'; cls += ' aten'; }
+    else if (k === 'aten') { html += '<br>Lun, mié y vie · 14 a 19:30 h'; cls += ' aten'; }
     if (clima[k]) html += `<br><span class="x">${clima[k][0].toFixed(1).replace('.', ',')} °C · ${Math.round(clima[k][1])} % · luz ${lightsOn(k) ? 'on' : 'off'}</span>`;
     if (r.alert) { html += `<br>⚠ ${r.alert}`; cls += ' alert'; }
     if (r.climaAlert) { html += `<br>⚠ Nubi: ${r.climaAlert}`; cls += ' alert'; }
@@ -881,7 +919,7 @@ function renderSigns() {
 
 // ---------- Ficha de sala y barra de estado ----------
 const fd = s => s.slice(8, 10) + '/' + s.slice(5, 7);
-function fechas(c) { const ci = typeof c === 'string' ? { inicio: c } : c, inicio = ci.inicio; const flip = addD(inicio, ci.vege ?? 21), cos = addD(flip, ci.flora ?? 60); return { inicio, flip, poda: addD(flip, 21), lav: addD(cos, -7), hig: addD(cos, -3), cos, fs: addD(cos, 6), lib: addD(cos, 8), esqC: addD(cos, 8 - 44), esqV: addD(cos, 8 - 30) }; }
+function fechas(c) { const ci = typeof c === 'string' ? { inicio: c } : c, inicio = ci.inicio; const flip = addD(inicio, ci.vege ?? 21), cos = addD(flip, ci.flora ?? 60); return { inicio, flip, poda: addD(flip, 21), calcis: addD(flip, 21), rhino: addD(flip, 42), finisC: addD(cos, -28), finis: addD(cos, -21), lav: addD(cos, -7), hig: addD(cos, -3), cos, fs: addD(cos, 6), lib: addD(cos, 8), esqC: addD(cos, 8 - 44), esqV: addD(cos, 8 - 30) }; }
 function objetivos(k) {
   const r = rooms[k]; const hoy = hoyStr();
   if (k === 's3') return { Luz: '18/6' + hl('s3', 18), 'EC entrada': '0,8–1,4', 'pH entrada': '5,8', Temperatura: '24–28 °C', Humedad: '60–75 %', PPFD: '300–500' };
@@ -899,7 +937,7 @@ function objetivos(k) {
 function hitos(k) {
   const r = rooms[k]; if (!r.ciclo) return [];
   const f = fechas(r.ciclo), hoy = hoyStr();
-  return [[f.inicio, 'Entrada a la sala (18/6)', 'Lucho'], [f.flip, 'Pasar a 12/12', 'Lucho'], [f.poda, 'Poda de bajos', 'Lucho'], [f.esqC, 'Cortar esquejes para la próxima tanda', 'Lucho'], [f.esqV, 'Esquejes enraizados a vege', 'Lucho y Vilela'], [f.lav, 'Empieza el lavado', 'Lucho'], [f.hig, 'Higiene antes del corte', 'Vilela'], [f.cos, 'Cosecha: corte (todo el equipo)', 'Todos'], [f.fs, 'Fin de secado y pesaje', 'Demian y Facundo'], [f.lib, 'Sala libre', '']]
+  return [[f.inicio, 'Entrada a la sala (18/6)', 'Lucho'], [f.flip, 'Pasar a 12/12', 'Lucho'], [f.poda, 'Poda de bajos', 'Lucho'], [f.calcis, 'Bajar el Calcis a 2,8 ml/L', 'Lucho'], [f.rhino, 'Cortar el Rhino Skin', 'Lucho'], [f.finisC, 'Comprar Ryanodine Finis', 'Facundo'], [f.finis, 'Pasar a Mikro B + Finis', 'Lucho'], [f.esqC, 'Cortar esquejes para la próxima tanda', 'Lucho'], [f.esqV, 'Esquejes enraizados a vege', 'Lucho y Vilela'], [f.lav, 'Empieza el lavado', 'Lucho'], [f.hig, 'Higiene antes del corte', 'Vilela'], [f.cos, 'Cosecha: corte (todo el equipo)', 'Todos'], [f.fs, 'Fin de secado y pesaje', 'Demian y Facundo'], [f.lib, 'Sala libre', '']]
     .filter(h => h[0] >= hoy).sort((a, b) => a[0].localeCompare(b[0])).slice(0, 5);
 }
 let roomOpen = null;
@@ -918,7 +956,7 @@ function renderRoom() {
   }
   if (k === 's3') h += `<div style="margin-top:4px">Madres, vege y estanterías de esquejes. Acá arranca cada tanda.</div>`;
   if (k === 'agua') h += `<div style="margin-top:4px">Ósmosis Hidrolit ROMi 400 · 3 tanques de 500 L (ósmosis, vege, flora) · tacho azul para esquejes.<br><b>15/12:</b> cambio del filtro de carbón.</div><div style="color:#8a6a1c">Ubicación a confirmar con el video.</div>`;
-  if (k === 'aten') h += `<div style="margin-top:4px">Lunes, miércoles y viernes de 14 a 20 h · turnos de 30 min.${MODO_SISTEMA ? '' : `<br>Lista de compras: ${compras.length ? compras.join(', ') : 'vacía'}.`}</div>`;
+  if (k === 'aten') h += `<div style="margin-top:4px">Lunes, miércoles y viernes de 14 a 19:30 h.${MODO_SISTEMA ? '' : `<br>Lista de compras: ${compras.length ? compras.join(', ') : 'vacía'}.`}</div>`;
   const ob = objetivos(k);
   if (ob && MODO_SISTEMA) h += bloqueMedicion(k, ob);
   else {
@@ -1067,12 +1105,16 @@ const MANUAL_MONARCA = `
 MONARCA SOUTH — Asociación civil de cannabis medicinal en CABA (REPROCANN). Unos 80 socios.
 EQUIPO: Lucho (cultivador, criterio técnico; todo lo de cultivo se confirma con él), Vilela (mantenimiento, limpieza de apertura, preventivos en vege, aprende riego con Lucho), Demian (atención al socio, stock, sistema, sala de vege con madres y semillas, aprende esquejes con Lucho), Pato (apoyo y limpieza de cierre desde las 17 h), Facundo (presidente, compras y pagos).
 SALAS: Sala 1 (10 m², 5 camas), Sala 2 (6 m², 3 camas), Sala 5 (10 m², 5 camas), Sala 4 en Itaquí (casa de Lucho, 6 m²), Sala 3 = sala de vege (madres, esquejes, semillas; estante de esquejes de 5 pisos). Sala nueva en casa de Demian en armado (12 plantas/m², macetas de 7 L).
-SUSTRATO Y NUTRIENTES: coco JuaniJuana, agua de ósmosis, Ryanodine A+B y C. King Crab en esquejes siempre junto con nutrientes. Melaza solo al final de flora. Silicio: Rhino Skin (Advanced Nutrients) 2 ml/L en cada riego, en Sala 2 y Sala 5, semanas 1 a 6 de flora; cortar 2 semanas antes del corte.
-ORDEN DE LA MEZCLA: 1) agua de ósmosis, 2) Rhino Skin y revolver, 3) Ryanodine A, B y C revolviendo entre cada uno (nunca mezclar silicio con nutrientes concentrados), 4) medir EC y ajustar pH al final (el silicio sube el pH).
+SUSTRATO Y NUTRIENTES: coco JuaniJuana, agua de ósmosis, Ryanodine A+B y C. King Crab en esquejes siempre junto con nutrientes. Melaza solo al final de flora. Silicio: Rhino Skin (Advanced Nutrients) 2 ml/L en cada riego, en Sala 2 y Sala 5, semanas 1 a 6 de flora; se corta en la semana 7.
+ORDEN DE LA MEZCLA: 1) agua de ósmosis, 2) Rhino Skin y revolver, 3) Ryanodine A, B y C revolviendo entre cada uno (nunca mezclar silicio con nutrientes concentrados), 4) medir EC y ajustar pH al final (el silicio sube el pH), 5) King Crab al final, solo el día que toca. Cada producto se mide solo, con su propia jeringa o vaso: nunca se mezclan dos productos concentrados.
+NUTRICIÓN DE FLORA (tabla Ryanodine AB+C coco, 20/01/26): semanas 1–3 Maikro AB 4 ml/L + Calcis 4 ml/L (EC ~1,75 con ósmosis); desde la semana 4 el Calcis baja a 2,8 ml/L (EC ~1,56); las 2 últimas semanas antes del lavado, Mikro B 4 ml/L + Finis 0,91 g/L, sin AB ni C (EC ~1,33). Finis se compra una semana antes. Rhino Skin hasta la semana 6.
+KING CRAB EN FLORA: bacterias beneficiosas. 0,13 ml por litro una vez por semana, siempre el mismo día, hasta el lavado. Jeringa de 1 ml: 10 L → 1,3 ml, 50 L → 6,5 ml; tanque de volumen fijo. Va al final con el pH ya ajustado y se riega en el momento. Ese día NO va agua oxigenada, hipoclorito ni nada que suba el ORP (matan las bacterias): eso va 2 o 3 días antes o después. Big Bud, Overdrive y Bud Candy no se usan (la base Maikro ya trae fósforo y potasio).
+PRUEBA DE CALCIS (Sala 2, desde el 14/11, solo 1 cama): en esa cama AB y Calcis van 10:7 (por cada 10 ml de AB, 7 ml de Calcis) hasta la EC de siempre, 1,6 a 1,8, en un balde aparte; el resto de la sala sigue 1:1. No se baja el AB (trae el fósforo y el potasio). Si las hojas nuevas muestran manchitas marrones o deformaciones, volver a 1:1. Revisiones el 21/11, 28/11 y 05/12.
 RANGOS DE ENTRADA: Sala de vege EC 0,8–1,2 pH 5,7–5,9 · Vege en sala de flora EC 1,2–1,6 pH 5,9–6,0 · Flora EC 1,6–2,0 pH 5,8–6,0 · Lavado: solo ósmosis. pH MÁXIMO 6,0 EN TODAS LAS ETAPAS (decisión de Facundo).
 TABLA POR SEMANA (Manual 3): esqueje 0,8–1,0 pH 5,8 · vege 1: 1,0 · vege 2: 1,2 · vege 3: 1,4 · flora 1: 1,6 pH 5,8–6,0 · flora 2: 1,7 · flora 3–6: 1,8–1,9 · flora 7: 1,6–1,7 · flora 8: solo ósmosis.
-RIEGO: manual con lanza. Calibrar la lanza (litros en 10 s). Regar cuando las 2 macetas testigo perdieron ~la mitad del peso. 2–3 pasadas, moviendo la lanza por toda la superficie, hasta 10–20 % de drenaje. Orientativo por riego: maceta 1 L 100–200 ml, 5 L 0,5–0,8 L, 7 L 0,7–1 L, 15 L 1,5–2 L. Vaciar los platos. Si una maceta sigue pesada a los 3 días, no regar y revisar raíz, plato y humedad. Las 2 testigo son siempre las mismas en la tanda, una en cada punta. Cada riego se anota: EC y pH de entrada, runoff de las 2 testigo y drenaje.
-RUNOFF: EC del runoff más de 0,5 por encima de la entrada = acumulación de sales → regar con más volumen. pH del runoff menor a 5,5 = avisar a Lucho. Mayor a 6,5 = revisar pH de entrada.
+RIEGO: manual con lanza. Calibrar la lanza (litros en 10 s). Regar cuando las 2 macetas testigo perdieron ~la mitad del peso. 2–3 pasadas, moviendo la lanza por toda la superficie, hasta 10–20 % de drenaje. Orientativo por riego: maceta 1 L 100–200 ml, 5 L 0,5–0,8 L, 7 L 0,7–1 L, 15 L 1,5–2 L. Vaciar los platos. Si una maceta sigue pesada a los 3 días, no regar y revisar raíz, plato y humedad. Las 2 testigo son siempre las mismas en la tanda, una en cada punta. Cada riego se anota: EC y pH de entrada y el pincho de EC (Bluelab) en las 2 testigo: humedad y EC del sustrato antes de regar y humedad 1 h después.
+PINCHO (desde el 16/11/2026): EC del pincho más de 1 punto arriba de la mezcla = acumulación de sales → regar con más drenaje; más de 0,5 abajo = puede faltar alimento. Las 2 testigo con más de 10 puntos de humedad de diferencia = revisar cómo se riega cada una. Mantenimiento: enjuagar la punta con agua destilada después de cada uso y calibrar con las soluciones de Bluelab.
+RUNOFF: solo los jueves, una testigo por sala, para el pH. pH del runoff menor a 5,5 = avisar a Lucho. Mayor a 6,5 = revisar pH de entrada.
 CLIMA: vege 25–28 °C y 60–70 % HR; flora 22–25 °C y 45–55 %; secado ~20 °C y 55 % HR, ~1 semana en la misma sala. PPFD: esquejes 100–300, vege y madres 300–500, flora 600–900.
 CICLO: ~4 semanas en sala de vege → sala de flora ~2 semanas de vege (18/6) → 8 y media de flora (12/12) → secado y limpieza. Un corte cada 3 semanas. Plan: Sala 2 corta semana del 14/12; Sala 5 pasa a flora semana del 02/11 y corta semana del 04/01; Sala 4 a flora semana del 23/11, corta 25/01; Sala 1 a flora 14/12, corta 15/02.
 ESQUEJES: de las madres y de la propia sala antes de terminar la vege o en las 2 primeras semanas de flora. Por tanda: m² × 16 × 1,1 (~106 para salas 2 y 4, ~176 para 1 y 5). Esquejedoras de 50, enraízan ~40.
@@ -1154,7 +1196,8 @@ function abrirFormulario(p, i) {
       <label>EC de la mezcla<input name="ec" inputmode="decimal" required placeholder="1,6"></label>
       <label>pH de la mezcla<input name="ph" inputmode="decimal" required placeholder="6,0"></label>
       <label>Rhino Skin (ml/L)<input name="si" inputmode="decimal" placeholder="2"></label>
-      <label class="full">Productos y dosis<input name="prod" placeholder="Maikro AB, Calcis y King Crab · ml/L"></label></div>
+      <label>King Crab (ml en total)<input name="kc" inputmode="decimal" placeholder="1,3"></label>
+      <label class="full">Productos y dosis<input name="prod" placeholder="Maikro AB y Calcis · ml/L"></label></div>
       <div class="rg">Orden: agua → Rhino Skin → Maikro AB → Calcis → pH (máx. 6,0) → King Crab al final, solo el día que toca. Cada producto con su propia jeringa o vaso: nunca dos concentrados juntos. El día del King Crab, nada de agua oxigenada ni hipoclorito (van 2–3 días antes o después). King Crab: 10 L → 1,3 ml · 50 L → 6,5 ml.</div>`;
   } else {
     const et = etapaDe(room), r = RANGOS_RIEGO[et];
@@ -1163,6 +1206,12 @@ function abrirFormulario(p, i) {
       <label>pH de entrada<input name="ph" inputmode="decimal" required value="${ult ? f1(ult.ph) : ''}"></label>
       <label>Litros por maceta<input name="lpm" inputmode="decimal" placeholder="0,8"></label>
       <label>Drenaje (% aprox.)<input name="dren" inputmode="decimal" placeholder="15"></label>
+      <label>Pincho T1 · humedad antes (%)<input name="h1" inputmode="decimal" required></label>
+      <label>Pincho T1 · EC antes<input name="c1" inputmode="decimal" required></label>
+      <label>Pincho T2 · humedad antes (%)<input name="h2" inputmode="decimal" required></label>
+      <label>Pincho T2 · EC antes<input name="c2" inputmode="decimal" required></label>
+      <label class="full">Pincho · humedad 1 h después (%)<input name="hd" inputmode="decimal"></label>
+      <div class="full rg">Runoff: solo el día del runoff semanal (pH).</div>
       <label>Testigo 1 · EC runoff<input name="e1" inputmode="decimal"></label>
       <label>Testigo 1 · pH runoff<input name="p1" inputmode="decimal"></label>
       <label>Testigo 2 · EC runoff<input name="e2" inputmode="decimal"></label>
@@ -1176,12 +1225,13 @@ function abrirFormulario(p, i) {
   f.onsubmit = e => {
     e.preventDefault(); const d = Object.fromEntries(new FormData(f)); const fecha = hoyStr();
     if (/tanque/i.test(t)) {
-      tanques.push({ fecha, quien: p.id, litros: num(d.litros), ec: num(d.ec), ph: num(d.ph), silicio_ml_l: num(d.si), productos: d.prod || '' });
+      tanques.push({ fecha, quien: p.id, litros: num(d.litros), ec: num(d.ec), ph: num(d.ph), silicio_ml_l: num(d.si), king_crab_ml: num(d.kc), productos: d.prod || '' });
     } else {
       const e1 = num(d.e1), e2 = num(d.e2), p1 = num(d.p1), p2 = num(d.p2);
       const prom = (a, b) => a != null && b != null ? (a + b) / 2 : a ?? b;
       riegos.push({ fecha, sala_id: room, etapa: etapaDe(room), quien: p.id, ec_entrada: num(d.ec), ph_entrada: num(d.ph), litros_por_maceta: num(d.lpm),
-        ec_runoff: prom(e1, e2), ph_runoff: prom(p1, p2), testigos: [[e1, p1], [e2, p2]], drenaje_pct: num(d.dren), notas: d.notas || '' });
+        ec_runoff: prom(e1, e2), ph_runoff: prom(p1, p2), testigos: [[e1, p1], [e2, p2]], drenaje_pct: num(d.dren), notas: d.notas || '',
+        pincho: { hum_antes: prom(num(d.h1), num(d.h2)), ec_antes: prom(num(d.c1), num(d.c2)), hum_despues: num(d.hd), t1: [num(d.h1), num(d.c1)], t2: [num(d.h2), num(d.c2)] } });
     }
     guardarRiego(); _g('ftBg').style.display = 'none';
     if (sistema && !/tanque/i.test(t)) { const r = riegos[riegos.length - 1];
@@ -1215,7 +1265,13 @@ function evaluar(r, tq) {
   if (r.drenaje_pct != null && r.drenaje_pct > 30) out.push({ nivel: 'ojo', txt: `${sala}: drenaje ${r.drenaje_pct} %, se tira mezcla. Bajar los litros por maceta.` });
   const [t1, t2] = r.testigos || [];
   if (t1 && t2 && t1[0] != null && t2[0] != null && Math.abs(t1[0] - t2[0]) > 0.4) out.push({ nivel: 'ojo', txt: `${sala}: las 2 testigo dan muy distinto (${f2(t1[0])} y ${f2(t2[0])}). Revisar si una punta de la sala recibe menos riego o más calor.` });
-  if (r.ec_runoff == null) out.push({ nivel: 'ojo', txt: `${sala}: falta el runoff de las testigo. Sin eso no puedo ver la raíz.` });
+  const pz = r.pincho;
+  if (!pz || pz.ec_antes == null) out.push({ nivel: 'ojo', txt: `${sala}: faltan las mediciones del pincho en las testigo.` });
+  else {
+    if (r.ec_entrada != null && pz.ec_antes - r.ec_entrada > 1) out.push({ nivel: 'ojo', txt: `${sala}: la EC del pincho (${f2(pz.ec_antes)}) está más de 1 punto arriba de la mezcla: posible acumulación de sales, regar con más drenaje.` });
+    if (r.ec_entrada != null && pz.ec_antes < r.ec_entrada - 0.5) out.push({ nivel: 'ojo', txt: `${sala}: la EC del pincho (${f2(pz.ec_antes)}) queda bastante por debajo de la mezcla: puede estar faltando alimento.` });
+    if (pz.t1 && pz.t2 && pz.t1[0] != null && pz.t2[0] != null && Math.abs(pz.t1[0] - pz.t2[0]) > 10) out.push({ nivel: 'ojo', txt: `${sala}: las 2 testigo tienen humedad muy distinta (${pz.t1[0]} % y ${pz.t2[0]} %).` });
+  }
   if (!out.length) out.push({ nivel: 'ok', txt: `${sala}: riego en rango ✓` });
   return out;
 }
@@ -1255,9 +1311,9 @@ function renderIA() {
   const opts = Object.keys(INSUMOS).map(k => `<option>${k}</option>`).join('');
   document.getElementById('ia').innerHTML = `
     <div class="task"><span style="width:18px">🛰</span><span class="t"><b>Nubi</b> · vigila el clima con el Pulse<br><span style="color:#5b665f" id="nubiTxt"></span></span></div>
-    <div class="task"><span style="width:18px">🛒</span><span class="t"><b>Changuito</b> · lista de compras de Facundo<br><span style="color:#5b665f">${compras.length ? compras.join(' · ') : 'Vacía'}</span></span></div>
+    <div class="task"><span style="width:18px">🛒</span><span class="t"><b>Changuito</b> · lista de compras de Facundo<br><span style="color:#5b665f">${MODO_SISTEMA ? 'Lo que falta se marca en Stock (productos que compramos).' : compras.length ? compras.join(' · ') : 'Vacía'}</span></span></div>
     <div class="task asesor"><span style="width:18px">💧</span><span class="t"><b>Gota</b> · estudia cada riego y aconseja<br>${textoAsesor()}</span></div>
-    <div class="row" style="margin:6px 0 0"><select id="falta" style="font:inherit;font-size:12px;border-radius:8px;padding:4px;flex:1">${opts}</select><button id="bFalta">Falta algo</button></div>`;
+    <div class="row solo-demo" style="margin:6px 0 0"><select id="falta" style="font:inherit;font-size:12px;border-radius:8px;padding:4px;flex:1">${opts}</select><button id="bFalta">Falta algo</button></div>`;
   document.getElementById('bFalta').onclick = () => faltaAlgo(document.getElementById('falta').value, selected);
 }
 function focusPerson(id) { const p = people.find(x => x.id === id); controls.target.copy(p.g.position); }
@@ -1487,7 +1543,7 @@ function renderPanelSistema() {
   ts.querySelectorAll('[data-a]').forEach(b => b.onclick = () => accionTarea(b.dataset.a, Number(b.dataset.t)));
   const area = document.getElementById('notaProblema');
   if (area) { area.value = notaBorrador; area.oninput = () => { notaBorrador = area.value; }; if (guardandoTarea === null) area.focus(); }
-  renderStatus();
+  renderIA(); renderStatus();
 }
 async function accionTarea(a, id) {
   if (a === 'abrir-problema') { problemaDe = id; notaBorrador = ''; avisoTareas = null; renderPanel(); return; }
@@ -1540,7 +1596,8 @@ async function cargarDatosSistema() {
   updatePlants(); applyLights(); renderSigns(); renderPanel();
 }
 if (MODO_SISTEMA) {
-  for (const ayudante of [chango]) { ayudante.g.visible = false; ayudante.el.style.display = 'none'; }
+  // Changuito queda estacionado en la oficina: en el sistema los faltantes se marcan en Stock.
+  chango.bubble = 'Faltantes: en Stock';
   nubi.bubble = 'Mirando el Pulse…';
   for (const p of people) { p.tasks = []; p.done = {}; p.prob = {}; p.bubble = ''; }
   for (const k of Object.keys(clima)) delete clima[k]; // nada de clima de ejemplo hasta que llegue el real
@@ -1551,7 +1608,7 @@ if (MODO_SISTEMA) {
 }
 
 updatePlants(); renderSigns(); renderPanel(); applyLights();
-log('Bienvenido a la sede virtual. Tocá ▶ para simular el día o hacé las tareas a mano.');
+log(MODO_SISTEMA ? 'Sede en vivo: clima de Pulse, tareas y riegos del sistema. Tocá a Nubi, a Gota o una sala para ver más.' : 'Bienvenido a la sede virtual. Tocá ▶ para simular el día o hacé las tareas a mano.');
 log('Salas limpias al empezar y al terminar el día: es tarea de todos. Encargados: <b>Vilela</b> (apertura) y <b>Pato</b> (cierre).');
 log('<b>Prioridad máxima:</b> todo lo que retira cada uno queda registrado como entrega, con cuántos gramos y de qué genética. Nadie se sirve solo.');
 requestAnimationFrame(tick);

@@ -31,6 +31,26 @@ interface Props {
   modo?: "sistema" | "original"
 }
 
+/**
+ * El pincho de las testigo que manda el simulador ({ t1: [humedad, EC], t2,
+ * hum_despues }) en las columnas del script 098. Si no vino, no se manda nada
+ * y el riego se guarda igual.
+ */
+function pinchoDelSimulador(v: unknown): Record<string, number | null> {
+  if (!v || typeof v !== "object") return {}
+  const p = v as { t1?: unknown[]; t2?: unknown[]; hum_despues?: unknown }
+  const t1 = Array.isArray(p.t1) ? p.t1 : []
+  const t2 = Array.isArray(p.t2) ? p.t2 : []
+  const fila = {
+    pincho_t1_humedad: numeroOnull(t1[0]),
+    pincho_t1_ec: numeroOnull(t1[1]),
+    pincho_t2_humedad: numeroOnull(t2[0]),
+    pincho_t2_ec: numeroOnull(t2[1]),
+    pincho_humedad_despues: numeroOnull(p.hum_despues),
+  }
+  return Object.values(fila).some((x) => x !== null) ? fila : {}
+}
+
 /** Pantallas a las que el simulador puede mandar a quien lo usa. */
 const RUTAS_PERMITIDAS = ["/equipo", "/chat", "/riego", "/ciclos", "/monitoreo", "/procesos", "/sede/oficina"]
 
@@ -153,6 +173,7 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
             ph_runoff: numeroOnull(r.ph_runoff),
             drenaje_pct: numeroOnull(r.drenaje_pct) === null ? null : Math.round(numeroOnull(r.drenaje_pct) as number),
             notas: String(r.notas ?? "") || null,
+            ...pinchoDelSimulador(r.pincho),
           })
           if (error) throw new Error("No se pudo guardar el riego: " + error.message)
           return { sala: sala.nombre }

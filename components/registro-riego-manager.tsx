@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertTriangle, CheckCircle2, Droplets, Info, Plus, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { getArgentinaDateString } from "@/lib/timezone"
-import { ETAPAS, evaluarRiego, parseDecimal, type EtapaRiego } from "@/lib/riego"
+import { ETAPAS, evaluarRiego, parseDecimal, promedio, type EtapaRiego } from "@/lib/riego"
 import { destinatariosAlertaRiego, type Perfil } from "@/lib/equipo"
 import { cicloActual, etapaRiegoDe, momentoCiclo, type CicloSala } from "@/lib/ciclo"
 
@@ -45,6 +45,11 @@ const formVacio = (responsable = "Lucho") => ({
   ec_runoff: "",
   ph_runoff: "",
   drenaje_pct: "",
+  pincho_t1_humedad: "",
+  pincho_t1_ec: "",
+  pincho_t2_humedad: "",
+  pincho_t2_ec: "",
+  pincho_humedad_despues: "",
   notas: "",
 })
 
@@ -63,7 +68,20 @@ function alertasDe(r: RegistroRiego) {
     ec_runoff: num(r.ec_runoff),
     ph_runoff: num(r.ph_runoff),
     drenaje_pct: num(r.drenaje_pct),
+    pincho: pinchoDe(r),
   })
+}
+
+/** Pincho de un riego guardado; null si es de antes del 16/11 o no se cargó. */
+function pinchoDe(r: RegistroRiego) {
+  const p = {
+    t1_humedad: num(r.pincho_t1_humedad),
+    t1_ec: num(r.pincho_t1_ec),
+    t2_humedad: num(r.pincho_t2_humedad),
+    t2_ec: num(r.pincho_t2_ec),
+    humedad_despues: num(r.pincho_humedad_despues),
+  }
+  return Object.values(p).some((v) => v !== null) ? p : null
 }
 
 function mostrar(v: unknown, dec = 1): string {
@@ -93,6 +111,13 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
         ec_runoff: parseDecimal(form.ec_runoff),
         ph_runoff: parseDecimal(form.ph_runoff),
         drenaje_pct: parseDecimal(form.drenaje_pct),
+        pincho: {
+          t1_humedad: parseDecimal(form.pincho_t1_humedad),
+          t1_ec: parseDecimal(form.pincho_t1_ec),
+          t2_humedad: parseDecimal(form.pincho_t2_humedad),
+          t2_ec: parseDecimal(form.pincho_t2_ec),
+          humedad_despues: parseDecimal(form.pincho_humedad_despues),
+        },
       }),
     [form],
   )
@@ -142,6 +167,18 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
       drenaje_pct: (() => {
         const d = parseDecimal(form.drenaje_pct)
         return d === null ? null : Math.round(d)
+      })(),
+      // Pincho (script 098): solo si se cargó algo, para que un riego sin
+      // pincho se pueda guardar aunque el script todavía no esté corrido.
+      ...(() => {
+        const pz = {
+          pincho_t1_humedad: parseDecimal(form.pincho_t1_humedad),
+          pincho_t1_ec: parseDecimal(form.pincho_t1_ec),
+          pincho_t2_humedad: parseDecimal(form.pincho_t2_humedad),
+          pincho_t2_ec: parseDecimal(form.pincho_t2_ec),
+          pincho_humedad_despues: parseDecimal(form.pincho_humedad_despues),
+        }
+        return Object.values(pz).some((v) => v !== null) ? pz : {}
       })(),
       notas: form.notas.trim() || null,
       ...(perfil ? { cargado_por: perfil.id } : {}),
@@ -217,7 +254,7 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
             <Droplets className="h-6 w-6" /> Registro de riego
           </h1>
           <p className="text-sm text-muted-foreground">
-            Prueba piloto. Reemplaza la planilla en papel: entrada, runoff de las 2 macetas testigo y alertas según el
+            Prueba piloto. Reemplaza la planilla en papel: entrada, pincho en las 2 macetas testigo (runoff solo los jueves) y alertas según el
             Manual 3.
           </p>
         </div>
@@ -337,7 +374,32 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
                   </div>
                 </fieldset>
                 <fieldset className="space-y-3 rounded-md border p-3 sm:col-span-1">
-                  <legend className="px-1 text-sm font-medium">Runoff (2 macetas testigo)</legend>
+                  <legend className="px-1 text-sm font-medium">Pincho en las 2 testigo (antes de regar)</legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="pincho_t1_humedad">T1 · humedad %</Label>
+                      <Input id="pincho_t1_humedad" inputMode="decimal" placeholder="45" value={form.pincho_t1_humedad} onChange={set("pincho_t1_humedad")} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="pincho_t1_ec">T1 · EC</Label>
+                      <Input id="pincho_t1_ec" inputMode="decimal" placeholder="2,1" value={form.pincho_t1_ec} onChange={set("pincho_t1_ec")} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="pincho_t2_humedad">T2 · humedad %</Label>
+                      <Input id="pincho_t2_humedad" inputMode="decimal" placeholder="48" value={form.pincho_t2_humedad} onChange={set("pincho_t2_humedad")} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="pincho_t2_ec">T2 · EC</Label>
+                      <Input id="pincho_t2_ec" inputMode="decimal" placeholder="2,3" value={form.pincho_t2_ec} onChange={set("pincho_t2_ec")} />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                      <Label htmlFor="pincho_humedad_despues">Humedad 1 h después (%)</Label>
+                      <Input id="pincho_humedad_despues" inputMode="decimal" placeholder="70" value={form.pincho_humedad_despues} onChange={set("pincho_humedad_despues")} />
+                    </div>
+                </fieldset>
+                <fieldset className="space-y-3 rounded-md border p-3 sm:col-span-1">
+                  <legend className="px-1 text-sm font-medium">Runoff (solo los jueves, para el pH)</legend>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label htmlFor="ec_runoff">EC</Label>
@@ -413,6 +475,7 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
                   <TableHead>Etapa</TableHead>
                   <TableHead className="text-right">EC in</TableHead>
                   <TableHead className="text-right">pH in</TableHead>
+                  <TableHead className="text-right">Pincho</TableHead>
                   <TableHead className="text-right">EC out</TableHead>
                   <TableHead className="text-right">pH out</TableHead>
                   <TableHead className="text-right">Dren.</TableHead>
@@ -435,6 +498,15 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
                       </TableCell>
                       <TableCell className="text-right">{mostrar(r.ec_entrada, 2)}</TableCell>
                       <TableCell className="text-right">{mostrar(r.ph_entrada)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-right">
+                        {(() => {
+                          const pz = pinchoDe(r)
+                          if (!pz) return "—"
+                          const h = promedio(pz.t1_humedad, pz.t2_humedad)
+                          const ec = promedio(pz.t1_ec, pz.t2_ec)
+                          return `${h === null ? "—" : `${mostrar(h, 0)} %`} · ${mostrar(ec, 2)}`
+                        })()}
+                      </TableCell>
                       <TableCell className="text-right">{mostrar(r.ec_runoff, 2)}</TableCell>
                       <TableCell className="text-right">{mostrar(r.ph_runoff)}</TableCell>
                       <TableCell className="text-right">{r.drenaje_pct === null ? "—" : `${r.drenaje_pct} %`}</TableCell>

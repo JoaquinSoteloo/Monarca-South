@@ -9,6 +9,7 @@ const base: LecturaRiego = {
   ec_runoff: 2.0,
   ph_runoff: 6.1,
   drenaje_pct: 18,
+  pincho: { t1_humedad: 45, t1_ec: 2.1, t2_humedad: 48, t2_ec: 2.3, humedad_despues: 70 },
 }
 
 describe("evaluarRiego", () => {
@@ -47,11 +48,27 @@ describe("evaluarRiego", () => {
     expect(alertas.map((a) => a.mensaje).join(" ")).toContain("pH de entrada")
   })
 
-  it("pide el runoff si falta, salvo en esquejes y lavado", () => {
-    const sinRunoff = { ...base, ec_runoff: null, drenaje_pct: null }
-    expect(evaluarRiego(sinRunoff)[0].mensaje).toContain("Falta el runoff")
-    expect(evaluarRiego({ ...sinRunoff, etapa: "esqueje", semana: null, ec_entrada: 0.9, ph_entrada: 5.8 })).toEqual([])
-    expect(evaluarRiego({ ...sinRunoff, etapa: "lavado", semana: null, ec_entrada: 0.05, ph_entrada: 6.0 })).toEqual([])
+  it("sin runoff no avisa nada: desde el 16/11 se mide con el pincho", () => {
+    expect(evaluarRiego({ ...base, ec_runoff: null, ph_runoff: null, drenaje_pct: null })).toEqual([])
+  })
+
+  it("pide el pincho si falta, salvo en esquejes y lavado", () => {
+    const sinPincho = { ...base, pincho: null }
+    expect(evaluarRiego(sinPincho)[0].mensaje).toContain("Faltan las mediciones del pincho")
+    expect(evaluarRiego({ ...sinPincho, etapa: "esqueje", semana: null, ec_entrada: 0.9, ph_entrada: 5.8, ec_runoff: null })).toEqual([])
+    expect(evaluarRiego({ ...sinPincho, etapa: "lavado", semana: null, ec_entrada: 0.05, ph_entrada: 6.0, ec_runoff: null })).toEqual([])
+  })
+
+  it("marca sales si el pincho da más de 1 punto arriba de la mezcla, y falta de alimento si da 0,5 abajo", () => {
+    const p = base.pincho!
+    expect(evaluarRiego({ ...base, pincho: { ...p, t1_ec: 3.0, t2_ec: 2.9 } })[0].mensaje).toContain("acumulación de sales")
+    expect(evaluarRiego({ ...base, pincho: { ...p, t1_ec: 2.8, t2_ec: 2.8 } })).toEqual([])
+    expect(evaluarRiego({ ...base, pincho: { ...p, t1_ec: 1.2, t2_ec: 1.2 } })[0].mensaje).toContain("faltando alimento")
+  })
+
+  it("avisa si las 2 testigo tienen más de 10 puntos de humedad de diferencia", () => {
+    const p = base.pincho!
+    expect(evaluarRiego({ ...base, pincho: { ...p, t1_humedad: 30, t2_humedad: 45 } })[0].mensaje).toContain("humedad muy distinta")
   })
 
   it("en la semana 8 de flora espera solo agua y no marca sales", () => {

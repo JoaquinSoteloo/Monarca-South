@@ -44,6 +44,9 @@ import {
   Wallet,
   Pencil,
   Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
 import { etiquetaMetodo } from "@/lib/metodo-pago"
 import { format } from "date-fns"
@@ -406,6 +409,14 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
 
   const diaAR = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })
   const fueDeuda = (v: VentaConDeuda) => (v.pagos || []).some((p) => diaAR(p.fecha) > diaAR(v.created_at))
+  // Orden del historial: por fecha de entrega o de saldada, tocando el encabezado.
+  const [ordenSaldadas, setOrdenSaldadas] = useState<{ col: "entrega" | "saldada"; asc: boolean }>({ col: "saldada", asc: false })
+  const saldadaEl = (v: VentaConDeuda) => (v.pagos || []).reduce((max, p) => (p.fecha > max ? p.fecha : max), "")
+  const ordenarPor = (col: "entrega" | "saldada") =>
+    setOrdenSaldadas((o) => (o.col === col ? { col, asc: !o.asc } : { col, asc: false }))
+  const iconoOrden = (col: "entrega" | "saldada") =>
+    ordenSaldadas.col !== col ? <ArrowUpDown className="h-3.5 w-3.5 opacity-50" /> : ordenSaldadas.asc ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+
   const saldadasFiltradas = saldadas.filter((d) => {
     // Solo las que fueron deuda (se terminaron de pagar otro día). Las pagadas en
     // el momento se corrigen desde Historial de ventas.
@@ -413,6 +424,9 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
     if (!filtroSocio) return true
     const nombreCompleto = `${d.socio?.apellido}, ${d.socio?.nombre}`.toLowerCase()
     return nombreCompleto.includes(filtroSocio.toLowerCase()) || (d.socio?.dni || "").includes(filtroSocio)
+  }).sort((a, b) => {
+    const [x, y] = ordenSaldadas.col === "entrega" ? [a.created_at, b.created_at] : [saldadaEl(a), saldadaEl(b)]
+    return ordenSaldadas.asc ? x.localeCompare(y) : y.localeCompare(x)
   })
 
   const handleVerComprobante = (url: string) => {
@@ -525,9 +539,17 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
                 <TableHeader>
                   <TableRow>
                     <TableHead>Socio</TableHead>
-                    <TableHead>Entrega</TableHead>
+                    <TableHead>
+                      <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => ordenarPor("entrega")} aria-label="Ordenar por fecha de entrega">
+                        Entrega {iconoOrden("entrega")}
+                      </button>
+                    </TableHead>
                     <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Saldada el</TableHead>
+                    <TableHead>
+                      <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => ordenarPor("saldada")} aria-label="Ordenar por fecha en que se saldó">
+                        Saldada el {iconoOrden("saldada")}
+                      </button>
+                    </TableHead>
                     <TableHead className="text-right">Pagos</TableHead>
                     <TableHead />
                   </TableRow>

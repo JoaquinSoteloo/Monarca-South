@@ -195,20 +195,57 @@ def mandar(nombre, payload):
     return boton
 
 
+REINTENTO_S = 5 * 60  # si un BroadLink se pierde, buscarlo en la red como mucho cada 5 minutos
+_perdidos = {}  # nombre -> cuándo se intentó encontrarlo por última vez
+
+
+def conectar_equipo(nombre):
+    """Conecta un BroadLink (y lo busca por MAC si cambió de IP). Avisa solo cuando cambia algo."""
+    try:
+        dev = conectar(nombre)
+    except Exception as e:  # noqa: BLE001
+        if nombre not in _perdidos:
+            log(f"{e} Sigo intentando cada {REINTENTO_S // 60} minutos.")
+        _perdidos[nombre] = time.time()
+        return False
+    if nombre in _perdidos:
+        del _perdidos[nombre]
+        log(f"BroadLink '{nombre}': de nuevo conectado en {dev.host[0]}.")
+    return True
+
+
+def conectar_todos():
+    """Al arrancar, se conecta a cada BroadLink sin esperar a que llegue una orden."""
+    equipos = leer_json(EQUIPOS, {})
+    if not equipos:
+        log("No hay BroadLink cargados: corré  python puente.py agregar sala5 <IP>")
+    for nombre in equipos:
+        if conectar_equipo(nombre):
+            log(f"BroadLink '{nombre}': conectado en {_conexiones[nombre].host[0]}.")
+
+
 def saludar_equipos():
-    """Le habla a cada BroadLink para que la notebook no se olvide de dónde está.
+    """Le habla a cada BroadLink para mantener la conexión viva.
 
     El BroadLink dormita para ahorrar energía y no escucha los mensajes que
     van a toda la red: si la notebook se olvida de su dirección, no lo puede
-    volver a encontrar. Saludarlo seguido la mantiene fresca.
+    volver a encontrar. Saludarlo seguido la mantiene fresca. Si no contesta,
+    lo vuelve a conectar (buscándolo por MAC) sin esperar a la próxima orden.
     """
     bl = broadlink_mod()
     for nombre in leer_json(EQUIPOS, {}):
+        if nombre in _perdidos:
+            if time.time() - _perdidos[nombre] >= REINTENTO_S:
+                conectar_equipo(nombre)
+            continue
         ip = datos_equipo(leer_json(EQUIPOS, {}), nombre)["ip"]
         try:
             bl.hello(ip, timeout=3)
-        except Exception:  # noqa: BLE001  (si no contesta, lo busca al mandar la próxima orden)
-            pass
+            if nombre not in _conexiones:
+                conectar_equipo(nombre)
+        except Exception:  # noqa: BLE001  (no contestó: conexión nueva, buscándolo si hace falta)
+            _conexiones.pop(nombre, None)
+            conectar_equipo(nombre)
 
 
 def pedir(cfg, metodo, ruta, cuerpo=None):
@@ -231,6 +268,7 @@ def correr():
     if len(cfg["BRIDGE_TOKEN"]) < 16:
         sys.exit("Falta BRIDGE_TOKEN en puente.env (la misma clave que tiene Vercel).")
     log("Puente de la sede andando. Para cortarlo, cerrá esta ventana.")
+    conectar_todos()
     errores = 0
     vuelta = 0
     while True:

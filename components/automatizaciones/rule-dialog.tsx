@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { VARIABLE_CONFIG as variableConfig, AC_MODO_OPTIONS, AC_FAN_OPTIONS } from "@/lib/automations/format"
+import { VARIABLE_CONFIG as variableConfig, AC_MODO_OPTIONS } from "@/lib/automations/format"
 import type { RuleFormState } from "./form-types"
 
 interface PulseDeviceOption {
@@ -44,7 +44,7 @@ export function RuleDialog({ open, onOpenChange, editingReglaId, form, setForm, 
     const accionTxt = esAireAcondicionado
       ? `encender en modo ${AC_MODO_OPTIONS.find((o) => o.value === form.accion_modo)?.label ?? form.accion_modo} a ${
           form.accion_setpoint || "…"
-        }°C (fan ${AC_FAN_OPTIONS.find((o) => o.value === form.accion_fan)?.label ?? form.accion_fan})`
+        }°C`
       : "encender"
     return `Si ${cfg.label.toLowerCase()} ${form.operador} ${valor}${cfg.unidad} durante ${minutos} min, enviar "${accionTxt}" a ${nombreDispositivo}.`
   }, [form, dispositivoSeleccionado, esAireAcondicionado])
@@ -225,7 +225,7 @@ export function RuleDialog({ open, onOpenChange, editingReglaId, form, setForm, 
                 </div>
 
                 {esAireAcondicionado ? (
-                  <div className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-3">
+                  <div className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Modo</Label>
                       <Select value={form.accion_modo} onValueChange={(v) => setForm((f) => ({ ...f, accion_modo: v }))}>
@@ -248,21 +248,6 @@ export function RuleDialog({ open, onOpenChange, editingReglaId, form, setForm, 
                         value={form.accion_setpoint}
                         onChange={(e) => setForm((f) => ({ ...f, accion_setpoint: e.target.value }))}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Fan</Label>
-                      <Select value={form.accion_fan} onValueChange={(v) => setForm((f) => ({ ...f, accion_fan: v }))}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {AC_FAN_OPTIONS.map((op) => (
-                            <SelectItem key={op.value} value={op.value}>
-                              {op.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     </div>
                   </div>
                 ) : (

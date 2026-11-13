@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { formatComandoDispositivo, AC_MODO_OPTIONS, AC_FAN_OPTIONS } from "@/lib/automations/format"
+import { formatComandoDispositivo, AC_MODO_OPTIONS } from "@/lib/automations/format"
 import { tipoDispositivoConfig, comandoEstadoConfig, origenComandoLabels, formatMinutesAgo } from "@/lib/device-ui-config"
 import { Power, PowerOff, Send, CheckCircle2, AlertTriangle, Clock } from "lucide-react"
 
@@ -27,6 +27,10 @@ interface ControlManualProps {
 // lib/automations/format.ts y el diálogo de reglas. Sumar un tipo nuevo
 // (extractor con velocidad, humidificador con % objetivo, etc.) es: agregar
 // su tipo acá, su bloque de campos abajo, y su formateo en format.ts.
+// El ventilador del aire va siempre en automático: es lo único que usa el equipo (pedido de
+// Joaquín, 13/11/2026). Los botones grabados en el puente de la sede son todos con fan auto.
+const FAN_SIEMPRE = "auto"
+
 const TIPOS_CON_CONTROLES_AVANZADOS: TipoDispositivoControlable[] = ["aire_acondicionado"]
 
 export function ControlManual({ initialDispositivos }: ControlManualProps) {
@@ -35,7 +39,6 @@ export function ControlManual({ initialDispositivos }: ControlManualProps) {
   const [accion, setAccion] = useState<"encender" | "apagar">("encender")
   const [modoAC, setModoAC] = useState(AC_MODO_OPTIONS[0]?.value ?? "frio")
   const [setpoint, setSetpoint] = useState("23")
-  const [fan, setFan] = useState(AC_FAN_OPTIONS[0]?.value ?? "auto")
   const [enviando, setEnviando] = useState(false)
   const [mensaje, setMensaje] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
@@ -59,7 +62,7 @@ export function ControlManual({ initialDispositivos }: ControlManualProps) {
       accion === "apagar"
         ? { accion: "apagar" }
         : esAireAcondicionado
-          ? { accion: "encender", modo: modoAC, setpoint: Number(setpoint), fan }
+          ? { accion: "encender", modo: modoAC, setpoint: Number(setpoint), fan: FAN_SIEMPRE }
           : { accion: "encender" }
 
     try {
@@ -238,7 +241,7 @@ export function ControlManual({ initialDispositivos }: ControlManualProps) {
 
                   {accion === "encender" &&
                     (esAireAcondicionado ? (
-                      <div className="grid grid-cols-3 gap-2 pt-1">
+                      <div className="grid grid-cols-2 gap-2 pt-1">
                         <div className="space-y-2">
                           <Label>Modo</Label>
                           <Select value={modoAC} onValueChange={setModoAC}>
@@ -257,21 +260,6 @@ export function ControlManual({ initialDispositivos }: ControlManualProps) {
                         <div className="space-y-2">
                           <Label>Setpoint (°C)</Label>
                           <Input type="number" value={setpoint} onChange={(e) => setSetpoint(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Fan</Label>
-                          <Select value={fan} onValueChange={setFan}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {AC_FAN_OPTIONS.map((op) => (
-                                <SelectItem key={op.value} value={op.value}>
-                                  {op.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
                         </div>
                       </div>
                     ) : (

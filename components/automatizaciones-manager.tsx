@@ -373,7 +373,7 @@ export function AutomatizacionesManager({
     if (esAireAcondicionado) {
       accionEncendido.modo = reglaForm.accion_modo
       accionEncendido.setpoint = Number(reglaForm.accion_setpoint)
-      accionEncendido.fan = reglaForm.accion_fan
+      accionEncendido.fan = "auto" // el ventilador del aire va siempre en automático
     }
 
     const body = {

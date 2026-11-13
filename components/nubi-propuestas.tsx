@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Satellite, X } from "lucide-react"
+import { Check, FlaskConical, Satellite, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 /** Una propuesta de Nubi (tabla propuestas_nubi, script 096), con los nombres ya resueltos. */
 export interface PropuestaNubi {
@@ -29,12 +30,44 @@ const ESTADO: Record<PropuestaNubi["estado"], string> = {
 
 // Propuestas de Nubi en Control manual: las pendientes se aprueban o descartan
 // acá (en iPhone la notificación no trae botones y abre esta pantalla).
-export function NubiPropuestas({ pendientes, recientes }: { pendientes: PropuestaNubi[]; recientes: PropuestaNubi[] }) {
+export function NubiPropuestas({
+  pendientes,
+  recientes,
+  airesParaProbar = [],
+}: {
+  pendientes: PropuestaNubi[]
+  recientes: PropuestaNubi[]
+  /** Solo para la comisión: aires reales con los que se puede probar a Nubi. */
+  airesParaProbar?: { id: number; nombre: string }[]
+}) {
   const router = useRouter()
   const [ocupada, setOcupada] = useState<number | null>(null)
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null)
+  const [aireProbar, setAireProbar] = useState(airesParaProbar[0] ? String(airesParaProbar[0].id) : "")
+  const [tempProbar, setTempProbar] = useState("28")
+  const [probando, setProbando] = useState(false)
 
-  if (pendientes.length === 0 && recientes.length === 0) return null
+  if (pendientes.length === 0 && recientes.length === 0 && airesParaProbar.length === 0) return null
+
+  // "Probar Nubi": el mismo análisis con una temperatura simulada; el aviso llega solo a quien prueba.
+  async function probar() {
+    setProbando(true)
+    setAviso(null)
+    try {
+      const r = await fetch("/api/nubi/probar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dispositivoId: Number(aireProbar), temperatura: Number(tempProbar.replace(",", ".")) }),
+      })
+      const j = await r.json().catch(() => ({}))
+      setAviso(r.ok ? { ok: true, texto: j.mensaje } : { ok: false, texto: j.error || "No se pudo probar." })
+      router.refresh()
+    } catch {
+      setAviso({ ok: false, texto: "No se pudo probar. Revisá la conexión." })
+    } finally {
+      setProbando(false)
+    }
+  }
 
   async function contestar(id: number, decision: "mandar" | "no") {
     setOcupada(id)
@@ -81,6 +114,25 @@ export function NubiPropuestas({ pendientes, recientes }: { pendientes: Propuest
           </div>
         </div>
       ))}
+
+      {airesParaProbar.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-sky-300 p-3">
+          <div className="text-xs text-sky-950/80 basis-full">
+            <FlaskConical className="mr-1 inline h-3.5 w-3.5" />
+            Probar Nubi: simula la temperatura de la sala y te manda la propuesta solo a vos.
+          </div>
+          <select aria-label="Aire para probar" className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={aireProbar} onChange={(e) => setAireProbar(e.target.value)}>
+            {airesParaProbar.map((a) => (
+              <option key={a.id} value={String(a.id)}>{a.nombre}</option>
+            ))}
+          </select>
+          <Input aria-label="Temperatura simulada (°C)" inputMode="decimal" className="h-9 w-20" value={tempProbar} onChange={(e) => setTempProbar(e.target.value)} />
+          <span className="pb-2 text-sm">°C</span>
+          <Button size="sm" variant="outline" disabled={probando || !aireProbar} onClick={probar}>
+            {probando ? "Probando…" : "Probar Nubi"}
+          </Button>
+        </div>
+      )}
 
       {aviso && (
         <p role="status" className={`mt-3 rounded-lg p-2 text-sm ${aviso.ok ? "bg-emerald-50 text-emerald-900" : "bg-red-50 text-red-800"}`}>

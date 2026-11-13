@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { ControlManual } from "@/components/control-manual"
 import { NubiPropuestas, type PropuestaNubi } from "@/components/nubi-propuestas"
+import { getServerSession } from "@/lib/auth/session"
+import { ROL_COMISION } from "@/lib/permisos"
 import type { DispositivoControlable } from "@/lib/types"
 
 export default async function ControlManualPage() {
@@ -24,6 +26,14 @@ export default async function ControlManualPage() {
   const todas = (propuestas ?? []) as PropuestaNubi[]
   const pendientes = todas.filter((p) => p.estado === "pendiente" && (!p.vence_en || p.vence_en > ahora))
   const recientes = todas.filter((p) => !pendientes.includes(p)).slice(0, 5)
+  // "Probar Nubi" solo para la comisión, con los aires reales (no los de prueba).
+  const session = await getServerSession()
+  const airesParaProbar =
+    session?.rol === ROL_COMISION
+      ? (data || [])
+          .filter((d: any) => d.tipo === "aire_acondicionado" && d.proveedor !== "manual_noop" && d.sala_id)
+          .map((d: any) => ({ id: d.id as number, nombre: `${d.nombre}${d.sala?.nombre ? ` — ${Array.isArray(d.sala) ? d.sala[0]?.nombre : d.sala.nombre}` : ""}` }))
+      : []
 
   // PostgREST puede devolver el embed to-one como array; lo normalizamos
   // igual que en app/automatizaciones/page.tsx.
@@ -34,7 +44,7 @@ export default async function ControlManualPage() {
 
   return (
           <main className="container mx-auto px-4 py-8">
-        <NubiPropuestas pendientes={pendientes} recientes={recientes} />
+        <NubiPropuestas pendientes={pendientes} recientes={recientes} airesParaProbar={airesParaProbar} />
         <ControlManual initialDispositivos={dispositivos} />
       </main>
   )

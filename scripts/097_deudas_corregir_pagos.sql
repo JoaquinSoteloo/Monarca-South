@@ -1,5 +1,7 @@
 -- 097 — Deudas: corregir o anular un pago cargado por error.
 --
+-- Ejecutado en producción el 13/11/2026 (con FOR UPDATE agregado), antes de publicar.
+--
 -- Pedido de Facundo (12/11/2026): en Deudas se puede ver el historial de las
 -- deudas saldadas y corregir un pago mal cargado (monto, método, fecha, notas)
 -- o anularlo. Hasta ahora un error no tenía arreglo desde la app.

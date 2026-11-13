@@ -42,6 +42,8 @@ import {
   Calendar,
   CheckCircle,
   Wallet,
+  Pencil,
+  Trash2,
 } from "lucide-react"
 import { etiquetaMetodo } from "@/lib/metodo-pago"
 import { format } from "date-fns"
@@ -58,7 +60,7 @@ interface VentaConDeuda extends Omit<Venta, "socio"> {
   pagos: Pago[]
 }
 
-export function DeudasManager() {
+export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boolean }) {
   const supabase = createClient()
   const [deudas, setDeudas] = useState<VentaConDeuda[]>([])
   const [loading, setLoading] = useState(true)
@@ -96,6 +98,19 @@ export function DeudasManager() {
 
   // Filtro por socio
   const [filtroSocio, setFiltroSocio] = useState("")
+
+  // Historial de deudas saldadas
+  const [vista, setVista] = useState<"pendientes" | "saldadas">("pendientes")
+  const [saldadas, setSaldadas] = useState<VentaConDeuda[]>([])
+  const [loadingSaldadas, setLoadingSaldadas] = useState(false)
+
+  // Corrección de un pago cargado por error
+  const [editandoPagoId, setEditandoPagoId] = useState<string | null>(null)
+  const [editMonto, setEditMonto] = useState("")
+  const [editMetodo, setEditMetodo] = useState<"efectivo" | "transferencia">("efectivo")
+  const [editFecha, setEditFecha] = useState("")
+  const [editNotas, setEditNotas] = useState("")
+  const [guardandoCorreccion, setGuardandoCorreccion] = useState(false)
 
   useEffect(() => {
     fetchDeudas()
@@ -298,17 +313,102 @@ export function DeudasManager() {
     setProcesandoPagoSocio(false)
   }
 
-  const handleVerHistorial = async (venta: VentaConDeuda) => {
-    setVentaSeleccionada(venta)
+  const cargarPagos = async (ventaId: string) => {
     const { data } = await supabase
       .from("pagos")
       .select("*")
-      .eq("venta_id", venta.id)
+      .eq("venta_id", ventaId)
       .order("fecha", { ascending: false })
-
     setPagosHistorial(data || [])
+  }
+
+  const handleVerHistorial = async (venta: VentaConDeuda) => {
+    setVentaSeleccionada(venta)
+    setEditandoPagoId(null)
+    await cargarPagos(venta.id)
     setHistorialDialogOpen(true)
   }
+
+  const fetchSaldadas = async () => {
+    setLoadingSaldadas(true)
+    // Entregas que tuvieron deuda (tienen pagos registrados) y ya no deben nada.
+    const { data, error } = await supabase
+      .from("ventas")
+      .select(`
+        *,
+        socio:socios(id, nombre, apellido, dni),
+        pagos!inner(*)
+      `)
+      .lte("saldo_pendiente", 0)
+      .order("created_at", { ascending: false })
+      .limit(300)
+    if (!error && data) setSaldadas(data as VentaConDeuda[])
+    setLoadingSaldadas(false)
+  }
+
+  useEffect(() => {
+    if (vista === "saldadas") fetchSaldadas()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vista])
+
+  const aFechaLocal = (iso: string) => {
+    const d = new Date(iso)
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
+  const empezarCorreccion = (pago: Pago) => {
+    setEditandoPagoId(pago.id)
+    setEditMonto(String(pago.monto))
+    setEditMetodo(pago.metodo_pago === "transferencia" ? "transferencia" : "efectivo")
+    setEditFecha(aFechaLocal(pago.fecha))
+    setEditNotas(pago.notas || "")
+  }
+
+  const refrescarTodo = async () => {
+    if (ventaSeleccionada) await cargarPagos(ventaSeleccionada.id)
+    fetchDeudas()
+    if (vista === "saldadas") fetchSaldadas()
+  }
+
+  const mostrarError = (error: { code?: string; message: string }) => {
+    if (/^(VP0\d{2}|EQ006)$/.test(error.code || "")) alert(error.message)
+    else {
+      console.error("Error inesperado al corregir el pago:", error)
+      alert("Ocurrió un error inesperado. Intentá nuevamente.")
+    }
+  }
+
+  const guardarCorreccion = async () => {
+    if (!editandoPagoId || !editMonto || Number(editMonto) <= 0 || !editFecha) return
+    setGuardandoCorreccion(true)
+    const { error } = await supabase.rpc("corregir_pago", {
+      p_pago_id: editandoPagoId,
+      p_monto: Number(editMonto),
+      p_metodo_pago: editMetodo,
+      p_fecha: new Date(editFecha).toISOString(),
+      p_notas: editNotas || null,
+    })
+    setGuardandoCorreccion(false)
+    if (error) return mostrarError(error)
+    setEditandoPagoId(null)
+    await refrescarTodo()
+  }
+
+  const anularPago = async (pago: Pago) => {
+    if (!confirm(`¿Anular el pago de ${formatCurrency(Number(pago.monto))}? La entrega vuelve a quedar con ese saldo pendiente.`)) return
+    setGuardandoCorreccion(true)
+    const { error } = await supabase.rpc("anular_pago", { p_pago_id: pago.id })
+    setGuardandoCorreccion(false)
+    if (error) return mostrarError(error)
+    await refrescarTodo()
+  }
+
+  const saldadasFiltradas = saldadas.filter((d) => {
+    if (!filtroSocio) return true
+    const nombreCompleto = `${d.socio?.apellido}, ${d.socio?.nombre}`.toLowerCase()
+    return nombreCompleto.includes(filtroSocio.toLowerCase()) || (d.socio?.dni || "").includes(filtroSocio)
+  })
 
   const handleVerComprobante = (url: string) => {
     setComprobanteVisualizarUrl(url)
@@ -396,8 +496,64 @@ export function DeudasManager() {
         </CardContent>
       </Card>
 
+      {/* Pendientes / Saldadas */}
+      <div className="flex gap-2">
+        <Button variant={vista === "pendientes" ? "default" : "outline"} onClick={() => setVista("pendientes")}>
+          Pendientes
+        </Button>
+        <Button variant={vista === "saldadas" ? "default" : "outline"} onClick={() => setVista("saldadas")}>
+          <History className="mr-1 h-4 w-4" /> Saldadas (historial)
+        </Button>
+      </div>
+
+      {vista === "saldadas" ? (
+        <Card>
+          <CardContent className="p-0">
+            {loadingSaldadas ? (
+              <p className="py-8 text-center text-muted-foreground">Cargando historial...</p>
+            ) : saldadasFiltradas.length === 0 ? (
+              <p className="py-8 text-center text-muted-foreground">
+                {filtroSocio ? "No hay deudas saldadas que coincidan con la búsqueda" : "Todavía no hay deudas saldadas"}
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Socio</TableHead>
+                    <TableHead>Entrega</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead>Saldada el</TableHead>
+                    <TableHead className="text-right">Pagos</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {saldadasFiltradas.map((v) => {
+                    const ultimo = [...(v.pagos || [])].sort((a, b) => b.fecha.localeCompare(a.fecha))[0]
+                    return (
+                      <TableRow key={v.id}>
+                        <TableCell>{v.socio ? `${v.socio.apellido}, ${v.socio.nombre}` : "—"}</TableCell>
+                        <TableCell>{format(new Date(v.created_at), "dd/MM/yyyy", { locale: es })}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCurrency(Number(v.total || 0))}</TableCell>
+                        <TableCell>{ultimo ? format(new Date(ultimo.fecha), "dd/MM/yyyy", { locale: es }) : "—"}</TableCell>
+                        <TableCell className="text-right">{v.pagos?.length || 0}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="sm" onClick={() => handleVerHistorial(v)}>
+                            <History className="mr-1 h-4 w-4" /> Ver pagos
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Lista de deudas por socio */}
-      {loading ? (
+      {vista === "saldadas" ? null : loading ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
             Cargando deudas...
@@ -846,7 +1002,39 @@ export function DeudasManager() {
             <p className="text-center text-muted-foreground py-4">No hay pagos registrados</p>
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {pagosHistorial.map((pago) => (
+              {pagosHistorial.map((pago) => editandoPagoId === pago.id ? (
+                <div key={pago.id} className="space-y-3 rounded-lg border border-primary/40 bg-white p-3">
+                  <p className="text-sm font-medium">Corregir pago</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor="edit-monto" className="mb-1">Monto</Label>
+                      <Input id="edit-monto" type="number" inputMode="decimal" min="0" step="0.01" value={editMonto} onChange={(e) => setEditMonto(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="mb-1">Método</Label>
+                      <Select value={editMetodo} onValueChange={(v) => setEditMetodo(v as "efectivo" | "transferencia")}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="efectivo">Efectivo</SelectItem>
+                          <SelectItem value="transferencia">Transferencia</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-fecha" className="mb-1">Fecha</Label>
+                      <Input id="edit-fecha" type="datetime-local" value={editFecha} onChange={(e) => setEditFecha(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-notas" className="mb-1">Notas</Label>
+                      <Input id="edit-notas" value={editNotas} onChange={(e) => setEditNotas(e.target.value)} placeholder="Ej.: se cargó mal el monto" />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEditandoPagoId(null)} disabled={guardandoCorreccion}>Cancelar</Button>
+                    <Button size="sm" onClick={guardarCorreccion} disabled={guardandoCorreccion}>{guardandoCorreccion ? "Guardando..." : "Guardar corrección"}</Button>
+                  </div>
+                </div>
+              ) : (
                 <div key={pago.id} className="flex flex-wrap items-center justify-between gap-3 border bg-white p-3 rounded-lg">
                   <div className="flex items-center gap-3">
                     {pago.metodo_pago === "retribucion" ? (
@@ -880,6 +1068,16 @@ export function DeudasManager() {
                       >
                         <ImageIcon className="h-4 w-4" />
                       </Button>
+                    )}
+                    {puedeCorregir && pago.metodo_pago !== "retribucion" && (
+                      <>
+                        <Button variant="ghost" size="icon" aria-label="Corregir pago" title="Corregir pago" disabled={guardandoCorreccion} onClick={() => empezarCorreccion(pago)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" aria-label="Anular pago" title="Anular pago" disabled={guardandoCorreccion} onClick={() => anularPago(pago)}>
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

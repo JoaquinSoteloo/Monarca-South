@@ -103,9 +103,6 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
   const [vista, setVista] = useState<"pendientes" | "saldadas">("pendientes")
   const [saldadas, setSaldadas] = useState<VentaConDeuda[]>([])
   const [loadingSaldadas, setLoadingSaldadas] = useState(false)
-  // Por defecto solo las que fueron deuda (se terminaron de pagar otro día);
-  // las pagadas completas en el momento se ven tildando la casilla.
-  const [conPagadasEnElDia, setConPagadasEnElDia] = useState(false)
 
   // Corrección de un pago cargado por error
   const [editandoPagoId, setEditandoPagoId] = useState<string | null>(null)
@@ -410,7 +407,9 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
   const diaAR = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })
   const fueDeuda = (v: VentaConDeuda) => (v.pagos || []).some((p) => diaAR(p.fecha) > diaAR(v.created_at))
   const saldadasFiltradas = saldadas.filter((d) => {
-    if (!conPagadasEnElDia && !fueDeuda(d)) return false
+    // Solo las que fueron deuda (se terminaron de pagar otro día). Las pagadas en
+    // el momento se corrigen desde Historial de ventas.
+    if (!fueDeuda(d)) return false
     if (!filtroSocio) return true
     const nombreCompleto = `${d.socio?.apellido}, ${d.socio?.nombre}`.toLowerCase()
     return nombreCompleto.includes(filtroSocio.toLowerCase()) || (d.socio?.dni || "").includes(filtroSocio)
@@ -510,12 +509,6 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
         <Button variant={vista === "saldadas" ? "default" : "outline"} onClick={() => setVista("saldadas")}>
           <History className="mr-1 h-4 w-4" /> Saldadas (historial)
         </Button>
-        {vista === "saldadas" && (
-          <label className="ml-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <input type="checkbox" checked={conPagadasEnElDia} onChange={(e) => setConPagadasEnElDia(e.target.checked)} />
-            Incluir las pagadas completas en el día
-          </label>
-        )}
       </div>
 
       {vista === "saldadas" ? (

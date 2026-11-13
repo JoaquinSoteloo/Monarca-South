@@ -13,6 +13,13 @@ export interface PushPayload {
   url?: string
   /** Agrupa notificaciones del mismo dispositivo bajo un mismo tag. */
   tag?: string
+  /**
+   * Botones de la notificación (Android y compu; iPhone no los muestra y abre
+   * `url`). Hoy: "Mandar" / "No" de las propuestas de Nubi (public/sw.js).
+   */
+  acciones?: { action: string; title: string }[]
+  /** Datos para los botones (ej.: { propuestaId }). */
+  datos?: Record<string, unknown>
 }
 
 export interface SendPushResult {

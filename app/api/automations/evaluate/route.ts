@@ -5,6 +5,7 @@ import { avisarOrdenesSinCumplir } from "@/lib/automations/aviso-fallas"
 import { withEngineLock } from "@/lib/automations/lock"
 import { checkModoAusente } from "@/lib/modo-ausente/engine"
 import { avisarClima } from "@/lib/clima-alertas-aviso"
+import { proponerNubi } from "@/lib/nubi-aviso"
 
 // Dispara una corrida del motor de automatizaciones. Pensado para ser
 // invocado por un pinger EXTERNO (ej. cron-job.org) cada 1 minuto — Vercel
@@ -66,7 +67,13 @@ export async function POST(request: Request) {
         console.error("[automations/evaluate] Error revisando el clima:", err)
         return null
       })
-      return { evaluacion, modoAusente, clima }
+      // Nubi propone ajustes del aire para las salas con alerta de temperatura
+      // (script 096). Solo propone: una persona aprueba antes de mandar.
+      const nubi = await proponerNubi(supabase).catch((err) => {
+        console.error("[automations/evaluate] Error en las propuestas de Nubi:", err)
+        return null
+      })
+      return { evaluacion, modoAusente, clima, nubi }
     })
     if (!resultado.ejecuto) {
       return NextResponse.json({ skipped: true, motivo: "Ya había una evaluación en curso" })
@@ -76,6 +83,7 @@ export async function POST(request: Request) {
       ...resultado.resultado.evaluacion,
       modoAusente: resultado.resultado.modoAusente,
       avisosClima: resultado.resultado.clima,
+      propuestasNubi: resultado.resultado.nubi,
     })
   } catch (error) {
     console.error("[automations/evaluate] Error evaluando automatizaciones:", error)

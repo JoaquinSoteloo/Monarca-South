@@ -79,6 +79,13 @@ python puente.py probar sala5 apagar
 
 Los botones quedan en `codigos.json`, solo en la notebook.
 
+Las temperaturas se graban con el aire **prendido**, tocando subir o bajar
+en el control (no power). Como esos botones no prenden el aire, el puente
+anota en `estado.json` si lo dejó prendido o apagado: si piden una
+temperatura y el aire está apagado (o el puente no sabe cómo quedó), manda
+primero `encender`, espera 3 segundos y después la temperatura. Por eso el
+aire se maneja solo desde la app, no con el control.
+
 ## 5. Dejarlo corriendo solo
 
 - Probar primero a mano: `python puente.py` (muestra lo que hace). Al

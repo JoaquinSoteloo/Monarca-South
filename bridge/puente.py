@@ -37,6 +37,8 @@ from concurrent.futures import ThreadPoolExecutor
 AQUI = os.path.dirname(os.path.abspath(__file__))
 EQUIPOS = os.path.join(AQUI, "equipos.json")
 CODIGOS = os.path.join(AQUI, "codigos.json")
+ESTADO = os.path.join(AQUI, "estado.json")  # si el puente dejó cada aire prendido o apagado
+ESPERA_ENCENDIDO_S = 3  # lo que tarda el aire en arrancar antes de aceptar la temperatura
 CONFIG = os.path.join(AQUI, "puente.env")
 INTERVALO_S = 15
 
@@ -248,12 +250,31 @@ def mandar(nombre, payload):
         raise RuntimeError(
             f"Falta aprender el botón {candidatos[0] if candidatos else '?'} para {nombre} (grabados: {grabados})"
         )
+    # Los botones de temperatura se grabaron con el aire prendido: no lo prenden
+    # si está apagado. Si el puente no lo dejó prendido (o no sabe), primero
+    # «encender», espera que arranque y después la temperatura.
+    if boton not in ("apagar", "encender") and leer_json(ESTADO, {}).get(nombre) != "prendido":
+        if "encender" not in codigos:
+            raise RuntimeError(f"Falta aprender el botón encender para {nombre}: hace falta para prender el aire antes de la temperatura")
+        enviar(nombre, "encender", codigos)
+        time.sleep(ESPERA_ENCENDIDO_S)
+        boton_final = enviar(nombre, boton, codigos)
+        return f"encender + {boton_final}"
+    return enviar(nombre, boton, codigos)
+
+
+def enviar(nombre, boton, codigos=None):
+    """Manda un botón grabado y anota si el aire quedó prendido o apagado."""
+    codigos = codigos if codigos is not None else leer_json(CODIGOS, {}).get(nombre, {})
     paquete = base64.b64decode(codigos[boton])
     try:
         conectar(nombre).send_data(paquete)
     except Exception:
         _conexiones.pop(nombre, None)  # reintenta una vez con conexión nueva
         conectar(nombre).send_data(paquete)
+    estado = leer_json(ESTADO, {})
+    estado[nombre] = "apagado" if boton == "apagar" else "prendido"
+    guardar_json(ESTADO, estado)
     return boton
 
 
@@ -448,7 +469,7 @@ def main(args):
         codigos = leer_json(CODIGOS, {}).get(args[1].lower(), {})
         if args[2].lower() not in codigos:
             sys.exit(f"No está guardado «{args[2]}» para '{args[1]}'.")
-        conectar(args[1].lower()).send_data(base64.b64decode(codigos[args[2].lower()]))
+        enviar(args[1].lower(), args[2].lower(), codigos)
         return print("Enviado.")
     print(__doc__)
 

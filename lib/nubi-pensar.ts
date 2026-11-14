@@ -1,7 +1,7 @@
 // Nubi piensa (14/11/2026): arma lo que ve cada sala desde la base, le pregunta
 // a la IA (lib/nubi-ia.ts), revisa la respuesta con los guardrails y deja todo
 // registrado en nubi_decisiones (script 102). Lo usan el motor
-// (lib/nubi-aviso.ts) y Probar Nubi. Solo servidor.
+// (lib/nubi-aviso.ts) y los evals. Solo servidor.
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { completarJSON } from "@/lib/ia"
 import { cicloActual, type CicloSala } from "@/lib/ciclo"

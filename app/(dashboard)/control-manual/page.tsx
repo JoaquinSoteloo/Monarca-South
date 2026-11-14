@@ -25,7 +25,7 @@ export default async function ControlManualPage() {
       .limit(20),
     // Último resumen semanal de Nubi (script 100).
     supabase.from("resumenes_nubi").select("semana_desde, texto, sugerencia").order("semana_desde", { ascending: false }).limit(1),
-    // Qué pensó Nubi (script 102): las últimas decisiones del motor y de Probar Nubi.
+    // Qué pensó Nubi (script 102): las últimas decisiones del motor.
     supabase
       .from("nubi_decisiones")
       .select("id, creada_en, fuente, decision, analisis, valida, motivo_rechazo, salida, sala:salas_cultivo(nombre)")
@@ -48,14 +48,7 @@ export default async function ControlManualPage() {
   const todas = (propuestas ?? []) as PropuestaNubi[]
   const pendientes = todas.filter((p) => p.estado === "pendiente" && (!p.vence_en || p.vence_en > ahora))
   const recientes = todas.filter((p) => !pendientes.includes(p)).slice(0, 5)
-  // "Probar Nubi" solo para la comisión, con los aires reales (no los de prueba).
   const session = await getServerSession()
-  const airesParaProbar =
-    session?.rol === ROL_COMISION
-      ? (data || [])
-          .filter((d: any) => (d.tipo === "aire_acondicionado" || d.tipo === "deshumidificador") && d.proveedor !== "manual_noop" && d.sala_id)
-          .map((d: any) => ({ id: d.id as number, tipo: d.tipo as string, nombre: `${d.nombre}${d.sala?.nombre ? ` — ${Array.isArray(d.sala) ? d.sala[0]?.nombre : d.sala.nombre}` : ""}` }))
-      : []
 
   // PostgREST puede devolver el embed to-one como array; lo normalizamos
   // igual que en app/automatizaciones/page.tsx.
@@ -67,7 +60,7 @@ export default async function ControlManualPage() {
   return (
           <main className="container mx-auto px-4 py-8">
         <ResumenSemanal ultimo={((resumenes ?? [])[0] as ResumenGuardado | undefined) ?? null} puedeGenerar={session?.rol === ROL_COMISION} />
-        <NubiPropuestas pendientes={pendientes} recientes={recientes} airesParaProbar={airesParaProbar} />
+        <NubiPropuestas pendientes={pendientes} recientes={recientes} />
         <NubiPensamientos pensamientos={pensamientos} puedeEvaluar={session?.rol === ROL_COMISION} />
         <ControlManual initialDispositivos={dispositivos} />
       </main>

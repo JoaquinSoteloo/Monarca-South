@@ -8,7 +8,7 @@
 //     nada fuera de lo permitido; si se pasa, se descarta.
 //   - Human-in-the-loop (clase 7): solo PROPONE; una persona aprueba.
 //   - Memoria (clases 3 y 7): ve lo que propuso antes y qué le respondieron.
-// Cálculo puro: lo usan lib/nubi-aviso.ts (motor), Probar Nubi y los evals.
+// Cálculo puro: lo usan lib/nubi-aviso.ts (motor) y los evals.
 import type { RangoClima } from "@/lib/clima-alertas"
 import type { EstadoAire, EstadoOnOff, Propuesta } from "@/lib/nubi"
 import { SETPOINT_MAX, SETPOINT_MIN, textoEstadoAire, textoEstadoOnOff } from "@/lib/nubi"

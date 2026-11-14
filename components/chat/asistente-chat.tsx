@@ -1,5 +1,6 @@
 "use client"
 
+import { TextoAsistente } from "@/components/chat/texto-asistente"
 import { useEffect, useRef, useState } from "react"
 import { Leaf } from "lucide-react"
 import { horaCorta } from "@/lib/equipo"
@@ -101,7 +102,11 @@ export function AsistenteChat() {
                       : "max-w-[85%] rounded-2xl rounded-bl-md border bg-card px-3.5 py-2"
                   }
                 >
-                  <p className="whitespace-pre-line break-words text-[15px] leading-relaxed">{m.cuerpo}</p>
+                  {mio ? (
+                    <p className="whitespace-pre-line break-words text-[15px] leading-relaxed">{m.cuerpo}</p>
+                  ) : (
+                    <TextoAsistente texto={m.cuerpo} />
+                  )}
                   <p className={mio ? "mt-0.5 text-right text-[11px] text-primary-foreground/75" : "mt-0.5 text-right text-[11px] text-muted-foreground"}>
                     {horaCorta(m.created_at)}
                   </p>

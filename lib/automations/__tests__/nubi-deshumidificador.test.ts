@@ -4,6 +4,9 @@ import { createFakeSupabase, type FakeSupabase } from "./fake-supabase"
 
 const sendPushToUsers = vi.hoisted(() => vi.fn<(ids: string[], p: PushPayload) => Promise<{ sent: number; removed: number; failed: number }>>())
 vi.mock("@/lib/push/send", () => ({ sendPushToUsers }))
+// Sin IA: se prueban las reglas de respaldo. Los casos con IA mockean su respuesta.
+const completarJSON = vi.hoisted(() => vi.fn().mockResolvedValue(null))
+vi.mock("@/lib/ia", () => ({ completarJSON }))
 
 import { proponerNubi } from "@/lib/nubi-aviso"
 
@@ -42,7 +45,7 @@ describe("proponerNubi: deshumidificador", () => {
       estado: "pendiente",
       resumen: "prender el deshumidificador",
       payload: { accion: "encender" },
-      motivo: "Sala 5: humedad 73 % (rango 45–55), deshumidificador apagado",
+      motivo: "Sala 5: humedad 73 %, el rango es de 45 a 55 %, deshumidificador apagado",
     })
     expect(sendPushToUsers.mock.calls[0][1].title).toBe("🛰 ¿Prender el deshumidificador?")
   })
@@ -52,8 +55,13 @@ describe("proponerNubi: deshumidificador", () => {
     expect(await proponerNubi(db as never, AHORA)).toBe(0)
   })
 
-  it("prendido y la humedad ya en la mitad del rango: propone apagarlo", async () => {
+  it("prendido con la humedad en rango: lo deja andando", async () => {
     sembrar(db, { humedad: 49, real: { accion: "encender", potencia_w: 560 } })
+    expect(await proponerNubi(db as never, AHORA)).toBe(0)
+  })
+
+  it("prendido y la humedad bajo el mínimo: propone apagarlo", async () => {
+    sembrar(db, { humedad: 43, real: { accion: "encender", potencia_w: 560 } })
     expect(await proponerNubi(db as never, AHORA)).toBe(1)
     expect(db.tables["propuestas_nubi"][0]).toMatchObject({ resumen: "apagar el deshumidificador", payload: { accion: "apagar" } })
   })

@@ -33,9 +33,9 @@ import { proponerNubi } from "@/lib/nubi-aviso"
 // anon/cookies de lib/supabase/server.ts, porque ahí sí hay una sesión real).
 //
 // maxDuration: si Pulse está lento, una corrida puntual puede tardar más de
-// los 10s por defecto de una función serverless. 30s da margen sin acercarse
-// al techo del plan (Hobby permite configurar hasta 60s).
-export const maxDuration = 30
+// los 10s por defecto de una función serverless. Desde que Nubi piensa con IA
+// (14/11/2026) se usa el techo del plan Hobby, 60s.
+export const maxDuration = 60
 
 export async function POST(request: Request) {
   const secret = process.env.AUTOMATIONS_CRON_SECRET

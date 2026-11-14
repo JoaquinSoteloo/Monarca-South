@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { ControlManual } from "@/components/control-manual"
 import { NubiPropuestas, type PropuestaNubi } from "@/components/nubi-propuestas"
+import { NubiPensamientos, type PensamientoNubi } from "@/components/nubi-pensamientos"
 import { ResumenSemanal, type ResumenGuardado } from "@/components/resumen-semanal"
 import { getServerSession } from "@/lib/auth/session"
 import { ROL_COMISION } from "@/lib/permisos"
@@ -9,7 +10,7 @@ import type { DispositivoControlable } from "@/lib/types"
 export default async function ControlManualPage() {
   const supabase = await createClient()
 
-  const [{ data }, { data: propuestas }, { data: resumenes }] = await Promise.all([
+  const [{ data }, { data: propuestas }, { data: resumenes }, { data: decisiones }] = await Promise.all([
     supabase
       .from("dispositivos_controlables")
       .select("*, sala:salas_cultivo(id, nombre)")
@@ -24,7 +25,25 @@ export default async function ControlManualPage() {
       .limit(20),
     // Último resumen semanal de Nubi (script 100).
     supabase.from("resumenes_nubi").select("semana_desde, texto, sugerencia").order("semana_desde", { ascending: false }).limit(1),
+    // Qué pensó Nubi (script 102): las últimas decisiones del motor y de Probar Nubi.
+    supabase
+      .from("nubi_decisiones")
+      .select("id, creada_en, fuente, decision, analisis, valida, motivo_rechazo, salida, sala:salas_cultivo(nombre)")
+      .neq("fuente", "eval")
+      .order("creada_en", { ascending: false })
+      .limit(10),
   ])
+  const pensamientos: PensamientoNubi[] = ((decisiones ?? []) as any[]).map((d) => ({
+    id: d.id,
+    creada_en: d.creada_en,
+    sala: (Array.isArray(d.sala) ? d.sala[0]?.nombre : d.sala?.nombre) ?? null,
+    fuente: d.fuente,
+    decision: d.decision,
+    analisis: d.analisis,
+    valida: d.valida,
+    motivo_rechazo: d.motivo_rechazo,
+    titulo: d.salida?.titulo ?? d.salida?.resumen ?? null,
+  }))
   const ahora = new Date().toISOString()
   const todas = (propuestas ?? []) as PropuestaNubi[]
   const pendientes = todas.filter((p) => p.estado === "pendiente" && (!p.vence_en || p.vence_en > ahora))
@@ -49,6 +68,7 @@ export default async function ControlManualPage() {
           <main className="container mx-auto px-4 py-8">
         <ResumenSemanal ultimo={((resumenes ?? [])[0] as ResumenGuardado | undefined) ?? null} puedeGenerar={session?.rol === ROL_COMISION} />
         <NubiPropuestas pendientes={pendientes} recientes={recientes} airesParaProbar={airesParaProbar} />
+        <NubiPensamientos pensamientos={pensamientos} puedeEvaluar={session?.rol === ROL_COMISION} />
         <ControlManual initialDispositivos={dispositivos} />
       </main>
   )

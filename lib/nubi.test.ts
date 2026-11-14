@@ -85,11 +85,12 @@ describe("deshumidificador", () => {
       .toEqual({ tipo: "prendido", potenciaW: 561, sinConsumoDesde: null })
     expect(estadoOnOff({ ...base, ultimo_estado_confirmado_payload: { accion: "encender" }, ultimo_estado_confirmado_en: hace(30) }, ahora).tipo).toBe("apagado")
   })
-  it("prende con humedad alta y apaga recién a la mitad del rango", () => {
+  it("prende con humedad alta y apaga solo debajo del mínimo", () => {
     expect(proponerDeshumidificador(flora, 73, { tipo: "apagado" })).toMatchObject({ payload: { accion: "encender" }, resumen: "prender el deshumidificador" })
     const prendido = { tipo: "prendido" as const, potenciaW: 560, sinConsumoDesde: null }
     expect(proponerDeshumidificador(flora, 53, prendido)).toBeNull()
-    expect(proponerDeshumidificador(flora, 50, prendido)).toMatchObject({ payload: { accion: "apagar" } })
+    expect(proponerDeshumidificador(flora, 50, prendido)).toBeNull()
+    expect(proponerDeshumidificador(flora, 43, prendido)).toMatchObject({ payload: { accion: "apagar" } })
     expect(proponerDeshumidificador(flora, 60, prendido)).toBeNull()
     expect(proponerDeshumidificador(flora, 50, { tipo: "apagado" })).toBeNull()
   })

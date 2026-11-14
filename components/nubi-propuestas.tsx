@@ -95,7 +95,7 @@ export function NubiPropuestas({
         <Satellite className="h-5 w-5" /> Nubi propone
       </h2>
       <p className="mt-1 text-xs text-sky-900/80">
-        Nubi mira el Pulse y cómo está el aire. Nada se manda sin que alguien lo apruebe; cada propuesta vence a los 30 minutos.
+        Nubi mira el Pulse y cómo están los equipos, y decide con IA. Nada se manda sin que alguien lo apruebe; cada propuesta vence a los 30 minutos.
       </p>
 
       {pendientes.map((p) => (
@@ -120,7 +120,7 @@ export function NubiPropuestas({
         <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-sky-300 p-3">
           <div className="text-xs text-sky-950/80 basis-full">
             <FlaskConical className="mr-1 inline h-3.5 w-3.5" />
-            Probar Nubi: simula la temperatura (aire) o la humedad (deshumidificador) de la sala y te manda la propuesta solo a vos.
+            Probar Nubi: simula la temperatura (aire) o la humedad (deshumidificador) de la sala, la IA la analiza y, si propone algo, te llega solo a vos.
           </div>
           <select aria-label="Equipo para probar" className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={aireProbar} onChange={(e) => { setAireProbar(e.target.value); setTempProbar(airesParaProbar.find((a) => String(a.id) === e.target.value)?.tipo === "deshumidificador" ? "73" : "28") }}>
             {airesParaProbar.map((a) => (

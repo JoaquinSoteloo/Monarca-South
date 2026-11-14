@@ -49,3 +49,101 @@ export async function completar(sistema: string, mensaje: string, maxTokens = 90
   }
   return null
 }
+
+export interface RespuestaJSON<T> {
+  datos: T
+  modelo: string
+  tokensEntrada: number | null
+  tokensSalida: number | null
+  latenciaMs: number
+}
+
+/**
+ * Pide una respuesta con formato fijo (Structured Outputs, clase 2 del curso):
+ * OpenAI con json_schema estricto; Anthropic forzando una herramienta con ese
+ * esquema. Devuelve null si no hay clave, falla o no respeta el formato.
+ */
+export async function completarJSON<T>(
+  sistema: string,
+  mensaje: string,
+  nombre: string,
+  esquema: Record<string, unknown>,
+  maxTokens = 1200,
+): Promise<RespuestaJSON<T> | null> {
+  const claveOpenAI = process.env.OPENAI_API_KEY
+  const claveAnthropic = process.env.ANTHROPIC_API_KEY
+  const inicio = Date.now()
+  try {
+    if (claveOpenAI) {
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        signal: AbortSignal.timeout(20000),
+        headers: { "content-type": "application/json", authorization: `Bearer ${claveOpenAI}` },
+        body: JSON.stringify({
+          model: MODELO_OPENAI,
+          messages: [
+            { role: "system", content: sistema },
+            { role: "user", content: mensaje },
+          ],
+          max_completion_tokens: maxTokens,
+          response_format: { type: "json_schema", json_schema: { name: nombre, strict: true, schema: esquema } },
+        }),
+      })
+      if (!r.ok) {
+        console.error("[ia] OpenAI respondió", r.status, (await r.text().catch(() => "")).slice(0, 300))
+        return null
+      }
+      const data = (await r.json()) as {
+        model?: string
+        choices?: { message?: { content?: string | null; refusal?: string | null } }[]
+        usage?: { prompt_tokens?: number; completion_tokens?: number }
+      }
+      const texto = data.choices?.[0]?.message?.content
+      if (!texto) return null
+      return {
+        datos: JSON.parse(texto) as T,
+        modelo: data.model ?? MODELO_OPENAI,
+        tokensEntrada: data.usage?.prompt_tokens ?? null,
+        tokensSalida: data.usage?.completion_tokens ?? null,
+        latenciaMs: Date.now() - inicio,
+      }
+    }
+    if (claveAnthropic) {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        signal: AbortSignal.timeout(20000),
+        headers: { "content-type": "application/json", "x-api-key": claveAnthropic, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: MODELO_ANTHROPIC,
+          max_tokens: maxTokens,
+          temperature: 0,
+          system: sistema,
+          tools: [{ name: nombre, description: "Devolver la decisión con este formato.", input_schema: esquema }],
+          tool_choice: { type: "tool", name: nombre },
+          messages: [{ role: "user", content: mensaje }],
+        }),
+      })
+      if (!r.ok) {
+        console.error("[ia] Anthropic respondió", r.status, (await r.text().catch(() => "")).slice(0, 300))
+        return null
+      }
+      const data = (await r.json()) as {
+        model?: string
+        content?: { type: string; input?: unknown }[]
+        usage?: { input_tokens?: number; output_tokens?: number }
+      }
+      const bloque = data.content?.find((b) => b.type === "tool_use")
+      if (!bloque?.input) return null
+      return {
+        datos: bloque.input as T,
+        modelo: data.model ?? MODELO_ANTHROPIC,
+        tokensEntrada: data.usage?.input_tokens ?? null,
+        tokensSalida: data.usage?.output_tokens ?? null,
+        latenciaMs: Date.now() - inicio,
+      }
+    }
+  } catch (err) {
+    console.error("[ia] No se pudo consultar al modelo:", err)
+  }
+  return null
+}

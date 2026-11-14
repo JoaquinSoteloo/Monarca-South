@@ -2,16 +2,17 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/session"
 import { ROL_COMISION } from "@/lib/permisos"
 import { createServiceClient } from "@/lib/supabase/service"
-import { sendPushToUsers } from "@/lib/push/send"
-import { cicloActual, type CicloSala } from "@/lib/ciclo"
-import { rangoClima, textoProblema } from "@/lib/clima-alertas"
-import { estadoAire, estadoOnOff, proponer, proponerDeshumidificador, textoEstadoAire, textoEstadoOnOff, MINUTOS_VIGENCIA } from "@/lib/nubi"
-import type { DispositivoControlable } from "@/lib/types"
+import { motivoDe } from "@/lib/nubi-ia"
+import { cargarSalas, pensar, registrar } from "@/lib/nubi-pensar"
+import { publicarPropuesta, reglasDeSala } from "@/lib/nubi-aviso"
 
-// "Probar Nubi" (pedido de Joaquín, 13/11/2026): corre el mismo análisis que el
-// motor (lib/nubi.ts) con una temperatura simulada, contra el rango real de la
-// sala y el estado real del aire, y manda la propuesta con su push solo a
-// quien prueba. No inventa lecturas ni avisa a nadie más. Solo la comisión.
+// "Probar Nubi" (13/11/2026; con IA desde el 14/11): toma la sala real del
+// equipo (rango, equipos, lo que se propuso antes) pero con la temperatura
+// (aire) o la humedad (deshumidificador) que se elige, y le pregunta a la IA,
+// igual que el motor. Si propone algo, el push llega solo a quien prueba.
+// No inventa lecturas en la base. Solo la comisión.
+export const maxDuration = 60
+
 export async function POST(request: Request) {
   const session = await getServerSession()
   if (!session) return NextResponse.json({ error: "Iniciá sesión en la app" }, { status: 401 })
@@ -27,84 +28,67 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient()
   const ahora = new Date()
-  const hoy = ahora.toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })
-  const { data: aire } = await supabase.from("dispositivos_controlables").select("*").eq("id", dispositivoId).maybeSingle()
-  if (!aire || !["aire_acondicionado", "deshumidificador"].includes(aire.tipo) || !aire.sala_id) {
+  const { data: equipo } = await supabase.from("dispositivos_controlables").select("id, tipo, sala_id").eq("id", dispositivoId).maybeSingle()
+  if (!equipo || !["aire_acondicionado", "deshumidificador"].includes(equipo.tipo) || !equipo.sala_id) {
     return NextResponse.json({ error: "Ese equipo no es un aire ni un deshumidificador de una sala" }, { status: 400 })
   }
-  const [{ data: sala }, { data: ciclos }] = await Promise.all([
-    supabase.from("salas_cultivo").select("id, nombre").eq("id", aire.sala_id).maybeSingle(),
-    supabase.from("ciclos_sala").select("*").eq("estado", "abierto"),
-  ])
-  if (!sala) return NextResponse.json({ error: "No encuentro la sala del equipo" }, { status: 400 })
 
-  const rango = rangoClima(sala.nombre, cicloActual((ciclos ?? []) as CicloSala[], sala.id, hoy), hoy)
-  if (!rango) return NextResponse.json({ error: `${sala.nombre} no tiene un rango de clima hoy (sin ciclo)` }, { status: 400 })
+  // Una sola pendiente por sala: las anteriores (reales o de prueba) se dan por vencidas.
+  await supabase.from("propuestas_nubi").update({ estado: "vencida", resuelta_en: ahora.toISOString() }).eq("sala_id", equipo.sala_id).eq("estado", "pendiente")
 
-  let propuesta
-  let motivo: string
-  if (aire.tipo === "deshumidificador") {
-    const estado = estadoOnOff(aire as DispositivoControlable, ahora)
-    const humedad = Math.round(valor)
-    const [min, max] = rango.humedad
-    propuesta = proponerDeshumidificador(rango, humedad, estado)
-    motivo = `${sala.nombre}: humedad ${humedad} % (rango ${min}–${max}), ${aire.nombre.toLowerCase()} ${textoEstadoOnOff(estado)} (PRUEBA con ${humedad} % simulado)`
-    if (!propuesta) {
-      return NextResponse.json({ ok: true, mensaje: `Con ${humedad} % y el ${aire.nombre.toLowerCase()} ${textoEstadoOnOff(estado)}, Nubi no propone nada (rango de ${rango.etapa}: ${min}–${max} %).` })
-    }
+  const [s] = await cargarSalas(supabase, ahora, [equipo.sala_id])
+  if (!s) return NextResponse.json({ error: "La sala del equipo no tiene un rango de clima hoy (sin ciclo)" }, { status: 400 })
+
+  // El valor simulado reemplaza al real, también en la última hora (queda estable).
+  const variable = equipo.tipo === "deshumidificador" ? "humedad" : "temperatura"
+  s.entrada.ahora = { ...s.entrada.ahora, [variable]: valor, haceMin: 0 }
+  s.entrada.ultimaHora = s.entrada.ultimaHora.length
+    ? s.entrada.ultimaHora.map((l) => ({ ...l, [variable]: valor }))
+    : [{ temperatura: null, humedad: null, [variable]: valor }]
+  if (variable === "temperatura") {
+    s.lecturas = s.lecturas.map((l) => ({ ...l, temperatura_c: valor }))
   } else {
-    const temperatura = valor
-    const estado = estadoAire(aire as DispositivoControlable)
-    const [min, max] = rango.temperatura
-    propuesta = proponer(rango, temperatura, estado)
-    if (!propuesta) {
-      return NextResponse.json({
-        ok: true,
-        mensaje: `Con ${temperatura} °C y el aire ${textoEstadoAire(estado)}, Nubi no propone nada (rango de ${rango.etapa}: ${min}–${max} °C).`,
-      })
-    }
-    const lado = temperatura > max ? "alto" : "bajo"
-    motivo = `${sala.nombre}: ${textoProblema({ variable: "temperatura", lado, valor: temperatura, limite: lado === "alto" ? max : min })}, aire ${textoEstadoAire(estado)} (PRUEBA con ${temperatura} °C simulados)`
+    s.lecturas = s.lecturas.map((l) => ({ ...l, humedad_rh: valor }))
+  }
+  const simulado = variable === "temperatura" ? `${String(valor).replace(".", ",")} °C simulados` : `${Math.round(valor)} % simulado`
+
+  const p = await pensar(s.entrada).catch(() => null)
+  if (!p) {
+    // La IA no respondió: se prueba con las reglas de respaldo.
+    const [r] = reglasDeSala(s, ahora)
+    if (!r) return NextResponse.json({ ok: true, mensaje: `La IA no respondió y, con ${simulado}, las reglas de respaldo no proponen nada.` })
+    const pub = await publicarPropuesta(supabase, { ...r, motivo: `${r.motivo}. PRUEBA con ${simulado}` }, [session.id], ahora)
+    await registrar(supabase, { salaId: s.sala.id, fuente: "prueba", entrada: { simulado }, salida: r.propuesta, decision: "proponer", valida: true, propuestaId: pub?.id ?? null })
+    return NextResponse.json({ ok: true, mensaje: `La IA no respondió; con las reglas de respaldo Nubi propone: ${r.propuesta.resumen}.` })
   }
 
-  // Una sola pendiente por aire: la anterior (real o de prueba) se da por vencida.
-  await supabase.from("propuestas_nubi").update({ estado: "vencida", resuelta_en: ahora.toISOString() }).eq("dispositivo_id", aire.id).eq("estado", "pendiente")
-  const { data: fila, error } = await supabase
-    .from("propuestas_nubi")
-    .insert({
-      sala_id: sala.id,
-      dispositivo_id: aire.id,
-      estado: propuesta.tipo === "orden" ? "pendiente" : "informada",
-      motivo,
-      resumen: propuesta.resumen,
-      payload: propuesta.tipo === "orden" ? propuesta.payload : null,
-      vence_en: propuesta.tipo === "orden" ? new Date(ahora.getTime() + MINUTOS_VIGENCIA * 60000).toISOString() : null,
-    })
-    .select("id")
-    .single()
-  if (error || !fila) return NextResponse.json({ error: "No se pudo guardar la propuesta" }, { status: 500 })
+  const v = p.validacion
+  let pub: { id: number; enviados: number } | null = null
+  if (v.ok && v.tipo !== "nada" && v.dispositivoId !== null) {
+    pub = await publicarPropuesta(
+      supabase,
+      {
+        salaId: s.sala.id,
+        dispositivoId: v.dispositivoId,
+        alertaId: null,
+        motivo: `${s.sala.nombre}: ${motivoDe(p.decision)}. PRUEBA con ${simulado}`,
+        propuesta: v.propuesta,
+        titulo: `🛰 Nubi: ${s.sala.nombre}`,
+      },
+      [session.id],
+      ahora,
+    )
+  }
+  await registrar(supabase, { salaId: s.sala.id, fuente: "prueba", pensamiento: p, propuestaId: pub?.id ?? null })
 
-  const push = await sendPushToUsers(
-    [session.id],
-    propuesta.tipo === "orden"
-      ? {
-          title: `🛰 ¿${propuesta.resumen.charAt(0).toUpperCase()}${propuesta.resumen.slice(1)}?`,
-          body: `Nubi · ${motivo}. Vence en ${MINUTOS_VIGENCIA} minutos.`,
-          url: "/control-manual",
-          tag: `nubi-${fila.id}`,
-          acciones: [
-            { action: "mandar", title: "Mandar" },
-            { action: "no", title: "No" },
-          ],
-          datos: { propuestaId: fila.id },
-        }
-      : { title: `🛰 Nubi: ${sala.nombre}`, body: propuesta.resumen, url: "/control-manual", tag: `nubi-${fila.id}` },
-  ).catch(() => ({ sent: 0, removed: 0, failed: 1 }))
-
-  return NextResponse.json({
-    ok: true,
-    mensaje:
-      `Nubi propone: ${propuesta.resumen}. ` +
-      (push.sent > 0 ? `Te mandé el aviso a ${push.sent} aparato${push.sent === 1 ? "" : "s"}.` : "No te llegó el aviso: activá las notificaciones (campanita) en este aparato."),
-  })
+  const piensa = `Lo que pensó: ${p.decision.analisis}`
+  let mensaje: string
+  if (!v.ok) mensaje = `Nubi quería "${p.decision.titulo}", pero no pasó los controles: ${v.motivo}. ${piensa}`
+  else if (v.tipo === "nada") mensaje = `Con ${simulado}, Nubi no propone nada. ${piensa}`
+  else if (!pub) mensaje = `Nubi propone ${p.decision.titulo}, pero no se pudo guardar.`
+  else
+    mensaje =
+      `Nubi ${v.tipo === "orden" ? "propone" : "avisa"}: ${p.decision.titulo}. ${piensa} ` +
+      (pub.enviados > 0 ? `Te mandé el aviso a ${pub.enviados} aparato${pub.enviados === 1 ? "" : "s"}.` : "No te llegó el aviso: activá las notificaciones (campanita) en este aparato.")
+  return NextResponse.json({ ok: true, mensaje, analisis: p.decision.analisis })
 }

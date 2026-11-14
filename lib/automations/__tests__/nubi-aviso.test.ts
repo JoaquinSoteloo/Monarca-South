@@ -4,6 +4,9 @@ import { createFakeSupabase, type FakeSupabase } from "./fake-supabase"
 
 const sendPushToUsers = vi.hoisted(() => vi.fn<(ids: string[], p: PushPayload) => Promise<{ sent: number; removed: number; failed: number }>>())
 vi.mock("@/lib/push/send", () => ({ sendPushToUsers }))
+// Sin IA: se prueban las reglas de respaldo. Los casos con IA mockean su respuesta.
+const completarJSON = vi.hoisted(() => vi.fn().mockResolvedValue(null))
+vi.mock("@/lib/ia", () => ({ completarJSON }))
 
 import { proponerNubi } from "@/lib/nubi-aviso"
 
@@ -79,6 +82,39 @@ describe("proponerNubi", () => {
     expect(db.tables["propuestas_nubi"][0]).toMatchObject({ estado: "informada", payload: null })
     expect(sendPushToUsers.mock.calls[0][1].acciones).toBeUndefined()
     expect(await proponerNubi(db as never, AHORA)).toBe(0)
+  })
+
+  it("con IA: publica lo que decide, con su explicación, y lo registra", async () => {
+    sembrar(db)
+    completarJSON.mockResolvedValueOnce({
+      datos: { analisis: "Hace calor y sube.", decision: "proponer", equipo: "aire", accion: "encender", setpoint: 21, titulo: "bajar el aire a 21 °C", explicacion: "La sala está en 27,4 °C, arriba del máximo de 26." },
+      modelo: "prueba", tokensEntrada: 900, tokensSalida: 80, latenciaMs: 1500,
+    })
+    expect(await proponerNubi(db as never, AHORA)).toBe(1)
+    expect(db.tables["propuestas_nubi"][0]).toMatchObject({
+      estado: "pendiente",
+      resumen: "bajar el aire a 21 °C",
+      motivo: "Sala 5: La sala está en 27,4 °C, arriba del máximo de 26",
+      payload: { accion: "encender", modo: "frio", setpoint: 21, fan: "auto" },
+    })
+    expect(db.tables["nubi_decisiones"][0]).toMatchObject({ fuente: "ia", decision: "proponer", valida: true, analisis: "Hace calor y sube." })
+  })
+
+  it("con IA: si se pasa de los límites, no sale nada y queda registrado por qué", async () => {
+    sembrar(db)
+    completarJSON.mockResolvedValueOnce({
+      datos: { analisis: "…", decision: "proponer", equipo: "aire", accion: "encender", setpoint: 12, titulo: "bajar el aire a 12 °C", explicacion: "Mucho calor." },
+      modelo: "prueba", tokensEntrada: 900, tokensSalida: 80, latenciaMs: 1500,
+    })
+    expect(await proponerNubi(db as never, AHORA)).toBe(0)
+    expect(db.tables["propuestas_nubi"] ?? []).toHaveLength(0)
+    expect(db.tables["nubi_decisiones"][0]).toMatchObject({ fuente: "ia", valida: false })
+  })
+
+  it("con IA: entre decenas no piensa (cada 10 minutos)", async () => {
+    sembrar(db)
+    expect(await proponerNubi(db as never, new Date("2026-11-13T18:36:00.000Z"))).toBe(0)
+    expect(completarJSON).not.toHaveBeenCalled()
   })
 
   it("no le propone a los equipos de prueba", async () => {

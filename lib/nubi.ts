@@ -158,16 +158,17 @@ export function estadoOnOff(
 }
 
 /**
+ * Respaldo de la IA (lib/nubi-pensar.ts), por si no responde.
  * - Humedad sobre el máximo y apagado: prenderlo.
- * - Prendido y la humedad ya bajó a la mitad del rango (o quedó por debajo del mínimo):
- *   apagarlo. Se espera a la mitad, no al máximo, para que no prenda y apague a cada rato.
+ * - Prendido: apagarlo solo si la humedad bajó del mínimo. Dentro del rango se
+ *   lo deja andando: en flora el lado bajo es lo mejor (Joaquín, 14/11/2026).
  */
 export function proponerDeshumidificador(rango: RangoClima, humedad: number, estado: EstadoOnOff): Propuesta | null {
   const [min, max] = rango.humedad
   if (estado.tipo === "apagado" && humedad > max) {
     return { tipo: "orden", payload: { accion: "encender" }, resumen: "prender el deshumidificador" }
   }
-  if (estado.tipo === "prendido" && (humedad <= (min + max) / 2 || humedad < min)) {
+  if (estado.tipo === "prendido" && humedad < min) {
     return { tipo: "orden", payload: { accion: "apagar" }, resumen: "apagar el deshumidificador" }
   }
   return null

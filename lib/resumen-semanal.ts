@@ -69,7 +69,7 @@ export async function datosSemana(supabase: SupabaseClient, desde: Date, hasta: 
     supabase.from("salas_cultivo").select("id, nombre").eq("activo", true).order("id"),
     supabase.from("ciclos_sala").select("*").eq("estado", "abierto"),
     supabase.from("alertas_clima").select("sala_id, variable").gte("desde", d).lt("desde", h),
-    supabase.from("propuestas_nubi").select("estado").gte("creada_en", d).lt("creada_en", h),
+    supabase.from("propuestas_nubi").select("estado, motivo").gte("creada_en", d).lt("creada_en", h),
     supabase.from("comandos_dispositivo").select("id").in("estado", ["fallido", "timeout"]).gte("creado_en", d).lt("creado_en", h),
     supabase.from("registros_riego").select("sala_id").gte("fecha", fechaAR(desde)).lt("fecha", fechaAR(hasta)),
   ])
@@ -77,7 +77,8 @@ export async function datosSemana(supabase: SupabaseClient, desde: Date, hasta: 
   const horas = (clima.data ?? []) as HoraClima[]
   const ciclos = (ciclosR.data ?? []) as CicloSala[]
   const alertas = (alertasR.data ?? []) as { sala_id: number; variable: string }[]
-  const propuestas = (propuestasR.data ?? []) as { estado: string }[]
+  // Las de "Probar Nubi" no cuentan.
+  const propuestas = ((propuestasR.data ?? []) as { estado: string; motivo: string }[]).filter((p) => !/PRUEBA/.test(p.motivo))
   const riegos = (riegosR.data ?? []) as { sala_id: number }[]
 
   const salas = ((salasR.data ?? []) as { id: number; nombre: string }[]).map((s) => {
@@ -117,49 +118,135 @@ export async function datosSemana(supabase: SupabaseClient, desde: Date, hasta: 
   }
 }
 
-/** Sugerencia de respaldo: lo que más tiempo estuvo fuera de rango. */
-export function sugerenciaPorReglas(d: DatosSemana): string {
-  let peor: { sala: string; variable: "temperatura" | "humedad"; pct: number; lado: "alto" | "bajo" | null } | null = null
+const coma = (n: number) => String(n).replace(".", ",")
+const unidad = (v: "temperatura" | "humedad") => (v === "temperatura" ? " °C" : " %")
+
+/** En palabras: "baja casi toda la semana", "un poco alta a veces"; null si estuvo bien. */
+export function comoEstuvo(e: ResumenSala["temperatura"]): string | null {
+  if (e.pct_en_rango === null || e.pct_en_rango >= 80 || !e.mas_tiempo_fuera) return null
+  const lado = e.mas_tiempo_fuera === "alto" ? "alta" : "baja"
+  if (e.pct_en_rango < 25) return `${lado} casi toda la semana`
+  if (e.pct_en_rango < 50) return `${lado} gran parte de la semana`
+  return `un poco ${lado} a veces`
+}
+
+const QUE_HACER = {
+  humedad: {
+    alto: "dejar el deshumidificador prendido, subir la extracción y no regar de más",
+    bajo: "bajar la extracción, sumar un humidificador o poner bandejas con agua",
+  },
+  temperatura: {
+    alto: "bajar el aire y subir la extracción",
+    bajo: "bajar el aire o la extracción y, de noche, sumar calefacción",
+  },
+} as const
+
+const enFlora = (s: ResumenSala) => Boolean(s.etapa?.includes("flora"))
+
+/** La prioridad de la semana: lo más grave (pesa más la flora, y más la humedad alta en flora). */
+export function prioridad(d: DatosSemana): { sala: string; variable: "temperatura" | "humedad"; como_estuvo: string; promedio: string; rango: string; que_hacer: string; por_que: string | null } | null {
+  let peor: { s: ResumenSala; variable: "temperatura" | "humedad"; puntaje: number } | null = null
   for (const s of d.salas) {
     for (const variable of ["temperatura", "humedad"] as const) {
-      const pct = s[variable].pct_en_rango
-      if (pct === null) continue
-      if (!peor || pct < peor.pct) peor = { sala: s.sala, variable, pct, lado: s[variable].mas_tiempo_fuera }
+      const e = s[variable]
+      if (!comoEstuvo(e)) continue
+      let puntaje = (100 - (e.pct_en_rango ?? 100)) * (enFlora(s) ? 2 : 1)
+      if (variable === "humedad" && e.mas_tiempo_fuera === "alto" && enFlora(s)) puntaje *= 1.5 // hongos
+      if (!peor || puntaje > peor.puntaje) peor = { s, variable, puntaje }
     }
   }
-  if (!peor || peor.pct >= 90) {
+  if (!peor) return null
+  const { s, variable } = peor
+  const e = s[variable]
+  const lado = e.mas_tiempo_fuera as "alto" | "bajo"
+  return {
+    sala: s.sala,
+    variable,
+    como_estuvo: comoEstuvo(e) as string,
+    promedio: `${coma(e.prom ?? 0)}${unidad(variable)}`,
+    rango: e.rango ? `entre ${e.rango[0]} y ${e.rango[1]}${unidad(variable)}` : "",
+    que_hacer: QUE_HACER[variable][lado],
+    por_que: variable === "humedad" && lado === "alto" && enFlora(s) ? "en flora la humedad alta trae hongos en los cogollos" : null,
+  }
+}
+
+/** Sugerencia de respaldo (si el modelo no responde). */
+export function sugerenciaPorReglas(d: DatosSemana): string {
+  const p = prioridad(d)
+  if (!p) {
     const sinRiegos = d.salas.filter((s) => s.etapa && s.riegos_cargados === 0).map((s) => s.sala)
     return sinRiegos.length
-      ? `Cargar los riegos en la app (EC, pH y runoff): esta semana no hubo ninguno en ${sinRiegos.join(", ")}, y sin eso no se puede ver cómo está la raíz.`
-      : "Semana tranquila: el clima estuvo en rango casi todo el tiempo. Seguir así."
+      ? `Cargar los riegos en la app con EC, pH y runoff: esta semana no hubo ninguno en ${sinRiegos.join(", ")}.`
+      : "Semana tranquila: el clima estuvo bien en todas las salas. Seguir así."
   }
-  const que = peor.variable === "humedad"
-    ? peor.lado === "alto" ? "bajar la humedad (deshumidificador, extracción)" : "subir la humedad (humidificador, menos extracción)"
-    : peor.lado === "alto" ? "bajar la temperatura (aire, extracción)" : "subir la temperatura (calefacción, menos extracción)"
-  return `${peor.sala}: la ${peor.variable} estuvo en rango solo el ${peor.pct} % del tiempo. Prioridad de la semana: ${que}.`
+  return `En ${p.sala}, la ${p.variable} estuvo ${p.como_estuvo}: en promedio ${p.promedio}, cuando tiene que estar ${p.rango}.${p.por_que ? ` Ojo, ${p.por_que}.` : ""} Para corregirlo: ${p.que_hacer}.`
 }
 
-/** Texto de respaldo, sin modelo. */
+/** Texto de respaldo (si el modelo no responde). */
 export function textoPorReglas(d: DatosSemana): string {
-  const lineas = d.salas
+  const fecha = (x: string) => `${x.slice(8, 10)}/${x.slice(5, 7)}`
+  const parrafos = d.salas
     .filter((s) => s.horas_medidas > 0)
     .map((s) => {
-      const t = s.temperatura, h = s.humedad
-      const pct = (x: number | null) => (x === null ? "sin rango" : `${x} % en rango`)
-      return `- **${s.sala}**${s.etapa ? ` (${s.etapa})` : ""}: ${t.prom} °C (${t.min}–${t.max}), ${pct(t.pct_en_rango)} · ${h.prom} % HR (${h.min}–${h.max}), ${pct(h.pct_en_rango)}${s.riegos_cargados ? ` · ${s.riegos_cargados} riegos` : ""}`
+      const partes = (["temperatura", "humedad"] as const).map((v) => {
+        const como = comoEstuvo(s[v])
+        return como ? `la ${v} estuvo **${como}**, en promedio ${coma(s[v].prom ?? 0)}${unidad(v)}` : `la ${v} estuvo bien`
+      })
+      return `**${s.sala}**${s.etapa ? `, en ${s.etapa}` : ""}: ${partes.join(" y ")}.`
     })
-  const n = d.nubi
-  const extra = `Nubi propuso ${n.mandadas + n.descartadas + n.vencidas} ajustes (${n.mandadas} mandados, ${n.descartadas} descartados, ${n.vencidas} sin respuesta). Órdenes que fallaron: ${d.ordenes_fallidas}.`
-  return `Semana del ${d.desde} al ${d.hasta}.\n${lineas.join("\n")}\n${extra}`
+  return [`Semana del ${fecha(d.desde)} al ${fecha(d.hasta)}.`, ...parrafos].join("\n\n")
 }
 
-const SISTEMA = `Sos Nubi, la IA que vigila el clima de las salas de cultivo de Monarca South (cannabis medicinal en interior, coco, LED).
-Con los datos de la semana escribí un resumen para el equipo, en español rioplatense, para leer en el celular:
-- Una línea por sala con lo importante (tiempo en rango de temperatura y humedad, extremos si fueron graves, alertas). Usá "- " y **negrita** solo para el nombre de la sala.
-- Una línea sobre lo que propuso Nubi y las órdenes fallidas, si hubo.
-- Si alguna sala en etapa no tiene riegos cargados, mencionalo.
-Al final, en una línea aparte que empiece exactamente con "SUGERENCIA:", UNA sola sugerencia prioritaria y concreta para esta semana (la que más impacto tenga en el cultivo), en una frase.
-No inventes datos: usá solo los números que te paso. Nada de tablas ni títulos.`
+/** Lo que recibe el modelo: todo ya interpretado en palabras, sin porcentajes que confundan. */
+export function datosParaIA(d: DatosSemana) {
+  return {
+    semana: `del ${d.desde} al ${d.hasta}`,
+    salas: d.salas
+      .filter((s) => s.horas_medidas > 0)
+      .map((s) => ({
+        sala: s.sala,
+        etapa: s.etapa ?? "sin ciclo",
+        ...Object.fromEntries(
+          (["temperatura", "humedad"] as const).map((v) => {
+            const e = s[v]
+            const como = comoEstuvo(e)
+            return [
+              v,
+              {
+                como_estuvo: como ?? "bien",
+                promedio: e.prom === null ? null : `${coma(e.prom)}${unidad(v)}`,
+                minimo: e.min === null ? null : `${coma(e.min)}${unidad(v)}`,
+                maximo: e.max === null ? null : `${coma(e.max)}${unidad(v)}`,
+                tiene_que_estar: e.rango ? `entre ${e.rango[0]} y ${e.rango[1]}${unidad(v)}` : null,
+                que_hacer: como && e.mas_tiempo_fuera ? QUE_HACER[v][e.mas_tiempo_fuera] : null,
+              },
+            ]
+          }),
+        ),
+        alertas_de_luces: s.alertas.luz,
+        riegos_cargados: s.riegos_cargados,
+      })),
+    nubi: d.nubi,
+    ordenes_a_equipos_que_fallaron: d.ordenes_fallidas,
+    prioridad_de_la_semana: prioridad(d) ?? "ninguna sala con problemas de clima",
+  }
+}
+
+const SISTEMA = `Sos Nubi, la IA que vigila el clima de las salas de cultivo de Monarca South (cannabis medicinal en interior). Escribí el resumen de la semana para el equipo, que lo lee en el celular. No todos son técnicos: tiene que entenderlo cualquiera.
+
+CÓMO ESCRIBIRLO
+- Español rioplatense, claro, en frases completas. Explayate un poco: explicá qué pasó y qué significa para las plantas en su etapa.
+- Un párrafo corto por sala (2 a 4 frases), separado por una línea en blanco. Empezá cada párrafo con el nombre de la sala en **negrita**.
+- Usá **negrita** para lo importante: lo que estuvo mal y lo que hay que hacer.
+- Evitá los paréntesis. En vez de "humedad alta (prom 65 %)", escribí "la humedad estuvo alta casi toda la semana: en promedio 65 %, cuando tiene que estar entre 45 y 55 %".
+- No uses porcentajes de "tiempo en rango" ni listas con guiones. Nada de tablas ni títulos.
+- Si algo estuvo "bien", decilo en pocas palabras y seguí.
+
+REGLAS (no las rompas)
+- Usá solo los datos que te paso. No inventes números ni causas.
+- Respetá SIEMPRE "como_estuvo": si dice "baja", la variable estuvo baja y hay que subirla; si dice "alta", hay que bajarla. Para qué hacer, usá "que_hacer".
+- Después de las salas, un párrafo con lo demás, solo si hay algo: salas sin riegos cargados (importa porque sin eso no se ve cómo está la raíz), problemas de luces, lo que propuso Nubi y las órdenes que fallaron.
+- Al final, en una línea aparte que empiece exactamente con "SUGERENCIA:", explicá en una o dos frases la "prioridad_de_la_semana" que te paso (no elijas otra): qué sala, qué pasó, por qué importa y qué hacer. Si no hay prioridad de clima, sugerí cargar los riegos o decí que fue una semana tranquila.`
 
 export interface ResumenArmado {
   texto: string
@@ -170,9 +257,9 @@ export interface ResumenArmado {
 
 export async function armarResumen(supabase: SupabaseClient, desde: Date, hasta: Date): Promise<ResumenArmado> {
   const datos = await datosSemana(supabase, desde, hasta)
-  const respuesta = await completar(SISTEMA, JSON.stringify(datos))
+  const respuesta = await completar(SISTEMA, JSON.stringify(datosParaIA(datos)), 1400)
   if (respuesta) {
-    const partes = respuesta.split(/\n?\s*SUGERENCIA:\s*/i)
+    const partes = respuesta.split(/\n?\s*\**SUGERENCIA:?\**:?\s*/i)
     if (partes.length >= 2 && partes[1].trim()) {
       return { texto: partes[0].trim(), sugerencia: partes.slice(1).join(" ").trim(), datos, conIA: true }
     }

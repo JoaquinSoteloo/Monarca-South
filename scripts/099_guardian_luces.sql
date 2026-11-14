@@ -1,6 +1,6 @@
 -- Guardián de luces (pedido de Joaquín, 13/11/2026).
 --
--- NO SE EJECUTÓ TODAVÍA. Correr antes de publicar la app que lo usa.
+-- Ejecutado en producción el 13/11/2026, antes de publicar la app que lo usa.
 --
 -- 1) Horario de luces de cada sala (salas_cultivo.luz_prende / luz_apaga).
 --    Valores iniciales: los que midió el Pulse del 11 al 13/11, confirmados

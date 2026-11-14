@@ -222,7 +222,8 @@ export function protocoloMonarca(c: CicloSala, nombreSala: string): TareaCiclo[]
     { clave: "ppfd_flip", fecha: sumarDias(f.flip, -1), rol: "cultivo", afecta: [], orden: 6,
       titulo: `${s} · Mapa de PPFD y altura de luces antes de flora`, detalle: "Manual 1. Objetivo en flora: 600–900." },
     { clave: "flip", fecha: f.flip, rol: "cultivo", afecta: ["direccion"], orden: 5,
-      titulo: `${s} · Pasar a 12/12`, detalle: "Cambiar el timer, confirmar en el monitoreo que se apagó a la hora correcta." },
+      titulo: `${s} · Pasar a 12/12`,
+      detalle: "Cambiar el timer, confirmar en el monitoreo que se apagó a la hora correcta. Cambiar también el horario de luces en Ciclos (Luces → Cambiar): si no, Nubi va a avisar que las luces están mal." },
     // Defoliación (pedido de Facundo, 03/11/2026): limpieza de bajos antes del 12/12 y la principal
     // el día 21 de flora, con la preparación 2 días antes. Se hace con el procedimiento «Defoliación».
     { clave: "prep_limpieza_bajos", fecha: sumarDias(f.flip, -5), rol: "mantenimiento", afecta: ["cultivo"], orden: 18,

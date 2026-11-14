@@ -165,14 +165,22 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
           const medianoche = new Date(`${hoy}T00:00:00-03:00`).toISOString()
           const hace2horas = new Date(Date.now() - 2 * 3600_000).toISOString()
           const desde = medianoche < hace2horas ? medianoche : hace2horas
+          // Lecturas sala por sala: la base devuelve como mucho 1000 filas por
+          // consulta y el día entero de todas las salas pasa ese límite (el
+          // mínimo y máximo "del día" quedaban solo con las últimas horas).
+          const lecturasPorSala = Promise.all(
+            salas.map((s) =>
+              supabase
+                .from("lecturas_ambientales")
+                .select("sala_id, temperatura_c, humedad_rh, vpd, luz_lux, leido_en")
+                .eq("sala_id", s.id)
+                .gte("leido_en", desde)
+                .order("leido_en", { ascending: false })
+                .limit(1000),
+            ),
+          ).then((rs) => ({ data: rs.flatMap((r) => r.data ?? []) }))
           const [lecturas, tareas, riegos, alertas] = await Promise.all([
-            supabase
-              .from("lecturas_ambientales")
-              .select("sala_id, temperatura_c, humedad_rh, vpd, luz_lux, leido_en")
-              .gte("leido_en", desde)
-              .not("sala_id", "is", null)
-              .order("leido_en", { ascending: false })
-              .limit(4000),
+            lecturasPorSala,
             supabase.from("tareas").select("id, responsable_id, titulo, estado, nota, orden, proceso_paso_id").eq("fecha", hoy),
             supabase
               .from("registros_riego")

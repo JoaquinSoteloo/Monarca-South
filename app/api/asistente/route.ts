@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getServerSession } from "@/lib/auth/session"
 import { tienePermiso } from "@/lib/permisos"
-import { HERRAMIENTAS, historialParaApi, promptSistema, textoDeRespuesta, type MensajeGuardado } from "@/lib/asistente"
-import { etapaRiegoDe, momentoCiclo, sumarDias, type CicloSala } from "@/lib/ciclo"
+import { historialParaApi, promptSistema, textoDeRespuesta, type MensajeGuardado } from "@/lib/asistente"
+import { HERRAMIENTAS, ejecutarHerramienta } from "@/lib/asistente-herramientas"
 
 // Asistente de cultivo (pantalla Sede). Responde desde el servidor con la clave
 // de Vercel (nunca va al navegador):
@@ -13,47 +13,11 @@ import { etapaRiegoDe, momentoCiclo, sumarDias, type CicloSala } from "@/lib/cic
 
 const MODELO_OPENAI = process.env.OPENAI_MODEL || "gpt-5.4-mini"
 const MODELO_ANTHROPIC = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5"
-const MAX_VUELTAS_HERRAMIENTAS = 4
+const MAX_VUELTAS_HERRAMIENTAS = 5
 
-type Supabase = Awaited<ReturnType<typeof createClient>>
 type Bloque = { type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }
 
 const hoyAR = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })
-
-async function ejecutar(supabase: Supabase, nombre: string, input: Record<string, unknown>): Promise<unknown> {
-  if (nombre === "estado_salas") {
-    const [{ data: salas }, { data: ciclos }] = await Promise.all([
-      supabase.from("salas_cultivo").select("id, nombre").eq("activo", true),
-      supabase.from("ciclos_sala").select("*").eq("estado", "abierto"),
-    ])
-    const hoy = hoyAR()
-    return ((ciclos ?? []) as CicloSala[]).map((c) => {
-      const m = momentoCiclo(c, hoy)
-      const er = etapaRiegoDe(m)
-      return {
-        sala: salas?.find((s) => s.id === c.sala_id)?.nombre ?? `Sala ${c.sala_id}`,
-        entro: c.fecha_inicio,
-        dias_vege: c.dias_vege,
-        dias_flora: c.dias_flora,
-        etapa_hoy: m.fase,
-        semana: er?.semana ?? null,
-        pasa_a_flora: sumarDias(c.fecha_inicio, c.dias_vege),
-        corte_estimado: sumarDias(c.fecha_inicio, c.dias_vege + c.dias_flora),
-        notas: c.notas,
-      }
-    })
-  }
-  if (nombre === "riegos_recientes") {
-    const { data: salas } = await supabase.from("salas_cultivo").select("id, nombre")
-    let q = supabase.from("registros_riego").select("*").order("fecha", { ascending: false }).limit(15)
-    const sala = typeof input.sala === "string" ? input.sala.trim().toLowerCase() : ""
-    const id = sala ? salas?.find((s) => s.nombre.toLowerCase() === sala)?.id : undefined
-    if (id) q = q.eq("sala_id", id)
-    const { data } = await q
-    return (data ?? []).map((r) => ({ ...r, sala: salas?.find((s) => s.id === r.sala_id)?.nombre ?? r.sala_id }))
-  }
-  return { error: "Herramienta desconocida" }
-}
 
 export async function GET() {
   const session = await getServerSession()
@@ -107,13 +71,12 @@ export async function POST(request: Request) {
     : historialParaApi(((previos ?? []) as MensajeGuardado[]).reverse())
 
   const sistema = promptSistema(session.nombre, hoyAR())
-  const ejecutarHerramienta = (nombre: string, input: Record<string, unknown>) =>
-    ejecutar(supabase, nombre, input).catch(() => ({ error: "No se pudo leer" }))
+  const ejecutar = (nombre: string, input: Record<string, unknown>) => ejecutarHerramienta(supabase, nombre, input)
   let respuesta = ""
   try {
     const r = claveOpenAI
-      ? await responderOpenAI(claveOpenAI, sistema, historial, ejecutarHerramienta)
-      : await responderAnthropic(claveAnthropic as string, sistema, historial, ejecutarHerramienta)
+      ? await responderOpenAI(claveOpenAI, sistema, historial, ejecutar)
+      : await responderAnthropic(claveAnthropic as string, sistema, historial, ejecutar)
     if ("error" in r) return NextResponse.json({ error: r.error }, { status: 502 })
     respuesta = r.texto
   } catch (e) {

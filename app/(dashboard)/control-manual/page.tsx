@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { ControlManual } from "@/components/control-manual"
 import { NubiPropuestas, type PropuestaNubi } from "@/components/nubi-propuestas"
+import { ResumenSemanal, type ResumenGuardado } from "@/components/resumen-semanal"
 import { getServerSession } from "@/lib/auth/session"
 import { ROL_COMISION } from "@/lib/permisos"
 import type { DispositivoControlable } from "@/lib/types"
@@ -8,7 +9,7 @@ import type { DispositivoControlable } from "@/lib/types"
 export default async function ControlManualPage() {
   const supabase = await createClient()
 
-  const [{ data }, { data: propuestas }] = await Promise.all([
+  const [{ data }, { data: propuestas }, { data: resumenes }] = await Promise.all([
     supabase
       .from("dispositivos_controlables")
       .select("*, sala:salas_cultivo(id, nombre)")
@@ -21,6 +22,8 @@ export default async function ControlManualPage() {
       .gte("creada_en", new Date(Date.now() - 24 * 3600_000).toISOString())
       .order("creada_en", { ascending: false })
       .limit(20),
+    // Último resumen semanal de Nubi (script 100).
+    supabase.from("resumenes_nubi").select("semana_desde, texto, sugerencia").order("semana_desde", { ascending: false }).limit(1),
   ])
   const ahora = new Date().toISOString()
   const todas = (propuestas ?? []) as PropuestaNubi[]
@@ -44,6 +47,7 @@ export default async function ControlManualPage() {
 
   return (
           <main className="container mx-auto px-4 py-8">
+        <ResumenSemanal ultimo={((resumenes ?? [])[0] as ResumenGuardado | undefined) ?? null} puedeGenerar={session?.rol === ROL_COMISION} />
         <NubiPropuestas pendientes={pendientes} recientes={recientes} airesParaProbar={airesParaProbar} />
         <ControlManual initialDispositivos={dispositivos} />
       </main>

@@ -6,6 +6,7 @@ import { withEngineLock } from "@/lib/automations/lock"
 import { checkModoAusente } from "@/lib/modo-ausente/engine"
 import { avisarClima } from "@/lib/clima-alertas-aviso"
 import { avisarLuces } from "@/lib/guardian-luces-aviso"
+import { enviarResumenSemanal } from "@/lib/resumen-semanal-aviso"
 import { proponerNubi } from "@/lib/nubi-aviso"
 
 // Dispara una corrida del motor de automatizaciones. Pensado para ser
@@ -79,7 +80,12 @@ export async function POST(request: Request) {
         console.error("[automations/evaluate] Error en las propuestas de Nubi:", err)
         return null
       })
-      return { evaluacion, modoAusente, clima, luces, nubi }
+      // Resumen semanal de Nubi: lunes desde las 09:00, una vez por semana (script 100).
+      const resumen = await enviarResumenSemanal(supabase).catch((err) => {
+        console.error("[automations/evaluate] Error en el resumen semanal:", err)
+        return null
+      })
+      return { evaluacion, modoAusente, clima, luces, nubi, resumen }
     })
     if (!resultado.ejecuto) {
       return NextResponse.json({ skipped: true, motivo: "Ya había una evaluación en curso" })
@@ -90,6 +96,7 @@ export async function POST(request: Request) {
       modoAusente: resultado.resultado.modoAusente,
       avisosClima: resultado.resultado.clima,
       avisosLuces: resultado.resultado.luces,
+      resumenSemanal: resultado.resultado.resumen,
       propuestasNubi: resultado.resultado.nubi,
     })
   } catch (error) {

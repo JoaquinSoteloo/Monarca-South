@@ -5,6 +5,7 @@ import { avisarOrdenesSinCumplir } from "@/lib/automations/aviso-fallas"
 import { withEngineLock } from "@/lib/automations/lock"
 import { checkModoAusente } from "@/lib/modo-ausente/engine"
 import { avisarClima } from "@/lib/clima-alertas-aviso"
+import { avisarLuces } from "@/lib/guardian-luces-aviso"
 import { proponerNubi } from "@/lib/nubi-aviso"
 
 // Dispara una corrida del motor de automatizaciones. Pensado para ser
@@ -67,13 +68,18 @@ export async function POST(request: Request) {
         console.error("[automations/evaluate] Error revisando el clima:", err)
         return null
       })
+      // Guardián de luces: prendidas de noche o que no prendieron (script 099).
+      const luces = await avisarLuces(supabase).catch((err) => {
+        console.error("[automations/evaluate] Error revisando las luces:", err)
+        return null
+      })
       // Nubi propone ajustes del aire para las salas con alerta de temperatura
       // (script 096). Solo propone: una persona aprueba antes de mandar.
       const nubi = await proponerNubi(supabase).catch((err) => {
         console.error("[automations/evaluate] Error en las propuestas de Nubi:", err)
         return null
       })
-      return { evaluacion, modoAusente, clima, nubi }
+      return { evaluacion, modoAusente, clima, luces, nubi }
     })
     if (!resultado.ejecuto) {
       return NextResponse.json({ skipped: true, motivo: "Ya había una evaluación en curso" })
@@ -83,6 +89,7 @@ export async function POST(request: Request) {
       ...resultado.resultado.evaluacion,
       modoAusente: resultado.resultado.modoAusente,
       avisosClima: resultado.resultado.clima,
+      avisosLuces: resultado.resultado.luces,
       propuestasNubi: resultado.resultado.nubi,
     })
   } catch (error) {

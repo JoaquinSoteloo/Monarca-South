@@ -1523,6 +1523,8 @@ async function cargarDatosSistema() {
     if (!k) continue;
     if (rooms[k].kind === 'sala') rooms[k].ciclo = s.ciclo ? { inicio: s.ciclo.inicio, vege: s.ciclo.vege, flora: s.ciclo.flora, m2: s.ciclo.m2 ?? rooms[k].ciclo?.m2 ?? 6 } : null;
     rooms[k].lectura = s.lectura;
+    // Horario real de la base (Ciclos → Luces); reemplaza al escrito a mano en LUZ.
+    if (s.luz_prende) { const [hh, mm] = s.luz_prende.split(':').map(Number); LUZ[k] = hh + (mm || 0) / 60; }
     rooms[k].dia = s.dia || null;
     rooms[k].riego = s.riego || null;
     if (s.lectura && s.lectura.t != null && s.lectura.h != null) clima[k] = [s.lectura.t, s.lectura.h]; else delete clima[k];

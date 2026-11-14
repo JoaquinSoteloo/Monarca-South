@@ -256,6 +256,9 @@ export interface SalaCultivo {
   nombre: string
   descripcion: string | null
   activo: boolean
+  /** Horario de luces (script 099): "HH:MM:SS". Lo vigila el guardián de luces. */
+  luz_prende?: string | null
+  luz_apaga?: string | null
   created_at: string
   updated_at: string
   camas?: CamaCultivo[]

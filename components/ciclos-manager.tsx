@@ -1,5 +1,6 @@
 "use client"
 
+import { HorarioLuces } from "@/components/horario-luces"
 import { useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -167,6 +168,7 @@ export function CiclosManager({ hoy, salas, initialCiclos, perfiles, yo }: Props
                     />
                   ) : (
                     <>
+                      <HorarioLuces salaId={sala.id} prende={sala.luz_prende ?? null} apaga={sala.luz_apaga ?? null} />
                       <p className="text-sm text-muted-foreground">Sin ciclo de flora (la sala de vege no lleva ciclo).</p>
                       <Button variant="outline" size="sm" onClick={() => setEditando({ salaId: sala.id, ciclo: null })}>
                         <Plus className="mr-1 h-4 w-4" /> Iniciar ciclo
@@ -201,6 +203,7 @@ export function CiclosManager({ hoy, salas, initialCiclos, perfiles, yo }: Props
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                <HorarioLuces salaId={sala.id} prende={sala.luz_prende ?? null} apaga={sala.luz_apaga ?? null} />
                 <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                   {m.fase === "planificado" ? (
                     <span className="text-lg font-semibold">Entra el {fechaCorta(f.inicio)}</span>

@@ -1,6 +1,6 @@
 -- Resumen semanal de Nubi (pedido de Joaquín, 13/11/2026; idea de supercycler.app).
 --
--- NO SE EJECUTÓ TODAVÍA. Correr antes de publicar la app que lo usa.
+-- Ejecutado en producción el 13/11/2026, antes de publicar la app que lo usa.
 --
 -- 1) clima_por_hora(desde, hasta): promedio, mínimo y máximo de temperatura,
 --    humedad y luz de cada sala por hora. Una semana son ~10.000 lecturas

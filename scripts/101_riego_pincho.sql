@@ -1,6 +1,6 @@
 -- 101 — Riego: mediciones del pincho de EC (Bluelab) en las 2 testigo.
 -- (Era el 098 en el PR #37; se renumeró porque el 098 está reservado para el estado del puente.)
--- NO SE EJECUTÓ TODAVÍA. Correr antes de publicar.
+-- Ejecutado en producción el 14/11/2026, antes de publicar.
 -- Desde el 16/11/2026 no se mide runoff en cada riego (decisión de Facundo y
 -- Lucho, 10/11/2026): antes de regar se pincha cada testigo (humedad y EC del
 -- sustrato) y 1 h después se mide la humedad. El runoff queda solo los jueves,

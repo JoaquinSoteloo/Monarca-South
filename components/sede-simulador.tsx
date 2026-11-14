@@ -212,6 +212,8 @@ export function SedeSimulador({ yo, perfiles, salas, ciclos, modo = "original" }
               return {
                 nombre: s.nombre,
                 ciclo: c ? { inicio: c.fecha_inicio, vege: c.dias_vege, flora: c.dias_flora, m2: c.m2 } : null,
+                // Horario de luces de la base (script 099), el mismo que vigila el guardián.
+                luz_prende: s.luz_prende ?? null,
                 lectura: l
                   ? { t: l.temperatura_c, h: l.humedad_rh, vpd: l.vpd, lux: l.luz_lux ?? null, hora: horaDe(l.leido_en) }
                   : null,

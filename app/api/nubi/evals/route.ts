@@ -18,7 +18,7 @@ export async function POST() {
   const supabase = createServiceClient()
   const resultados = await Promise.all(
     ESCENARIOS.map(async (e) => {
-      const p = await pensar(e.entrada).catch(() => null)
+      const p = await pensar(e.entrada, "nubi_eval").catch(() => null)
       if (!p) return { nombre: e.nombre, ok: false, obtuvo: "la IA no respondió", analisis: null as string | null }
       await registrar(supabase, { salaId: null, fuente: "eval", pensamiento: p })
       return { nombre: e.nombre, ok: cumple(p.validacion, e.entrada.equipos, e.esperado), obtuvo: describir(p.validacion), analisis: p.decision.analisis }

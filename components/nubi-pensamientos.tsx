@@ -69,7 +69,7 @@ export function NubiPensamientos({ pensamientos, puedeEvaluar }: { pensamientos:
       {abierto && (
         <>
           <p className="mt-1 text-xs text-violet-950/80">
-            Nubi analiza cada sala con IA cada 10 minutos, o enseguida si se abre una alerta. Antes de llegarte, lo que decide pasa por controles fijos.
+            Nubi mira cada sala cada 10 minutos. Si está tranquila, en rango y estable, no gasta consultando a la IA; la consulta cuando algo se acerca al borde, se mueve o se abre una alerta, y una vez por hora como control. Antes de llegarte, lo que decide pasa por controles fijos.
           </p>
           {pensamientos.length === 0 && <p className="mt-3 text-sm text-muted-foreground">Todavía no pensó nada.</p>}
           <ul className="mt-3 space-y-2">

@@ -110,6 +110,39 @@ export function armarContexto(e: EntradaContexto) {
   }
 }
 
+// --- Filtro antes de la IA (ahorro de tokens, 14/11/2026) ---------------------
+// Algo fijo y barato decide si vale la pena consultar al modelo. Con la sala
+// tranquila, la IA igual contestaría "nada": se la consulta solo si algo se
+// mueve, y una vez por hora como control.
+
+/** Qué tan cerca del borde del rango ya amerita pensar. */
+export const MARGEN_C = 0.5
+export const MARGEN_HUMEDAD = 2
+/** Cuánto movimiento en la última hora ya amerita pensar. */
+export const MOVIMIENTO_C = 0.8
+export const MOVIMIENTO_HUMEDAD = 4
+
+/** Por qué conviene consultar a la IA ahora, o null si la sala está tranquila. */
+export function motivoParaPensar(e: EntradaContexto, ahora: Date): string | null {
+  if (e.alertas.length) return "hay alertas abiertas"
+  const [tMin, tMax] = e.rango.temperatura
+  const [hMin, hMax] = e.rango.humedad
+  const t = e.ahora.temperatura
+  const h = e.ahora.humedad
+  if (t !== null && (t < tMin + MARGEN_C || t > tMax - MARGEN_C)) return "la temperatura está cerca del borde del rango"
+  if (h !== null && (h < hMin + MARGEN_HUMEDAD || h > hMax - MARGEN_HUMEDAD)) return "la humedad está cerca del borde del rango"
+  const cambio = (v: (number | null)[]) => {
+    const ok = v.filter((x): x is number => x !== null)
+    return ok.length >= 2 ? Math.abs(ok[ok.length - 1] - ok[0]) : 0
+  }
+  if (cambio(e.ultimaHora.map((l) => l.temperatura)) >= MOVIMIENTO_C) return "la temperatura se está moviendo"
+  if (cambio(e.ultimaHora.map((l) => l.humedad)) >= MOVIMIENTO_HUMEDAD) return "la humedad se está moviendo"
+  if (e.equipos.some((q) => q.estado.tipo === "prendido" && q.estado.sinConsumoDesde)) return "un equipo prendido no consume"
+  if (e.recientes.some((r) => r.haceMin < 30 && r.respuesta !== "aviso")) return "hubo una propuesta hace poco"
+  if (ahora.getUTCMinutes() < 5) return "control de cada hora"
+  return null
+}
+
 // --- Prompt (system + few-shot) ----------------------------------------------
 
 export const SISTEMA_NUBI = `Sos Nubi, la IA que cuida el clima de las salas de cultivo de Monarca South (cannabis medicinal en interior, coco, LED). Cada tanto mirás una sala y decidís si conviene proponerle al equipo un cambio en sus equipos. Vos solo PROPONÉS: una persona lo aprueba o lo descarta.
@@ -128,6 +161,19 @@ CRITERIOS
 - Si algo no cierra (por ejemplo, el aire en frío al mínimo y la sala no baja), avisá en vez de proponer una orden. El aviso de un equipo prendido sin consumir lo manda el sistema aparte: no lo repitas.
 - Si faltan lecturas del Pulse, no propongas órdenes.
 - Una sola propuesta por vez: la más importante.
+
+RANGOS DE MONARCA (para entender el contexto; el de la sala viene en cada consulta)
+- Vege: 24 a 28 °C, humedad 60 a 70 %.
+- Madres y esquejes (Sala 3): 24 a 28 °C, humedad 60 a 75 %.
+- Flora: 22 a 26 °C, humedad 45 a 55 %.
+- Últimas 2 semanas de flora: 20 a 24 °C, humedad 40 a 50 %.
+- Secado: 19 a 21 °C, humedad 50 a 60 %. En secado, los cambios bruscos arruinan el curado: ajustá de a poco.
+
+EQUIPOS
+- El aire se maneja por infrarrojo desde la app: su estado es la última orden cumplida, no lo informa el equipo. Solo enfría: frío entre 16 y 30 °C con ventilador automático, o apagado.
+- El deshumidificador se prende y apaga con un enchufe inteligente que informa su estado real y su consumo. Prendido y andando consume unos 500 a 600 W.
+- Bajar el aire también baja un poco la humedad; prender el deshumidificador sube un poco la temperatura de la sala.
+- Con las luces apagadas la sala se enfría sola y la humedad suele subir: tenelo en cuenta antes de bajar el aire de noche.
 
 CÓMO RESPONDER
 Primero escribí "analisis": 2 a 4 frases sobre cómo está la sala, hacia dónde va y qué hacen los equipos. Después decidí:

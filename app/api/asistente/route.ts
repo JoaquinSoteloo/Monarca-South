@@ -4,12 +4,15 @@ import { getServerSession } from "@/lib/auth/session"
 import { tienePermiso } from "@/lib/permisos"
 import { historialParaApi, promptSistema, textoDeRespuesta, type MensajeGuardado } from "@/lib/asistente"
 import { HERRAMIENTAS, ejecutarHerramienta } from "@/lib/asistente-herramientas"
+import { registrarUso, tokensDe } from "@/lib/ia-uso"
 
 // Asistente de cultivo (pantalla Sede). Responde desde el servidor con la clave
 // de Vercel (nunca va al navegador):
 //   - OPENAI_API_KEY (lo que cargó Joaquín, 03/11/2026) → OpenAI, modelo OPENAI_MODEL.
 //   - Si no está, ANTHROPIC_API_KEY → Anthropic, modelo ANTHROPIC_MODEL.
 // Cada persona tiene su conversación en public.asistente_mensajes (script 088).
+// Cada vuelta al modelo queda en ia_uso (script 103). El system y las
+// herramientas van primero y no cambian: el proveedor los cobra del caché.
 
 const MODELO_OPENAI = process.env.OPENAI_MODEL || "gpt-5.4-mini"
 const MODELO_ANTHROPIC = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5"
@@ -108,6 +111,7 @@ async function responderOpenAI(clave: string, sistema: string, historial: Histor
     function: { name: h.name, description: h.description, parameters: h.input_schema },
   }))
   for (let vuelta = 0; vuelta <= MAX_VUELTAS_HERRAMIENTAS; vuelta++) {
+    const inicio = Date.now()
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${clave}` },
@@ -115,13 +119,21 @@ async function responderOpenAI(clave: string, sistema: string, historial: Histor
         model: MODELO_OPENAI,
         messages: mensajes,
         max_completion_tokens: 1500,
+        prompt_cache_key: "monarca-asistente",
         ...(vuelta < MAX_VUELTAS_HERRAMIENTAS ? { tools } : {}),
       }),
     })
-    if (!r.ok) return errorApi("OpenAI", r)
+    if (!r.ok) {
+      await registrarUso({ funcion: "asistente", modelo: MODELO_OPENAI, tokensEntrada: null, tokensCache: null, tokensSalida: null, latenciaMs: Date.now() - inicio, ok: false })
+      return errorApi("OpenAI", r)
+    }
     const data = (await r.json()) as {
+      model?: string
+      usage?: unknown
       choices: { message: { content: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[]
     }
+    const t = tokensDe(data.usage)
+    await registrarUso({ funcion: "asistente", modelo: data.model ?? MODELO_OPENAI, tokensEntrada: t.entrada, tokensCache: t.cache, tokensSalida: t.salida, latenciaMs: Date.now() - inicio, ok: true })
     const msg = data.choices?.[0]?.message
     if (!msg) return { texto: "" }
     if (!msg.tool_calls?.length) return { texto: (msg.content ?? "").trim() }
@@ -143,13 +155,25 @@ async function responderOpenAI(clave: string, sistema: string, historial: Histor
 async function responderAnthropic(clave: string, sistema: string, historial: Historial, ejecutar: Ejecutor): Promise<Resultado> {
   const mensajes: { role: "user" | "assistant"; content: string | Bloque[] | Record<string, unknown>[] }[] = [...historial]
   for (let vuelta = 0; vuelta <= MAX_VUELTAS_HERRAMIENTAS; vuelta++) {
+    const inicio = Date.now()
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": clave, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: MODELO_ANTHROPIC, max_tokens: 1500, system: sistema, tools: HERRAMIENTAS, messages: mensajes }),
+      body: JSON.stringify({
+        model: MODELO_ANTHROPIC,
+        max_tokens: 1500,
+        system: [{ type: "text", text: sistema, cache_control: { type: "ephemeral" } }],
+        tools: HERRAMIENTAS,
+        messages: mensajes,
+      }),
     })
-    if (!r.ok) return errorApi("Anthropic", r)
-    const data = (await r.json()) as { content: Bloque[]; stop_reason: string }
+    if (!r.ok) {
+      await registrarUso({ funcion: "asistente", modelo: MODELO_ANTHROPIC, tokensEntrada: null, tokensCache: null, tokensSalida: null, latenciaMs: Date.now() - inicio, ok: false })
+      return errorApi("Anthropic", r)
+    }
+    const data = (await r.json()) as { model?: string; usage?: unknown; content: Bloque[]; stop_reason: string }
+    const t = tokensDe(data.usage)
+    await registrarUso({ funcion: "asistente", modelo: data.model ?? MODELO_ANTHROPIC, tokensEntrada: t.entrada, tokensCache: t.cache, tokensSalida: t.salida, latenciaMs: Date.now() - inicio, ok: true })
     if (data.stop_reason !== "tool_use" || vuelta === MAX_VUELTAS_HERRAMIENTAS) return { texto: textoDeRespuesta(data.content) }
     mensajes.push({ role: "assistant", content: data.content })
     const resultados = await Promise.all(

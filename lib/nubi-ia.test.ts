@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { armarContexto, validarDecision, type DecisionIA, type EquipoEnSala } from "./nubi-ia"
+import { armarContexto, motivoParaPensar, validarDecision, type DecisionIA, type EntradaContexto, type EquipoEnSala } from "./nubi-ia"
 import { ESCENARIOS, cumple } from "./nubi-evals"
 import { tocaPensar } from "./nubi-pensar"
 
@@ -96,5 +96,32 @@ describe("cuándo piensa", () => {
     expect(tocaPensar(new Date("2026-11-14T15:02:00Z"), [])).toBe(true)
     expect(tocaPensar(new Date("2026-11-14T15:07:00Z"), [])).toBe(false)
     expect(tocaPensar(new Date("2026-11-14T15:07:00Z"), [{ desde: "2026-11-14T14:45:00Z", notificada_en: "2026-11-14T15:03:00Z" }])).toBe(true)
+  })
+})
+
+describe("filtro antes de la IA", () => {
+  const tranquila: EntradaContexto = {
+    sala: "Sala 5",
+    rango: { etapa: "flora", temperatura: [22, 26], humedad: [45, 55] },
+    horaAR: "14:10",
+    luces: { horario: null, prendidas: null },
+    ahora: { temperatura: 24, humedad: 50, haceMin: 2 },
+    ultimaHora: [{ temperatura: 23.9, humedad: 51 }, { temperatura: 24, humedad: 50 }],
+    alertas: [],
+    equipos: [deshu],
+    recientes: [],
+  }
+  const a10 = new Date("2026-11-14T17:10:00Z")
+  it("con la sala tranquila no consulta a la IA, salvo el control de cada hora", () => {
+    expect(motivoParaPensar(tranquila, a10)).toBeNull()
+    expect(motivoParaPensar(tranquila, new Date("2026-11-14T17:02:00Z"))).toBe("control de cada hora")
+  })
+  it("consulta si algo se acerca al borde, se mueve, hay alerta o un equipo no consume", () => {
+    expect(motivoParaPensar({ ...tranquila, ahora: { ...tranquila.ahora, temperatura: 25.7 } }, a10)).toMatch(/temperatura/)
+    expect(motivoParaPensar({ ...tranquila, ahora: { ...tranquila.ahora, humedad: 46 } }, a10)).toMatch(/humedad/)
+    expect(motivoParaPensar({ ...tranquila, ultimaHora: [{ temperatura: 23, humedad: 50 }, { temperatura: 24, humedad: 50 }] }, a10)).toMatch(/moviendo/)
+    expect(motivoParaPensar({ ...tranquila, alertas: ["humedad alta"] }, a10)).toBe("hay alertas abiertas")
+    const sinConsumo: EquipoEnSala = { ...deshu, estado: { tipo: "prendido", potenciaW: 0, sinConsumoDesde: "2026-11-14T16:50:00Z" } }
+    expect(motivoParaPensar({ ...tranquila, equipos: [sinConsumo] }, a10)).toMatch(/no consume/)
   })
 })

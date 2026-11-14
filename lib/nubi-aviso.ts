@@ -29,7 +29,7 @@ import {
   MINUTOS_VIGENCIA,
   type Propuesta,
 } from "@/lib/nubi"
-import { motivoDe } from "@/lib/nubi-ia"
+import { motivoDe, motivoParaPensar } from "@/lib/nubi-ia"
 import { cargarSalas, pensar, registrar, tocaPensar, type SalaParaPensar } from "@/lib/nubi-pensar"
 import { ROL_COMISION } from "@/lib/permisos"
 
@@ -207,9 +207,11 @@ export async function proponerNubi(supabase: SupabaseClient, ahora: Date = new D
   }
 
   // 2) La IA piensa las salas que tocan, todas a la vez (cada una tarda unos segundos).
+  //    Con la sala tranquila no se la consulta (motivoParaPensar): ahorra tokens.
   const aPensar = salas.filter(
     (s) =>
       tocaPensar(ahora, s.alertas) &&
+      motivoParaPensar(s.entrada, ahora) !== null &&
       (s.entrada.ahora.temperatura !== null || s.entrada.ahora.humedad !== null) &&
       // Con una propuesta esperando respuesta o una orden en camino, se espera.
       !s.equipos.some((d) => conPendiente.has(d.id) || d.ultimo_comando_estado === "pendiente" || d.ultimo_comando_estado === "en_proceso"),

@@ -257,7 +257,7 @@ export interface ResumenArmado {
 
 export async function armarResumen(supabase: SupabaseClient, desde: Date, hasta: Date): Promise<ResumenArmado> {
   const datos = await datosSemana(supabase, desde, hasta)
-  const respuesta = await completar(SISTEMA, JSON.stringify(datosParaIA(datos)), 1400)
+  const respuesta = await completar(SISTEMA, JSON.stringify(datosParaIA(datos)), 1400, "resumen_semanal")
   if (respuesta) {
     const partes = respuesta.split(/\n?\s*\**SUGERENCIA:?\**:?\s*/i)
     if (partes.length >= 2 && partes[1].trim()) {

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { ControlManual } from "@/components/control-manual"
 import { NubiPropuestas, type PropuestaNubi } from "@/components/nubi-propuestas"
 import { NubiPensamientos, type PensamientoNubi } from "@/components/nubi-pensamientos"
+import { ConsumoIA, type ConsumoDia } from "@/components/consumo-ia"
 import { ResumenSemanal, type ResumenGuardado } from "@/components/resumen-semanal"
 import { getServerSession } from "@/lib/auth/session"
 import { ROL_COMISION } from "@/lib/permisos"
@@ -49,6 +50,16 @@ export default async function ControlManualPage() {
   const pendientes = todas.filter((p) => p.estado === "pendiente" && (!p.vence_en || p.vence_en > ahora))
   const recientes = todas.filter((p) => !pendientes.includes(p)).slice(0, 5)
   const session = await getServerSession()
+  // Consumo de IA de los últimos 7 días (script 103), solo para la comisión.
+  const consumo: ConsumoDia[] =
+    session?.rol === ROL_COMISION
+      ? (((
+          await supabase
+            .from("ia_uso_por_dia")
+            .select("*")
+            .gte("dia", new Date(Date.now() - 6 * 86400_000).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }))
+        ).data ?? []) as ConsumoDia[])
+      : []
 
   // PostgREST puede devolver el embed to-one como array; lo normalizamos
   // igual que en app/automatizaciones/page.tsx.
@@ -62,6 +73,7 @@ export default async function ControlManualPage() {
         <ResumenSemanal ultimo={((resumenes ?? [])[0] as ResumenGuardado | undefined) ?? null} puedeGenerar={session?.rol === ROL_COMISION} />
         <NubiPropuestas pendientes={pendientes} recientes={recientes} />
         <NubiPensamientos pensamientos={pensamientos} puedeEvaluar={session?.rol === ROL_COMISION} />
+        {session?.rol === ROL_COMISION && <ConsumoIA filas={consumo} />}
         <ControlManual initialDispositivos={dispositivos} />
       </main>
   )

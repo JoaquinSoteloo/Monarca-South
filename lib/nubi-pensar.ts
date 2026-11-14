@@ -4,6 +4,7 @@
 // (lib/nubi-aviso.ts) y los evals. Solo servidor.
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { completarJSON } from "@/lib/ia"
+import type { FuncionIA } from "@/lib/ia-uso"
 import { cicloActual, type CicloSala } from "@/lib/ciclo"
 import { rangoClima, ultimoValor, type LecturaClima, type RangoClima } from "@/lib/clima-alertas"
 import { deberiaHaberLuz, horaCorta, minutoAR } from "@/lib/guardian-luces"
@@ -144,13 +145,15 @@ export interface Pensamiento {
 }
 
 /** Le pregunta a la IA y revisa la respuesta. null si la IA no respondió (se usan las reglas). */
-export async function pensar(entrada: EntradaContexto): Promise<Pensamiento | null> {
+export async function pensar(entrada: EntradaContexto, funcion: FuncionIA = "nubi"): Promise<Pensamiento | null> {
   const contexto = armarContexto(entrada)
   const r = await completarJSON<DecisionIA>(
     SISTEMA_NUBI,
     `Así está la sala ahora:\n${JSON.stringify(contexto, null, 2)}`,
     "decision_nubi",
     ESQUEMA_DECISION as unknown as Record<string, unknown>,
+    1200,
+    funcion,
   )
   if (!r) return null
   return {

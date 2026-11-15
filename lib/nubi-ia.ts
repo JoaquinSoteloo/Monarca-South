@@ -19,7 +19,14 @@ export interface EquipoEnSala {
   id: number
   tipo: "aire_acondicionado" | "deshumidificador"
   estado: EstadoAire | EstadoOnOff
+  /** Si el estado lo informó el equipo hace menos de 5 minutos (no la última orden). */
   estadoReal: boolean
+  /**
+   * Equipos que informan su estado (enchufe inteligente) pero dejaron de
+   * hacerlo: hace cuántos minutos fue el último reporte (null si nunca o si
+   * está al día). Ahí el estado es solo la última orden y puede no ser real.
+   */
+  sinReporteHaceMin?: number | null
   ultimaOrdenHaceMin: number | null
 }
 
@@ -44,6 +51,16 @@ export interface EntradaContexto {
   alertas: string[]
   equipos: EquipoEnSala[]
   recientes: DecisionReciente[]
+  /** La última vez que la IA pensó esta sala (para el filtro; no se le muestra). */
+  anterior?: PensadoAntes | null
+}
+
+/** Cómo estaba la sala la última vez que la IA la pensó. */
+export interface PensadoAntes {
+  haceMin: number
+  temperatura: number | null
+  humedad: number | null
+  alertas: number
 }
 
 const coma = (n: number) => String(Math.round(n * 10) / 10).replace(".", ",")
@@ -58,6 +75,29 @@ function tendencia(valores: (number | null)[], unidad: string): string {
 }
 
 const nombreEquipo = (t: EquipoEnSala["tipo"]) => (t === "aire_acondicionado" ? "aire" : "deshumidificador")
+
+/** "hace 12 min", "hace 3 h", "hace 2 días". */
+export function haceCuanto(min: number): string {
+  if (min < 60) return `hace ${min} min`
+  if (min < 48 * 60) return `hace ${Math.round(min / 60)} h`
+  return `hace ${Math.round(min / 1440)} días`
+}
+
+function comoSeSabe(q: EquipoEnSala): string {
+  if (q.estadoReal) return "estado real informado por el equipo"
+  if (q.tipo === "deshumidificador" && q.sinReporteHaceMin !== undefined) {
+    return q.sinReporteHaceMin === null
+      ? "el enchufe nunca informó su estado: es la última orden, no se sabe si anda de verdad"
+      : `el enchufe no informa ${haceCuanto(q.sinReporteHaceMin)}: es la última orden, no se sabe si anda de verdad`
+  }
+  return "última orden cumplida (el equipo no informa su estado)"
+}
+
+/** Lo que propuso antes, corto: el título alcanza (la explicación entera gasta tokens). */
+const corto = (s: string) => {
+  const t = s.split(". ")[0].trim()
+  return t.length > 90 ? `${t.slice(0, 90)}…` : t
+}
 
 /** El contexto en palabras: lo que recibe el modelo. */
 export function armarContexto(e: EntradaContexto) {
@@ -97,7 +137,7 @@ export function armarContexto(e: EntradaContexto) {
         q.tipo === "aire_acondicionado"
           ? textoEstadoAire(q.estado as EstadoAire)
           : textoEstadoOnOff(q.estado as EstadoOnOff),
-      como_se_sabe: q.estadoReal ? "estado real informado por el equipo" : "última orden cumplida (el equipo no informa su estado)",
+      como_se_sabe: comoSeSabe(q),
       ultima_orden: q.ultimaOrdenHaceMin === null ? "nunca" : `hace ${q.ultimaOrdenHaceMin} min`,
       que_puede_hacer:
         q.tipo === "aire_acondicionado"
@@ -105,7 +145,7 @@ export function armarContexto(e: EntradaContexto) {
           : "prender o apagar",
     })),
     lo_que_propuso_nubi_hace_poco: e.recientes.length
-      ? e.recientes.map((r) => `hace ${r.haceMin} min propuso "${r.propuso}": ${r.respuesta}${r.quien ? ` por ${r.quien}` : ""}`)
+      ? e.recientes.map((r) => `hace ${r.haceMin} min propuso "${corto(r.propuso)}": ${r.respuesta}${r.quien ? ` por ${r.quien}` : ""}`)
       : "nada en las últimas 6 horas",
   }
 }
@@ -122,8 +162,47 @@ export const MARGEN_HUMEDAD = 2
 export const MOVIMIENTO_C = 0.8
 export const MOVIMIENTO_HUMEDAD = 4
 
-/** Por qué conviene consultar a la IA ahora, o null si la sala está tranquila. */
+/**
+ * Sin nada nuevo, cada cuánto se vuelve a pensar una sala que sigue con un
+ * motivo (alerta abierta, cerca del borde). Antes era cada 10 minutos: con una
+ * alerta que dura horas, la IA decía lo mismo y los avisos los frenaban los
+ * guardrails (15/11/2026: 52 de 169 consultas).
+ */
+export const MINUTOS_SIN_CAMBIOS = 30
+/** Si ya salió un aviso en la última hora, no puede salir otro: se espera la hora. */
+export const MINUTOS_TRAS_AVISO = 60
+/** Control con la sala tranquila. */
+export const MINUTOS_CONTROL = 55
+
+/** Qué cambió desde la última vez que pensó, o null si sigue igual. */
+function algoNuevo(e: EntradaContexto, a: PensadoAntes): string | null {
+  if (e.alertas.length > a.alertas) return "se abrió otra alerta"
+  const t = e.ahora.temperatura
+  const h = e.ahora.humedad
+  if (t !== null && a.temperatura !== null && Math.abs(t - a.temperatura) >= MARGEN_C) return "la temperatura cambió desde la última vez"
+  if (h !== null && a.humedad !== null && Math.abs(h - a.humedad) >= MARGEN_HUMEDAD) return "la humedad cambió desde la última vez"
+  if ((t === null) !== (a.temperatura === null) || (h === null) !== (a.humedad === null)) return "cambiaron las lecturas"
+  if (e.equipos.some((q) => q.ultimaOrdenHaceMin !== null && q.ultimaOrdenHaceMin < a.haceMin)) return "hubo una orden desde la última vez"
+  if (e.recientes.some((r) => r.respuesta !== "aviso" && r.respuesta !== "pendiente" && r.haceMin < a.haceMin)) return "respondieron una propuesta"
+  return null
+}
+
+/**
+ * Por qué conviene consultar a la IA ahora, o null si no hace falta: la sala
+ * está tranquila, o sigue igual que la última vez que la pensó.
+ */
 export function motivoParaPensar(e: EntradaContexto, ahora: Date): string | null {
+  const motivo = motivoDeLaSala(e)
+  const a = e.anterior
+  if (!a) return motivo ?? (ahora.getUTCMinutes() < 5 ? "control de cada hora" : null)
+  if (!motivo) return a.haceMin >= MINUTOS_CONTROL ? "control de cada hora" : null
+  const nuevo = algoNuevo(e, a)
+  if (nuevo) return `${motivo}; ${nuevo}`
+  const avisoReciente = e.recientes.some((r) => r.respuesta === "aviso" && r.haceMin < MINUTOS_TRAS_AVISO)
+  return a.haceMin >= (avisoReciente ? MINUTOS_TRAS_AVISO : MINUTOS_SIN_CAMBIOS) ? motivo : null
+}
+
+function motivoDeLaSala(e: EntradaContexto): string | null {
   if (e.alertas.length) return "hay alertas abiertas"
   const [tMin, tMax] = e.rango.temperatura
   const [hMin, hMax] = e.rango.humedad
@@ -139,7 +218,6 @@ export function motivoParaPensar(e: EntradaContexto, ahora: Date): string | null
   if (cambio(e.ultimaHora.map((l) => l.humedad)) >= MOVIMIENTO_HUMEDAD) return "la humedad se está moviendo"
   if (e.equipos.some((q) => q.estado.tipo === "prendido" && q.estado.sinConsumoDesde)) return "un equipo prendido no consume"
   if (e.recientes.some((r) => r.haceMin < 30 && r.respuesta !== "aviso")) return "hubo una propuesta hace poco"
-  if (ahora.getUTCMinutes() < 5) return "control de cada hora"
   return null
 }
 
@@ -172,6 +250,7 @@ RANGOS DE MONARCA (para entender el contexto; el de la sala viene en cada consul
 EQUIPOS
 - El aire se maneja por infrarrojo desde la app: su estado es la última orden cumplida, no lo informa el equipo. Solo enfría: frío entre 16 y 30 °C con ventilador automático, o apagado.
 - El deshumidificador se prende y apaga con un enchufe inteligente que informa su estado real y su consumo. Prendido y andando consume unos 500 a 600 W.
+- Si el contexto dice que el enchufe no informa, no sabés si el deshumidificador anda de verdad: no des por hecho que está prendido. Si la humedad está alta, avisá que revisen el deshumidificador y la conexión del enchufe.
 - Bajar el aire también baja un poco la humedad; prender el deshumidificador sube un poco la temperatura de la sala.
 - Con las luces apagadas la sala se enfría sola y la humedad suele subir: tenelo en cuenta antes de bajar el aire de noche.
 
@@ -271,8 +350,10 @@ export function validarDecision(d: DecisionIA, equipos: EquipoEnSala[], reciente
     }
   } else {
     if (d.setpoint !== null && d.setpoint !== undefined) return { ok: false, motivo: "el deshumidificador no tiene setpoint" }
-    if (d.accion === "encender" && equipo.estado.tipo === "prendido") return { ok: false, motivo: "el deshumidificador ya está prendido" }
-    if (d.accion === "apagar" && equipo.estado.tipo === "apagado") return { ok: false, motivo: "el deshumidificador ya está apagado" }
+    // Si el enchufe dejó de informar, el estado es solo la última orden: repetirla no hace daño.
+    const estadoSeguro = equipo.sinReporteHaceMin === undefined
+    if (estadoSeguro && d.accion === "encender" && equipo.estado.tipo === "prendido") return { ok: false, motivo: "el deshumidificador ya está prendido" }
+    if (estadoSeguro && d.accion === "apagar" && equipo.estado.tipo === "apagado") return { ok: false, motivo: "el deshumidificador ya está apagado" }
     payload = { accion: d.accion }
   }
 

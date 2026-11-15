@@ -18,6 +18,7 @@ import {
   type DecisionReciente,
   type EntradaContexto,
   type EquipoEnSala,
+  type PensadoAntes,
   type Validacion,
 } from "@/lib/nubi-ia"
 import type { DispositivoControlable } from "@/lib/types"
@@ -36,6 +37,47 @@ export interface SalaParaPensar {
   entrada: EntradaContexto
 }
 
+/** Si un reporte del enchufe tiene más de esto, el estado ya no es real (como en lib/nubi.ts). */
+const REPORTE_VIGENTE_MIN = 5
+
+/** Si el estado que se le muestra a la IA es real o solo la última orden. */
+export function estadoInformado(
+  d: Pick<DispositivoControlable, "tipo" | "soporta_feedback" | "ultimo_estado_confirmado_en">,
+  ahora: Date,
+): Pick<EquipoEnSala, "estadoReal" | "sinReporteHaceMin"> {
+  if (d.tipo !== "deshumidificador" || !d.soporta_feedback) return { estadoReal: false }
+  if (!d.ultimo_estado_confirmado_en) return { estadoReal: false, sinReporteHaceMin: null }
+  const hace = minutosDesde(d.ultimo_estado_confirmado_en, ahora)
+  return hace <= REPORTE_VIGENTE_MIN ? { estadoReal: true } : { estadoReal: false, sinReporteHaceMin: hace }
+}
+
+interface FilaAnterior {
+  sala_id: number | null
+  creada_en: string
+  entrada: { ahora?: unknown; alertas_abiertas?: unknown } | null
+}
+
+/** "25,2 °C" o "56 %" → número. */
+const numeroDe = (s: unknown): number | null => {
+  if (typeof s !== "string") return null
+  const n = parseFloat(s.replace(",", "."))
+  return Number.isFinite(n) ? n : null
+}
+
+/** Cómo estaba la sala la última vez que pensó, a partir del contexto guardado en nubi_decisiones. */
+export function pensadoAntes(fila: FilaAnterior | undefined, ahora: Date): PensadoAntes | null {
+  if (!fila) return null
+  const a = fila.entrada?.ahora
+  const lecturas = a && typeof a === "object" ? (a as { temperatura?: unknown; humedad?: unknown }) : {}
+  const alertas = fila.entrada?.alertas_abiertas
+  return {
+    haceMin: minutosDesde(fila.creada_en, ahora),
+    temperatura: numeroDe(lecturas.temperatura),
+    humedad: numeroDe(lecturas.humedad),
+    alertas: Array.isArray(alertas) ? alertas.length : 0,
+  }
+}
+
 const RESPUESTA: Record<string, DecisionReciente["respuesta"]> = {
   aprobada: "mandada",
   rechazada: "descartada",
@@ -52,15 +94,18 @@ export async function cargarSalas(supabase: SupabaseClient, ahora: Date, salaIds
   const hoy = fechaAR(ahora)
   const desde = new Date(ahora.getTime() - 70 * 60000).toISOString()
   const hace6h = new Date(ahora.getTime() - 6 * 3600000).toISOString()
-  const [alertasR, equiposR, salasR, ciclosR, lecturasR, recientesR] = await Promise.all([
+  const hace2h = new Date(ahora.getTime() - 2 * 3600000).toISOString()
+  const [alertasR, equiposR, salasR, ciclosR, lecturasR, recientesR, anterioresR] = await Promise.all([
     supabase.from("alertas_clima").select("*").is("resuelta_en", null),
     supabase.from("dispositivos_controlables").select("*").eq("activo", true).in("tipo", ["aire_acondicionado", "deshumidificador"]),
     supabase.from("salas_cultivo").select("id, nombre, luz_prende, luz_apaga"),
     supabase.from("ciclos_sala").select("*").eq("estado", "abierto"),
     supabase.from("lecturas_ambientales").select("sala_id, temperatura_c, humedad_rh, leido_en").gte("leido_en", desde).not("sala_id", "is", null).order("leido_en"),
     supabase.from("propuestas_nubi").select("sala_id, dispositivo_id, estado, resumen, payload, creada_en, resuelta_por_nombre").gte("creada_en", hace6h).order("creada_en", { ascending: false }),
+    supabase.from("nubi_decisiones").select("sala_id, creada_en, entrada").eq("fuente", "ia").gte("creada_en", hace2h).order("creada_en", { ascending: false }),
   ])
-  for (const r of [alertasR, equiposR, salasR, ciclosR, lecturasR, recientesR]) if (r.error) throw new Error(r.error.message)
+  for (const r of [alertasR, equiposR, salasR, ciclosR, lecturasR, recientesR, anterioresR]) if (r.error) throw new Error(r.error.message)
+  const anteriores = (anterioresR.data ?? []) as FilaAnterior[]
 
   // Los equipos de prueba (manual_noop) no mueven nada real: Nubi no los toca.
   const equipos = ((equiposR.data ?? []) as DispositivoControlable[]).filter((d) => d.sala_id !== null && d.proveedor !== "manual_noop")
@@ -114,10 +159,11 @@ export async function cargarSalas(supabase: SupabaseClient, ahora: Date, salaIds
           id: d.id,
           tipo: d.tipo as EquipoEnSala["tipo"],
           estado: d.tipo === "aire_acondicionado" ? estadoAire(d) : estadoOnOff(d, ahora),
-          estadoReal: d.tipo === "deshumidificador" && !!d.soporta_feedback,
+          ...estadoInformado(d, ahora),
           ultimaOrdenHaceMin: d.ultimo_comando_en ? minutosDesde(d.ultimo_comando_en, ahora) : null,
         }),
       ),
+      anterior: pensadoAntes(anteriores.find((x) => x.sala_id === sala.id), ahora),
       recientes: recientes
         .filter((r) => r.sala_id === sala.id)
         .map((r) => ({

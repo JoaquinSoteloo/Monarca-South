@@ -14,6 +14,31 @@ const MODELO_ANTHROPIC = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5"
 /** System de Anthropic marcado para caché. */
 const systemConCache = (sistema: string) => [{ type: "text", text: sistema, cache_control: { type: "ephemeral" } }]
 
+// Caché de 24 horas en OpenAI (15/11/2026): el de memoria dura 5 a 10 minutos
+// y Nubi consulta cada 10 o más, así que nunca lo usaba (0 % en ia_uso). No
+// todos los modelos aceptan la opción: si OpenAI la rechaza, se reintenta sin
+// ella y no se vuelve a mandar hasta que se reinicie el servidor.
+let retencion24h = true
+
+/** Pide a OpenAI (chat completions) con caché de 24 h si el modelo lo acepta. */
+async function pedirOpenAI(clave: string, cuerpo: Record<string, unknown>, timeoutMs?: number): Promise<Response> {
+  const pedir = (b: Record<string, unknown>) =>
+    fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+      headers: { "content-type": "application/json", authorization: `Bearer ${clave}` },
+      body: JSON.stringify(b),
+    })
+  if (!retencion24h) return pedir(cuerpo)
+  const r = await pedir({ ...cuerpo, prompt_cache_retention: "24h" })
+  if (r.status !== 400) return r
+  const texto = await r.text().catch(() => "")
+  if (!texto.includes("prompt_cache_retention")) return new Response(texto, { status: r.status })
+  console.warn("[ia] El modelo no acepta el caché de 24 h: sigo sin esa opción")
+  retencion24h = false
+  return pedir(cuerpo)
+}
+
 export async function completar(sistema: string, mensaje: string, maxTokens = 900, funcion: FuncionIA = "otra"): Promise<string | null> {
   const claveOpenAI = process.env.OPENAI_API_KEY
   const claveAnthropic = process.env.ANTHROPIC_API_KEY
@@ -24,18 +49,14 @@ export async function completar(sistema: string, mensaje: string, maxTokens = 90
   try {
     if (claveOpenAI) {
       modelo = MODELO_OPENAI
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${claveOpenAI}` },
-        body: JSON.stringify({
-          model: MODELO_OPENAI,
-          messages: [
-            { role: "system", content: sistema },
-            { role: "user", content: mensaje },
-          ],
-          max_completion_tokens: maxTokens,
-          prompt_cache_key: `monarca-${funcion}`,
-        }),
+      const r = await pedirOpenAI(claveOpenAI, {
+        model: MODELO_OPENAI,
+        messages: [
+          { role: "system", content: sistema },
+          { role: "user", content: mensaje },
+        ],
+        max_completion_tokens: maxTokens,
+        prompt_cache_key: `monarca-${funcion}`,
       })
       if (!r.ok) {
         console.error("[ia] OpenAI respondió", r.status, (await r.text().catch(() => "")).slice(0, 200))
@@ -101,11 +122,9 @@ export async function completarJSON<T>(
   try {
     if (claveOpenAI) {
       modelo = MODELO_OPENAI
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        signal: AbortSignal.timeout(20000),
-        headers: { "content-type": "application/json", authorization: `Bearer ${claveOpenAI}` },
-        body: JSON.stringify({
+      const r = await pedirOpenAI(
+        claveOpenAI,
+        {
           model: MODELO_OPENAI,
           messages: [
             { role: "system", content: sistema },
@@ -114,8 +133,9 @@ export async function completarJSON<T>(
           max_completion_tokens: maxTokens,
           response_format: { type: "json_schema", json_schema: { name: nombre, strict: true, schema: esquema } },
           prompt_cache_key: `monarca-${funcion}`,
-        }),
-      })
+        },
+        20000,
+      )
       if (!r.ok) {
         console.error("[ia] OpenAI respondió", r.status, (await r.text().catch(() => "")).slice(0, 300))
       } else {

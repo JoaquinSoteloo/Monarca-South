@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { armarContexto, motivoParaPensar, validarDecision, type DecisionIA, type EntradaContexto, type EquipoEnSala } from "./nubi-ia"
 import { ESCENARIOS, cumple } from "./nubi-evals"
-import { tocaPensar } from "./nubi-pensar"
+import { estadoInformado, pensadoAntes, tocaPensar } from "./nubi-pensar"
 
 const aire: EquipoEnSala = { id: 1, tipo: "aire_acondicionado", estado: { tipo: "frio", setpoint: 23 }, estadoReal: false, ultimaOrdenHaceMin: 40 }
 const deshu: EquipoEnSala = { id: 2, tipo: "deshumidificador", estado: { tipo: "prendido", potenciaW: 560, sinConsumoDesde: null }, estadoReal: true, ultimaOrdenHaceMin: 90 }
@@ -123,5 +123,68 @@ describe("filtro antes de la IA", () => {
     expect(motivoParaPensar({ ...tranquila, alertas: ["humedad alta"] }, a10)).toBe("hay alertas abiertas")
     const sinConsumo: EquipoEnSala = { ...deshu, estado: { tipo: "prendido", potenciaW: 0, sinConsumoDesde: "2026-11-14T16:50:00Z" } }
     expect(motivoParaPensar({ ...tranquila, equipos: [sinConsumo] }, a10)).toMatch(/no consume/)
+  })
+
+  // 15/11/2026: con una alerta que dura horas, pensaba cada 10 minutos lo mismo.
+  const conAlerta: EntradaContexto = { ...tranquila, ahora: { ...tranquila.ahora, humedad: 58 }, alertas: ["humedad 58 % (máx 55)"] }
+  const antes = (haceMin: number, x: Partial<{ temperatura: number; humedad: number; alertas: number }> = {}) => ({ haceMin, temperatura: 24, humedad: 58, alertas: 1, ...x })
+  it("si la sala sigue igual que la última vez, espera 30 minutos", () => {
+    expect(motivoParaPensar({ ...conAlerta, anterior: antes(10) }, a10)).toBeNull()
+    expect(motivoParaPensar({ ...conAlerta, anterior: antes(20) }, a10)).toBeNull()
+    expect(motivoParaPensar({ ...conAlerta, anterior: antes(30) }, a10)).toBe("hay alertas abiertas")
+  })
+  it("si ya salió un aviso en la última hora, espera a que pase la hora", () => {
+    const aviso = { haceMin: 40, propuso: "revisar deshumidificación. La humedad…", respuesta: "aviso" as const, quien: null }
+    expect(motivoParaPensar({ ...conAlerta, recientes: [aviso], anterior: antes(40) }, a10)).toBeNull()
+    expect(motivoParaPensar({ ...conAlerta, recientes: [{ ...aviso, haceMin: 60 }], anterior: antes(60) }, a10)).toBe("hay alertas abiertas")
+  })
+  it("si algo cambió desde la última vez, piensa enseguida", () => {
+    expect(motivoParaPensar({ ...conAlerta, anterior: antes(10, { humedad: 55 }) }, a10)).toMatch(/humedad cambió/)
+    expect(motivoParaPensar({ ...conAlerta, anterior: antes(10, { temperatura: 23.4 }) }, a10)).toMatch(/temperatura cambió/)
+    expect(motivoParaPensar({ ...conAlerta, anterior: antes(10, { alertas: 0 }) }, a10)).toMatch(/otra alerta/)
+    expect(motivoParaPensar({ ...conAlerta, equipos: [{ ...deshu, ultimaOrdenHaceMin: 5 }], anterior: antes(10) }, a10)).toMatch(/orden/)
+    const respondida = { haceMin: 8, propuso: "prender el deshumidificador", respuesta: "descartada" as const, quien: "Facu" }
+    expect(motivoParaPensar({ ...conAlerta, recientes: [respondida], anterior: antes(10) }, a10)).toMatch(/respondieron/)
+  })
+  it("con la sala tranquila, el control es una hora después de la última vez", () => {
+    expect(motivoParaPensar({ ...tranquila, anterior: antes(40, { humedad: 50 }) }, new Date("2026-11-14T17:02:00Z"))).toBeNull()
+    expect(motivoParaPensar({ ...tranquila, anterior: antes(60, { humedad: 50 }) }, a10)).toBe("control de cada hora")
+  })
+})
+
+describe("enchufe que dejó de informar", () => {
+  const viejo: EquipoEnSala = { ...deshu, estadoReal: false, sinReporteHaceMin: 2940 }
+  it("el contexto dice que no se sabe si anda", () => {
+    const c = armarContexto({ ...ESCENARIOS[0].entrada, equipos: [viejo] })
+    expect(c.equipos[0].como_se_sabe).toBe("el enchufe no informa hace 2 días: es la última orden, no se sabe si anda de verdad")
+  })
+  it("deja proponer prenderlo aunque la última orden haya sido prender", () => {
+    const prender = d({ equipo: "deshumidificador", accion: "encender", setpoint: null, titulo: "prender el deshumidificador" })
+    expect(validarDecision(prender, [viejo], []).ok).toBe(true)
+    expect(validarDecision(prender, [deshu], []).ok).toBe(false)
+  })
+  it("estadoInformado: real solo con un reporte de menos de 5 minutos", () => {
+    const ahora = new Date("2026-11-15T21:00:00Z")
+    const base = { tipo: "deshumidificador" as const, soporta_feedback: true }
+    expect(estadoInformado({ ...base, ultimo_estado_confirmado_en: "2026-11-15T20:57:00Z" }, ahora)).toEqual({ estadoReal: true })
+    expect(estadoInformado({ ...base, ultimo_estado_confirmado_en: "2026-11-13T21:21:00Z" }, ahora)).toEqual({ estadoReal: false, sinReporteHaceMin: 2859 })
+    expect(estadoInformado({ ...base, ultimo_estado_confirmado_en: null }, ahora)).toEqual({ estadoReal: false, sinReporteHaceMin: null })
+    expect(estadoInformado({ tipo: "aire_acondicionado", soporta_feedback: false, ultimo_estado_confirmado_en: null }, ahora)).toEqual({ estadoReal: false })
+  })
+  it("pensadoAntes lee el contexto guardado", () => {
+    const fila = { sala_id: 5, creada_en: "2026-11-15T20:40:00Z", entrada: { ahora: { temperatura: "25,2 °C", humedad: "56 %" }, alertas_abiertas: ["humedad 56 % (máx 55)"] } }
+    expect(pensadoAntes(fila, new Date("2026-11-15T21:00:00Z"))).toEqual({ haceMin: 20, temperatura: 25.2, humedad: 56, alertas: 1 })
+    expect(pensadoAntes({ ...fila, entrada: { ahora: "sin lecturas del Pulse en la última hora", alertas_abiertas: "ninguna" } }, new Date("2026-11-15T21:00:00Z")))
+      .toEqual({ haceMin: 20, temperatura: null, humedad: null, alertas: 0 })
+  })
+})
+
+describe("contexto corto", () => {
+  it("de lo que propuso antes, manda solo el título", () => {
+    const c = armarContexto({
+      ...ESCENARIOS[0].entrada,
+      recientes: [{ haceMin: 70, propuso: "revisar deshumidificación. La humedad está en 56 % y viene subiendo, revisen.", respuesta: "aviso", quien: null }],
+    })
+    expect(c.lo_que_propuso_nubi_hace_poco).toEqual(['hace 70 min propuso "revisar deshumidificación": aviso'])
   })
 })

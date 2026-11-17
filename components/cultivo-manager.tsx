@@ -42,6 +42,7 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
   const router = useRouter()
 
   const [camaForm, setCamaForm] = useState({
+    nombre: "",
     genetica_id: "",
     cantidad_plantas: "",
     fecha_siembra: "",
@@ -65,6 +66,7 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
     setCamaError("")
     setSelectedCama(cama)
     setCamaForm({
+      nombre: cama.nombre,
       genetica_id: cama.genetica_id?.toString() || "",
       cantidad_plantas: cama.cantidad_plantas?.toString() || "",
       fecha_siembra: cama.fecha_siembra || "",
@@ -80,6 +82,13 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
   const handleSaveCama = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedCama) return
+    const nombre = camaForm.nombre.trim()
+    if (!nombre) { setCamaError("La cama necesita un nombre."); return }
+    if (nombre.length > 100) { setCamaError("El nombre puede tener hasta 100 caracteres."); return }
+    const repetida = salas
+      .find(sala => sala.camas?.some(c => c.id === selectedCama.id))
+      ?.camas?.some(c => c.id !== selectedCama.id && c.nombre.trim().toLowerCase() === nombre.toLowerCase())
+    if (repetida) { setCamaError(`Ya hay otra cama "${nombre}" en esta sala.`); return }
     const invalid = validarCicloCama(camaForm)
     if (invalid) { setCamaError(invalid); return }
     setCamaError("")
@@ -87,6 +96,7 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
 
     const supabase = createClient()
     const data = {
+      nombre,
       genetica_id: camaForm.genetica_id ? Number(camaForm.genetica_id) : null,
       cantidad_plantas: camaForm.cantidad_plantas ? Number(camaForm.cantidad_plantas) : 0,
       fecha_siembra: camaForm.fecha_siembra || null,
@@ -236,19 +246,28 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
     router.refresh()
   }
 
-  const handleDeleteCama = async (camaId: number) => {
-    if (!confirm("¿Estás seguro de eliminar esta cama?")) return
+  const handleDeleteCama = async (cama: CamaCultivo) => {
+    const conPlantas = (cama.mapa_macetas?.macetas ?? []).filter(m => m.genetica_id || m.notas?.trim() || m.salud !== "sin_evaluar").length
+    const aviso = conPlantas
+      ? `La cama "${cama.nombre}" tiene ${conPlantas} maceta(s) con datos (genética, salud o notas) que se borran con ella.`
+      : `Se borra la cama "${cama.nombre}".`
+    if (!confirm(`${aviso}\n\nNo se puede deshacer. ¿Borrar la cama?`)) return
+    setCamaError("")
+    setLoading(true)
 
     const supabase = createClient()
-    const { error } = await supabase.from("camas_cultivo").delete().eq("id", camaId)
+    const { error } = await supabase.from("camas_cultivo").delete().eq("id", cama.id)
+    setLoading(false)
 
-    if (!error) {
-      setSalas(salas.map(sala => ({
-        ...sala,
-        camas: sala.camas?.filter(c => c.id !== camaId)
-      })))
-      setIsEditOpen(false)
+    if (error) {
+      setCamaError("No se pudo borrar la cama. Puede que tengas que pedir permiso o que esté en uso. Probá de nuevo o avisale a Joaco.")
+      return
     }
+    setSalas(current => current.map(sala => ({
+      ...sala,
+      camas: sala.camas?.filter(c => c.id !== cama.id)
+    })))
+    setIsEditOpen(false)
     router.refresh()
   }
 
@@ -357,9 +376,19 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Etapa y fechas · {selectedCama?.nombre}</DialogTitle>
+            <DialogTitle>Cama · {selectedCama?.nombre}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSaveCama} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cama_editar_nombre">Nombre de la cama</Label>
+              <Input
+                id="cama_editar_nombre"
+                value={camaForm.nombre}
+                maxLength={100}
+                placeholder="Ej.: Estante 1 · piso de arriba"
+                onChange={(e) => setCamaForm({ ...camaForm, nombre: e.target.value })}
+              />
+            </div>
             <p className="text-xs text-muted-foreground">La etapa y sus fechas se aplican a toda la cama. La genética, salud y observaciones de cada planta se editan en su maceta.</p>
             <div className="space-y-2">
               <Label htmlFor="genetica">Genética</Label>
@@ -466,10 +495,11 @@ export function CultivoManager({ initialSalas, geneticas }: CultivoManagerProps)
                 type="button"
                 variant="outline"
                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                onClick={() => selectedCama && handleDeleteCama(selectedCama.id)}
+                onClick={() => selectedCama && handleDeleteCama(selectedCama)}
                 disabled={loading}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="mr-1 h-4 w-4" />
+                Borrar cama
               </Button>
             </div>
           </form>

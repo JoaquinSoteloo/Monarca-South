@@ -44,9 +44,6 @@ import {
   Wallet,
   Pencil,
   Trash2,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react"
 import { etiquetaMetodo } from "@/lib/metodo-pago"
 import { format } from "date-fns"
@@ -335,17 +332,27 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
   const fetchSaldadas = async () => {
     setLoadingSaldadas(true)
     // Entregas que tuvieron deuda (tienen pagos registrados) y ya no deben nada.
-    const { data, error } = await supabase
-      .from("ventas")
-      .select(`
-        *,
-        socio:socios(id, nombre, apellido, dni),
-        pagos!inner(*)
-      `)
-      .lte("saldo_pendiente", 0)
-      .order("created_at", { ascending: false })
-      .limit(1000)
-    if (!error && data) setSaldadas(data as VentaConDeuda[])
+    // De a 1000 (el máximo por pedido): con un solo pedido se cortaban las más
+    // viejas (17/11/2026 había 1373).
+    const POR_PAGINA = 1000
+    const todas: VentaConDeuda[] = []
+    for (let desde = 0; ; desde += POR_PAGINA) {
+      const { data, error } = await supabase
+        .from("ventas")
+        .select(`
+          *,
+          socio:socios(id, nombre, apellido, dni),
+          pagos!inner(*)
+        `)
+        .lte("saldo_pendiente", 0)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(desde, desde + POR_PAGINA - 1)
+      if (error || !data) break
+      todas.push(...(data as VentaConDeuda[]))
+      if (data.length < POR_PAGINA) break
+    }
+    setSaldadas(todas)
     setLoadingSaldadas(false)
   }
 
@@ -409,13 +416,10 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
 
   const diaAR = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })
   const fueDeuda = (v: VentaConDeuda) => (v.pagos || []).some((p) => diaAR(p.fecha) > diaAR(v.created_at))
-  // Orden del historial: por fecha de entrega o de saldada, tocando el encabezado.
-  const [ordenSaldadas, setOrdenSaldadas] = useState<{ col: "entrega" | "saldada"; asc: boolean }>({ col: "saldada", asc: false })
   const saldadaEl = (v: VentaConDeuda) => (v.pagos || []).reduce((max, p) => (p.fecha > max ? p.fecha : max), "")
-  const ordenarPor = (col: "entrega" | "saldada") =>
-    setOrdenSaldadas((o) => (o.col === col ? { col, asc: !o.asc } : { col, asc: false }))
-  const iconoOrden = (col: "entrega" | "saldada") =>
-    ordenSaldadas.col !== col ? <ArrowUpDown className="h-3.5 w-3.5 opacity-50" /> : ordenSaldadas.asc ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+  // Días entre la entrega y el último pago, contados en días de Argentina.
+  const diasEnSaldar = (v: VentaConDeuda) =>
+    Math.round((Date.parse(diaAR(saldadaEl(v))) - Date.parse(diaAR(v.created_at))) / 86400000)
 
   const saldadasFiltradas = saldadas.filter((d) => {
     // Solo las que fueron deuda (se terminaron de pagar otro día). Las pagadas en
@@ -424,10 +428,28 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
     if (!filtroSocio) return true
     const nombreCompleto = `${d.socio?.apellido}, ${d.socio?.nombre}`.toLowerCase()
     return nombreCompleto.includes(filtroSocio.toLowerCase()) || (d.socio?.dni || "").includes(filtroSocio)
-  }).sort((a, b) => {
-    const [x, y] = ordenSaldadas.col === "entrega" ? [a.created_at, b.created_at] : [saldadaEl(a), saldadaEl(b)]
-    return ordenSaldadas.asc ? x.localeCompare(y) : y.localeCompare(x)
-  })
+  }).sort((a, b) => saldadaEl(b).localeCompare(saldadaEl(a)))
+
+  // Historial agrupado por socio, como las pendientes (17/11/2026: la tabla
+  // plana de cientos de filas no se podía leer). Primero el que saldó más
+  // recién; adentro, de la más nueva a la más vieja.
+  // Map y no objeto: con ids numéricos el objeto se reordenaría solo.
+  const saldadasPorSocio = [
+    ...saldadasFiltradas
+      .reduce((acc, v) => {
+        const g = acc.get(v.socio_id) ?? { socio: v.socio, deudas: [] as VentaConDeuda[], total: 0 }
+        g.deudas.push(v)
+        g.total += Number(v.total || 0)
+        return acc.set(v.socio_id, g)
+      }, new Map<string, { socio: VentaConDeuda["socio"]; deudas: VentaConDeuda[]; total: number }>())
+      .values(),
+  ]
+  const totalSaldado = saldadasFiltradas.reduce((t, v) => t + Number(v.total || 0), 0)
+  const diasPromedio = saldadasFiltradas.length
+    ? Math.round(saldadasFiltradas.reduce((t, v) => t + diasEnSaldar(v), 0) / saldadasFiltradas.length)
+    : 0
+  const fechaCorta = (iso: string) => format(new Date(iso), "dd/MM/yyyy", { locale: es })
+  const enDias = (n: number) => (n <= 0 ? "el mismo día" : n === 1 ? "en 1 día" : `en ${n} días`)
 
   const handleVerComprobante = (url: string) => {
     setComprobanteVisualizarUrl(url)
@@ -526,57 +548,67 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
       </div>
 
       {vista === "saldadas" ? (
-        <Card>
-          <CardContent className="p-0">
-            {loadingSaldadas ? (
-              <p className="py-8 text-center text-muted-foreground">Cargando historial...</p>
-            ) : saldadasFiltradas.length === 0 ? (
-              <p className="py-8 text-center text-muted-foreground">
-                {filtroSocio ? "No hay deudas saldadas que coincidan con la búsqueda" : "Todavía no hay deudas saldadas"}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Socio</TableHead>
-                    <TableHead>
-                      <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => ordenarPor("entrega")} aria-label="Ordenar por fecha de entrega">
-                        Entrega {iconoOrden("entrega")}
-                      </button>
-                    </TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>
-                      <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => ordenarPor("saldada")} aria-label="Ordenar por fecha en que se saldó">
-                        Saldada el {iconoOrden("saldada")}
-                      </button>
-                    </TableHead>
-                    <TableHead className="text-right">Pagos</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {saldadasFiltradas.map((v) => {
-                    const ultimo = [...(v.pagos || [])].sort((a, b) => b.fecha.localeCompare(a.fecha))[0]
+        loadingSaldadas ? (
+          <Card><CardContent className="py-8 text-center text-muted-foreground">Cargando historial...</CardContent></Card>
+        ) : saldadasPorSocio.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              {filtroSocio ? "No hay deudas saldadas que coincidan con la búsqueda" : "Todavía no hay deudas saldadas"}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground tabular-nums">{saldadasFiltradas.length}</span> deudas saldadas de{" "}
+              <span className="font-semibold text-foreground tabular-nums">{saldadasPorSocio.length}</span> {saldadasPorSocio.length === 1 ? "socio" : "socios"} ·{" "}
+              <span className="font-semibold text-foreground tabular-nums">{formatCurrency(totalSaldado)}</span> cobrados · se saldaron en{" "}
+              <span className="font-semibold text-foreground tabular-nums">{diasPromedio}</span> días en promedio
+            </p>
+            {saldadasPorSocio.map(({ socio, deudas: delSocio, total }) => (
+              <details key={socio?.id} className="group min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm" open={!!filtroSocio && saldadasPorSocio.length <= 3}>
+                <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary sm:p-5 [&::-webkit-details-marker]:hidden">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="rounded-full bg-emerald-50 p-2 text-emerald-700"><CheckCircle className="h-5 w-5" /></div>
+                    <div className="min-w-0">
+                      <h2 className="break-words font-semibold">{socio ? `${socio.apellido}, ${socio.nombre}` : "Socio sin datos"}</h2>
+                      <p className="text-xs text-muted-foreground">
+                        {delSocio.length} {delSocio.length === 1 ? "deuda saldada" : "deudas saldadas"} · la última el {fechaCorta(saldadaEl(delSocio[0]))}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right"><p className="text-xs text-muted-foreground">Cobrado</p><p className="text-lg font-semibold tabular-nums">{formatCurrency(total)}</p></div>
+                    <ChevronDown className="h-5 w-5 shrink-0 text-primary transition-transform group-open:rotate-180" />
+                  </div>
+                </summary>
+                <ul className="divide-y border-t">
+                  {delSocio.map((v) => {
+                    const pagos = v.pagos?.length || 0
                     return (
-                      <TableRow key={v.id}>
-                        <TableCell>{v.socio ? `${v.socio.apellido}, ${v.socio.nombre}` : "—"}</TableCell>
-                        <TableCell>{format(new Date(v.created_at), "dd/MM/yyyy", { locale: es })}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatCurrency(Number(v.total || 0))}</TableCell>
-                        <TableCell>{ultimo ? format(new Date(ultimo.fecha), "dd/MM/yyyy", { locale: es }) : "—"}</TableCell>
-                        <TableCell className="text-right">{v.pagos?.length || 0}</TableCell>
-                        <TableCell className="text-right">
+                      <li key={v.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
+                        <div className="min-w-0">
+                          <p className="text-sm">
+                            Entrega del <span className="font-medium">{fechaCorta(v.created_at)}</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Saldada el {fechaCorta(saldadaEl(v))}, {enDias(diasEnSaldar(v))} · {pagos} {pagos === 1 ? "pago" : "pagos"}
+                          </p>
+                          {v.notas && <p className="mt-0.5 text-xs italic text-muted-foreground">{v.notas}</p>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-medium tabular-nums">{formatCurrency(Number(v.total || 0))}</span>
                           <Button variant="outline" size="sm" onClick={() => handleVerHistorial(v)}>
                             <History className="mr-1 h-4 w-4" /> Ver pagos
                           </Button>
-                        </TableCell>
-                      </TableRow>
+                        </div>
+                      </li>
                     )
                   })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                </ul>
+              </details>
+            ))}
+          </div>
+        )
       ) : null}
 
       {/* Lista de deudas por socio */}

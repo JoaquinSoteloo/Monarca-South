@@ -142,7 +142,7 @@ export function CamaMapa({ cama, geneticas, onChange, onEdit }: {
           setSize({ filas: mapa.filas, columnas: mapa.columnas }); setError(""); setConflict(false)
           setBaseVersion(cama.mapa_version ?? 0); setConfigOpen(true)
         }}><Grid2X2 size={17} /></Button>
-        <Button variant="ghost" size="sm" aria-label={`Editar etapa y fechas de ${cama.nombre}`} onClick={onEdit}><Settings2 size={17} />Etapa y fechas</Button>
+        <Button variant="ghost" size="sm" aria-label={`Editar la cama ${cama.nombre}: nombre, etapa y fechas`} onClick={onEdit}><Settings2 size={17} />Editar cama</Button>
       </div>
     </div>
     <div className="mx-5 mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">

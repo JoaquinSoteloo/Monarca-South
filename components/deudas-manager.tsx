@@ -417,9 +417,6 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
   const diaAR = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })
   const fueDeuda = (v: VentaConDeuda) => (v.pagos || []).some((p) => diaAR(p.fecha) > diaAR(v.created_at))
   const saldadaEl = (v: VentaConDeuda) => (v.pagos || []).reduce((max, p) => (p.fecha > max ? p.fecha : max), "")
-  // Días entre la entrega y el último pago, contados en días de Argentina.
-  const diasEnSaldar = (v: VentaConDeuda) =>
-    Math.round((Date.parse(diaAR(saldadaEl(v))) - Date.parse(diaAR(v.created_at))) / 86400000)
 
   const saldadasFiltradas = saldadas.filter((d) => {
     // Solo las que fueron deuda (se terminaron de pagar otro día). Las pagadas en
@@ -445,11 +442,7 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
       .values(),
   ]
   const totalSaldado = saldadasFiltradas.reduce((t, v) => t + Number(v.total || 0), 0)
-  const diasPromedio = saldadasFiltradas.length
-    ? Math.round(saldadasFiltradas.reduce((t, v) => t + diasEnSaldar(v), 0) / saldadasFiltradas.length)
-    : 0
   const fechaCorta = (iso: string) => format(new Date(iso), "dd/MM/yyyy", { locale: es })
-  const enDias = (n: number) => (n <= 0 ? "el mismo día" : n === 1 ? "en 1 día" : `en ${n} días`)
 
   const handleVerComprobante = (url: string) => {
     setComprobanteVisualizarUrl(url)
@@ -561,8 +554,7 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
             <p className="text-sm text-muted-foreground">
               <span className="font-semibold text-foreground tabular-nums">{saldadasFiltradas.length}</span> deudas saldadas de{" "}
               <span className="font-semibold text-foreground tabular-nums">{saldadasPorSocio.length}</span> {saldadasPorSocio.length === 1 ? "socio" : "socios"} ·{" "}
-              <span className="font-semibold text-foreground tabular-nums">{formatCurrency(totalSaldado)}</span> cobrados · se saldaron en{" "}
-              <span className="font-semibold text-foreground tabular-nums">{diasPromedio}</span> días en promedio
+              <span className="font-semibold text-foreground tabular-nums">{formatCurrency(totalSaldado)}</span> cobrados
             </p>
             {saldadasPorSocio.map(({ socio, deudas: delSocio, total }) => (
               <details key={socio?.id} className="group min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm" open={!!filtroSocio && saldadasPorSocio.length <= 3}>
@@ -583,15 +575,14 @@ export function DeudasManager({ puedeCorregir = false }: { puedeCorregir?: boole
                 </summary>
                 <ul className="divide-y border-t">
                   {delSocio.map((v) => {
-                    const pagos = v.pagos?.length || 0
                     return (
                       <li key={v.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
                         <div className="min-w-0">
                           <p className="text-sm">
                             Entrega del <span className="font-medium">{fechaCorta(v.created_at)}</span>
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Saldada el {fechaCorta(saldadaEl(v))}, {enDias(diasEnSaldar(v))} · {pagos} {pagos === 1 ? "pago" : "pagos"}
+                          <p className="text-sm">
+                            Saldada el <span className="font-medium">{fechaCorta(saldadaEl(v))}</span>
                           </p>
                           {v.notas && <p className="mt-0.5 text-xs italic text-muted-foreground">{v.notas}</p>}
                         </div>

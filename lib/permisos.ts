@@ -58,6 +58,13 @@ export const PANTALLAS: PantallaPermisos[] = [
   { ruta: "/procesos", nombre: "Procedimientos", grupo: "Operación", ver: "procesos.ver", acciones: [] },
   { ruta: "/cultivo", nombre: "Cultivo", grupo: "Operación", ver: "cultivo.ver", acciones: [] },
   { ruta: "/riego", nombre: "Riego", grupo: "Operación", ver: "riego.ver", acciones: [] },
+  {
+    ruta: "/fenotipado",
+    nombre: "Fenotipado",
+    grupo: "Operación",
+    ver: "fenotipado.ver",
+    acciones: [{ clave: "fenotipado.editar", label: "Corregir o borrar plantas y observaciones de otros" }],
+  },
   { ruta: "/monitoreo", nombre: "Monitoreo", grupo: "Operación", ver: "monitoreo.ver", acciones: [] },
   { ruta: "/citas", nombre: "Citas", grupo: "Operación", ver: "citas.ver", acciones: [] },
   { ruta: "/socios", nombre: "Socios", grupo: "Personas", ver: "socios.ver", acciones: [] },

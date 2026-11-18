@@ -5,7 +5,7 @@
 // Solo servidor.
 import { createServiceClient } from "@/lib/supabase/service"
 
-export type FuncionIA = "nubi" | "nubi_eval" | "resumen_semanal" | "asistente" | "otra"
+export type FuncionIA = "nubi" | "nubi_eval" | "resumen_semanal" | "asistente" | "fenotipado" | "otra"
 
 export interface UsoIA {
   funcion: FuncionIA

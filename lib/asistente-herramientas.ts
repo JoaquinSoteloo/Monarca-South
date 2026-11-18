@@ -7,6 +7,19 @@ import { cicloActual, etapaRiegoDe, momentoCiclo, sumarDias, type CicloSala } fr
 import { rangoClima, type RangoClima } from "@/lib/clima-alertas"
 import { estadoAire, estadoOnOff, textoEstadoAire, textoEstadoOnOff } from "@/lib/nubi"
 import type { DispositivoControlable } from "@/lib/types"
+import {
+  ETAPAS_FENO,
+  ESTADOS_FENO,
+  FORMAS,
+  NUDOS,
+  PUNTAJES,
+  SALUDES,
+  SEXOS_FENO,
+  normalizarCodigo,
+  resumirPlanta,
+  type ObservacionFeno,
+  type PlantaFeno,
+} from "@/lib/fenotipado"
 
 export const HERRAMIENTAS = [
   {
@@ -55,6 +68,66 @@ export const HERRAMIENTAS = [
     input_schema: {
       type: "object" as const,
       properties: { sala: { type: "string", description: "Nombre de la sala, por ejemplo «Sala 5». Vacío = todas." } },
+    },
+  },
+  {
+    name: "fenotipado_ver",
+    description:
+      "Fenotipado de semillas: las plantas (código como GEL-03, genética, estado, sexo, días desde la germinación), su última revisión, altura, crecimiento por semana, puntajes y alertas. Con «codigo», además las últimas observaciones de esa planta. Usala antes de anotar, para confirmar que el código existe.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        codigo: { type: "string", description: "Código de una planta, por ejemplo «GEL-03». Vacío = todas." },
+        genetica: { type: "string", description: "Filtrar por genética. Vacío = todas." },
+      },
+    },
+  },
+  {
+    name: "fenotipado_alta_planta",
+    description:
+      "Da de alta una o varias plantas nuevas del fenotipado (una por semilla). Si no te dan códigos, se arman con la abreviatura de la genética y números seguidos (GEL-01, GEL-02…). Confirmá con la persona la genética y la cantidad antes de llamarla.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        genetica: { type: "string", description: "Nombre de la genética, por ejemplo «Gelato 41»." },
+        prefijo: { type: "string", description: "Abreviatura para el código (2 a 5 letras), por ejemplo «GEL»." },
+        cantidad: { type: "number", description: "Cuántas plantas dar de alta (1 a 30)." },
+        banco: { type: "string", description: "Banco de semillas, si lo dicen." },
+        fecha_germinacion: { type: "string", description: "Fecha de germinación YYYY-MM-DD. Vacío = hoy." },
+        ubicacion: { type: "string", description: "Dónde está, por ejemplo «Sala 3, estante 2»." },
+      },
+      required: ["genetica", "prefijo", "cantidad"],
+    },
+  },
+  {
+    name: "fenotipado_anotar",
+    description:
+      "Guarda una observación de una planta del fenotipado (lo que te cuentan de una revisión). Pasá solo lo que la persona dijo; no inventes valores. También sirve para cambiar el sexo o el estado de la planta (por ejemplo macho → descartada, o elegida como madre).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        codigo: { type: "string", description: "Código de la planta, por ejemplo «GEL-03»." },
+        fecha: { type: "string", description: "YYYY-MM-DD. Vacío = hoy." },
+        etapa: { type: "string", enum: [...ETAPAS_FENO], description: "Etapa de la planta hoy." },
+        semana: { type: "number", description: "Semana de la etapa (por ejemplo semana 3 de flora)." },
+        altura_cm: { type: "number" },
+        nudos: { type: "string", enum: [...NUDOS], description: "Distancia entre nudos." },
+        forma: { type: "string", enum: [...FORMAS] },
+        salud: { type: "string", enum: [...SALUDES] },
+        olor: { type: "string", description: "Cómo huele (frotando el tallo o el cogollo)." },
+        vigor: { type: "number", description: "Puntaje 1 a 5." },
+        estructura: { type: "number", description: "Puntaje 1 a 5." },
+        aroma: { type: "number", description: "Puntaje 1 a 5." },
+        resina: { type: "number", description: "Puntaje 1 a 5." },
+        resistencia: { type: "number", description: "Puntaje 1 a 5 (plagas, hongos, estrés)." },
+        rendimiento: { type: "number", description: "Puntaje 1 a 5." },
+        peso_humedo_g: { type: "number" },
+        peso_seco_g: { type: "number" },
+        nota: { type: "string", description: "Lo demás que contaron, en una frase." },
+        sexo: { type: "string", enum: [...SEXOS_FENO], description: "Solo si se vio el sexo." },
+        estado: { type: "string", enum: [...ESTADOS_FENO], description: "Solo si cambia: descartada, madre, cosechada." },
+      },
+      required: ["codigo", "etapa"],
     },
   },
 ]
@@ -230,6 +303,130 @@ async function riegosRecientes(supabase: SupabaseClient, input: Record<string, u
   return ((data ?? []) as Fila[]).map((r) => ({ ...r, sala: (salas ?? []).find((s: Fila) => s.id === r.sala_id)?.nombre ?? r.sala_id }))
 }
 
+// ---------- Fenotipado (script 104) ----------
+
+const textoOnull = (v: unknown, max = 500): string | null =>
+  typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null
+const numeroEn = (v: unknown, min: number, max: number): number | null => {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v.replace(",", ".")) : NaN
+  return Number.isFinite(n) && n >= min && n <= max ? n : null
+}
+const deLista = <T extends string>(lista: readonly T[], v: unknown): T | null =>
+  typeof v === "string" && (lista as readonly string[]).includes(v) ? (v as T) : null
+const fechaValida = (v: unknown, ahora: Date): string =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fechaAR(ahora)
+
+async function fenotipadoVer(supabase: SupabaseClient, input: Record<string, unknown>, ahora: Date) {
+  const { data: plantas, error } = await supabase.from("fenotipado_plantas").select("*").order("codigo")
+  if (error) return { error: "El fenotipado todavía no está activado (falta correr el script 104)." }
+  const { data: obs } = await supabase.from("fenotipado_observaciones").select("*").order("fecha")
+  const hoy = fechaAR(ahora)
+  const codigo = textoOnull(input.codigo) ? normalizarCodigo(String(input.codigo)) : null
+  const genetica = textoOnull(input.genetica)?.toLowerCase() ?? null
+  const lista = ((plantas ?? []) as PlantaFeno[]).filter(
+    (p) => (!codigo || p.codigo.toUpperCase() === codigo) && (!genetica || p.genetica.toLowerCase().includes(genetica)),
+  )
+  if (codigo && !lista.length) return { error: `No hay ninguna planta con código ${codigo}.`, codigos: ((plantas ?? []) as PlantaFeno[]).map((p) => p.codigo) }
+  return lista.map((p) => {
+    const r = resumirPlanta(p, (obs ?? []) as ObservacionFeno[], hoy)
+    return {
+      codigo: p.codigo,
+      genetica: p.genetica,
+      estado: p.estado,
+      sexo: p.sexo,
+      germino: p.fecha_germinacion,
+      ubicacion: p.ubicacion,
+      revisiones: r.observaciones,
+      ultima_revision: r.ultima_fecha,
+      etapa: r.etapa_actual,
+      altura_cm: r.altura_actual,
+      crece_cm_por_semana: r.crecimiento_cm_semana,
+      estiramiento_cm: r.estiramiento_cm,
+      puntajes: r.puntajes,
+      puntaje_promedio: r.puntaje_promedio,
+      olor: r.ultimo_olor,
+      ultima_nota: r.ultima_nota,
+      alertas: r.alertas,
+      ...(codigo
+        ? { observaciones: ((obs ?? []) as ObservacionFeno[]).filter((o) => o.planta_id === p.id).slice(-10) }
+        : {}),
+    }
+  })
+}
+
+async function fenotipadoAlta(supabase: SupabaseClient, input: Record<string, unknown>, ahora: Date) {
+  const genetica = textoOnull(input.genetica, 100)
+  const prefijo = textoOnull(input.prefijo, 5)?.toUpperCase().replace(/[^A-ZÑ]/g, "")
+  const cantidad = numeroEn(input.cantidad, 1, 30)
+  if (!genetica || !prefijo || !cantidad) return { error: "Falta la genética, la abreviatura o la cantidad (1 a 30)." }
+  const { data: existentes, error } = await supabase.from("fenotipado_plantas").select("codigo")
+  if (error) return { error: "El fenotipado todavía no está activado (falta correr el script 104)." }
+  const usados = new Set(((existentes ?? []) as { codigo: string }[]).map((e) => e.codigo.toUpperCase()))
+  let nro = 1
+  const filas = []
+  while (filas.length < Math.round(cantidad)) {
+    const codigo = `${prefijo}-${String(nro).padStart(2, "0")}`
+    if (!usados.has(codigo)) {
+      filas.push({
+        codigo,
+        genetica,
+        banco: textoOnull(input.banco, 100),
+        fecha_germinacion: fechaValida(input.fecha_germinacion, ahora),
+        ubicacion: textoOnull(input.ubicacion, 100),
+      })
+    }
+    nro++
+  }
+  const { data, error: errAlta } = await supabase.from("fenotipado_plantas").insert(filas).select("codigo")
+  if (errAlta) return { error: "No se pudieron dar de alta las plantas. Puede que tu rol no tenga permiso de Fenotipado." }
+  return { ok: true, genetica, codigos: ((data ?? []) as { codigo: string }[]).map((d) => d.codigo) }
+}
+
+async function fenotipadoAnotar(supabase: SupabaseClient, input: Record<string, unknown>, ahora: Date) {
+  const codigo = textoOnull(input.codigo) ? normalizarCodigo(String(input.codigo)) : null
+  const etapa = deLista(ETAPAS_FENO, input.etapa)
+  if (!codigo || !etapa) return { error: "Falta el código de la planta o la etapa." }
+  const { data: plantas, error } = await supabase.from("fenotipado_plantas").select("id, codigo, sexo, estado")
+  if (error) return { error: "El fenotipado todavía no está activado (falta correr el script 104)." }
+  const planta = ((plantas ?? []) as Pick<PlantaFeno, "id" | "codigo" | "sexo" | "estado">[]).find(
+    (p) => p.codigo.toUpperCase() === codigo,
+  )
+  if (!planta) return { error: `No hay ninguna planta con código ${codigo}. Preguntá cuál es o dala de alta primero.` }
+
+  const fila: Record<string, unknown> = {
+    planta_id: planta.id,
+    fecha: fechaValida(input.fecha, ahora),
+    etapa,
+    semana: numeroEn(input.semana, 0, 30),
+    altura_cm: numeroEn(input.altura_cm, 0, 500),
+    nudos: deLista(NUDOS, input.nudos),
+    forma: deLista(FORMAS, input.forma),
+    salud: deLista(SALUDES, input.salud),
+    olor: textoOnull(input.olor, 200),
+    peso_humedo_g: numeroEn(input.peso_humedo_g, 0, 100000),
+    peso_seco_g: numeroEn(input.peso_seco_g, 0, 100000),
+    nota: textoOnull(input.nota, 1000),
+    origen: "asistente",
+  }
+  for (const p of PUNTAJES) {
+    const v = numeroEn(input[p], 1, 5)
+    fila[p] = v === null ? null : Math.round(v)
+  }
+  const { error: errObs } = await supabase.from("fenotipado_observaciones").insert(fila)
+  if (errObs) return { error: "No se pudo guardar la observación. Puede que tu rol no tenga permiso de Fenotipado." }
+
+  const cambios: Record<string, string> = {}
+  const sexo = deLista(SEXOS_FENO, input.sexo)
+  const estado = deLista(ESTADOS_FENO, input.estado)
+  if (sexo && sexo !== planta.sexo) cambios.sexo = sexo
+  if (estado && estado !== planta.estado) cambios.estado = estado
+  if (Object.keys(cambios).length) {
+    await supabase.from("fenotipado_plantas").update({ ...cambios, updated_at: ahora.toISOString() }).eq("id", planta.id)
+  }
+  const guardado = Object.fromEntries(Object.entries(fila).filter(([k, v]) => v !== null && k !== "planta_id" && k !== "origen"))
+  return { ok: true, codigo: planta.codigo, guardado, ...(Object.keys(cambios).length ? { planta_actualizada: cambios } : {}) }
+}
+
 /** Ejecuta una herramienta pedida por el modelo. Nunca tira: devuelve { error } si algo falla. */
 export async function ejecutarHerramienta(
   supabase: SupabaseClient,
@@ -246,6 +443,9 @@ export async function ejecutarHerramienta(
       case "propuestas_nubi": return await propuestasNubi(supabase, ahora)
       case "tareas": return await tareas(supabase, input, ahora)
       case "riegos_recientes": return await riegosRecientes(supabase, input)
+      case "fenotipado_ver": return await fenotipadoVer(supabase, input, ahora)
+      case "fenotipado_alta_planta": return await fenotipadoAlta(supabase, input, ahora)
+      case "fenotipado_anotar": return await fenotipadoAnotar(supabase, input, ahora)
       default: return { error: "Herramienta desconocida" }
     }
   } catch (err) {

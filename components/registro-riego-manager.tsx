@@ -17,6 +17,15 @@ import { AlertTriangle, CheckCircle2, Droplets, Info, Plus, Trash2 } from "lucid
 import { useToast } from "@/hooks/use-toast"
 import { getArgentinaDateString } from "@/lib/timezone"
 import { ETAPAS, evaluarRiego, parseDecimal, promedio, type EtapaRiego } from "@/lib/riego"
+import {
+  PRODUCTOS_RIEGO,
+  dosisSugeridas,
+  productosDe,
+  resumenProductos,
+  totalTanque,
+  type ProductoRiego,
+  type UnidadDosis,
+} from "@/lib/riego-productos"
 import { destinatariosAlertaRiego, type Perfil } from "@/lib/equipo"
 import { cicloActual, etapaRiegoDe, momentoCiclo, type CicloSala } from "@/lib/ciclo"
 
@@ -50,8 +59,30 @@ const formVacio = (responsable = "Lucho") => ({
   pincho_t2_humedad: "",
   pincho_t2_ec: "",
   pincho_humedad_despues: "",
+  // Productos de la mezcla (script 105): clave → dosis escrita ("" = no lleva).
+  litros_mezcla: "",
+  dosis: {} as Record<string, string>,
+  otro_nombre: "",
+  otro_dosis: "",
+  otro_unidad: "ml/L" as UnidadDosis,
   notas: "",
 })
+
+type FormRiego = ReturnType<typeof formVacio>
+
+/** Productos cargados en el formulario, en el orden de la lista fija. */
+function productosDelForm(f: FormRiego): ProductoRiego[] {
+  const ps: ProductoRiego[] = []
+  for (const d of PRODUCTOS_RIEGO) {
+    const v = parseDecimal(f.dosis[d.clave] ?? "")
+    if (v !== null && v > 0) ps.push({ clave: d.clave, nombre: d.nombre, dosis: v, unidad: d.unidad })
+  }
+  const otro = parseDecimal(f.otro_dosis)
+  if (f.otro_nombre.trim() && otro !== null && otro > 0) {
+    ps.push({ clave: "otro", nombre: f.otro_nombre.trim(), dosis: otro, unidad: f.otro_unidad })
+  }
+  return ps
+}
 
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null
@@ -70,6 +101,7 @@ function alertasDe(r: RegistroRiego) {
     ph_runoff: num(r.ph_runoff),
     drenaje_pct: num(r.drenaje_pct),
     pincho: pinchoDe(r),
+    productos: productosDe(r.productos),
   })
 }
 
@@ -106,6 +138,7 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
     () =>
       evaluarRiego({
         etapa: form.etapa,
+        fecha: form.fecha,
         semana: parseDecimal(form.semana),
         ec_entrada: parseDecimal(form.ec_entrada),
         ph_entrada: parseDecimal(form.ph_entrada),
@@ -119,6 +152,7 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
           t2_ec: parseDecimal(form.pincho_t2_ec),
           humedad_despues: parseDecimal(form.pincho_humedad_despues),
         },
+        productos: productosDelForm(form),
       }),
     [form],
   )
@@ -181,6 +215,16 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
         }
         return Object.values(pz).some((v) => v !== null) ? pz : {}
       })(),
+      // Productos (script 105): solo si se cargó alguno, para que el riego se
+      // pueda guardar aunque el script todavía no esté corrido.
+      ...(() => {
+        const ps = productosDelForm(form)
+        const litros = parseDecimal(form.litros_mezcla)
+        return {
+          ...(ps.length ? { productos: ps } : {}),
+          ...(litros !== null && litros > 0 ? { litros_mezcla: litros } : {}),
+        }
+      })(),
       notas: form.notas.trim() || null,
       ...(perfil ? { cargado_por: perfil.id } : {}),
       ...(cicloForm ? { ciclo_id: cicloForm.id } : {}),
@@ -198,7 +242,21 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
     }
     setRegistros((rs) => [data as RegistroRiego, ...rs].sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0)))
     // Se conservan sala, etapa, semana y responsable para cargar la sala siguiente rápido.
-    setForm((f) => ({ ...formVacio(), fecha: f.fecha, etapa: f.etapa, semana: f.semana, responsable: f.responsable, ec_entrada: f.ec_entrada, ph_entrada: f.ph_entrada }))
+    // La mezcla del tanque es la misma para la sala siguiente: también se conservan los productos.
+    setForm((f) => ({
+      ...formVacio(),
+      fecha: f.fecha,
+      etapa: f.etapa,
+      semana: f.semana,
+      responsable: f.responsable,
+      ec_entrada: f.ec_entrada,
+      ph_entrada: f.ph_entrada,
+      litros_mezcla: f.litros_mezcla,
+      dosis: f.dosis,
+      otro_nombre: f.otro_nombre,
+      otro_dosis: f.otro_dosis,
+      otro_unidad: f.otro_unidad,
+    }))
     const alertas = alertasDe(data as RegistroRiego)
     const graves = alertas.filter((a) => a.nivel === "atencion")
     // Con usuario propio, las alertas le llegan como aviso a Facundo, Lucho y al supervisor.
@@ -416,6 +474,92 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
                     </div>
                   </div>
                 </fieldset>
+                <fieldset className="space-y-3 rounded-md border p-3 sm:col-span-2">
+                  <legend className="px-1 text-sm font-medium">Productos de la mezcla</legend>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="litros_mezcla">Litros del tanque</Label>
+                      <Input
+                        id="litros_mezcla"
+                        className="w-28"
+                        inputMode="decimal"
+                        placeholder="125"
+                        value={form.litros_mezcla}
+                        onChange={set("litros_mezcla")}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const sug = dosisSugeridas(form.etapa, parseDecimal(form.semana), form.fecha)
+                        setForm((f) => ({
+                          ...f,
+                          dosis: Object.fromEntries(Object.entries(sug).map(([k, v]) => [k, String(v).replace(".", ",")])),
+                        }))
+                      }}
+                    >
+                      Completar con la tabla
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      Tabla Ryanodine de flora, Rhino Skin hasta la semana 6 y King Crab los miércoles. En vege poné las dosis a mano.
+                    </span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {PRODUCTOS_RIEGO.map((d) => {
+                      const v = form.dosis[d.clave] ?? ""
+                      const total = totalTanque(parseDecimal(v) ?? 0, parseDecimal(form.litros_mezcla))
+                      return (
+                        <div key={d.clave} className="flex items-center gap-2">
+                          <Label htmlFor={`dosis_${d.clave}`} className="w-44 shrink-0 text-sm font-normal">
+                            {d.nombre}
+                          </Label>
+                          <Input
+                            id={`dosis_${d.clave}`}
+                            className="w-20"
+                            inputMode="decimal"
+                            placeholder="—"
+                            value={v}
+                            onChange={(e) => setForm((f) => ({ ...f, dosis: { ...f.dosis, [d.clave]: e.target.value } }))}
+                          />
+                          <span className="w-10 text-xs text-muted-foreground">{d.unidad}</span>
+                          {total !== null && (
+                            <span className="text-xs text-muted-foreground">
+                              → {String(total).replace(".", ",")} {d.unidad === "g/L" ? "g" : "ml"}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <Input
+                        aria-label="Otro producto"
+                        className="w-44 shrink-0"
+                        placeholder="Otro producto"
+                        value={form.otro_nombre}
+                        onChange={set("otro_nombre")}
+                      />
+                      <Input
+                        aria-label="Dosis del otro producto"
+                        className="w-20"
+                        inputMode="decimal"
+                        placeholder="—"
+                        value={form.otro_dosis}
+                        onChange={set("otro_dosis")}
+                      />
+                      <select
+                        aria-label="Unidad del otro producto"
+                        className="h-9 rounded-md border bg-background px-2 text-xs"
+                        value={form.otro_unidad}
+                        onChange={(e) => setForm((f) => ({ ...f, otro_unidad: e.target.value as UnidadDosis }))}
+                      >
+                        <option value="ml/L">ml/L</option>
+                        <option value="g/L">g/L</option>
+                      </select>
+                    </div>
+                  </div>
+                </fieldset>
                 <div className="space-y-1 sm:col-span-1">
                   <Label htmlFor="notas">Notas</Label>
                   <Textarea id="notas" rows={4} placeholder="Señales en las plantas, ajustes, etc." value={form.notas} onChange={set("notas")} />
@@ -477,6 +621,7 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
                   <TableHead className="text-right">EC in</TableHead>
                   <TableHead className="text-right">pH in</TableHead>
                   <TableHead className="text-right">Pincho</TableHead>
+                  <TableHead>Productos</TableHead>
                   <TableHead className="text-right">EC out</TableHead>
                   <TableHead className="text-right">pH out</TableHead>
                   <TableHead className="text-right">Dren.</TableHead>
@@ -507,6 +652,10 @@ export function RegistroRiegoManager({ salas, initialRegistros, tablaFaltante, p
                           const ec = promedio(pz.t1_ec, pz.t2_ec)
                           return `${h === null ? "—" : `${mostrar(h, 0)} %`} · ${mostrar(ec, 2)}`
                         })()}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs" title={productosDe(r.productos).map((x) => `${x.nombre} ${x.dosis} ${x.unidad}`).join("\n")}>
+                        {resumenProductos(productosDe(r.productos))}
+                        {r.litros_mezcla ? <span className="text-muted-foreground"> · {mostrar(r.litros_mezcla, 0)} L</span> : null}
                       </TableCell>
                       <TableCell className="text-right">{mostrar(r.ec_runoff, 2)}</TableCell>
                       <TableCell className="text-right">{mostrar(r.ph_runoff)}</TableCell>

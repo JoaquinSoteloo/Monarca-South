@@ -302,6 +302,9 @@ export interface RegistroRiego {
   pincho_t2_humedad?: number | null
   pincho_t2_ec?: number | null
   pincho_humedad_despues?: number | null
+  /** Productos de la mezcla y litros del tanque (script 105). */
+  productos?: unknown
+  litros_mezcla?: number | null
   notas: string | null
   created_at: string
 }

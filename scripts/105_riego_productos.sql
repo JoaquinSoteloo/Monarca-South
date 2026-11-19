@@ -1,4 +1,6 @@
 -- 105 — Riego: productos de la mezcla (pedido de Facundo, 18/11/2026).
+--
+-- EJECUTADO en producción el 19/11/2026, antes de publicar la app que lo usa.
 -- Hasta ahora el silicio, el King Crab y los nutrientes iban en Notas. Ahora
 -- cada riego guarda qué llevó la mezcla y en qué dosis, más los litros del
 -- tanque, para ver el historial, avisar faltantes (King Crab de los

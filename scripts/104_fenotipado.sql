@@ -1,5 +1,7 @@
 -- 104 — Fenotipado (pedido de Facundo, 18/11/2026).
 --
+-- EJECUTADO en producción el 19/11/2026, antes de publicar la app que lo usa.
+--
 -- Seguimiento de las plantas de semilla de genéticas compradas, desde la
 -- germinación hasta la cosecha, para elegir con qué fenotipos quedarse como
 -- madres. Lo cargan Lucho y Demian desde la pantalla Fenotipado o

@@ -19,6 +19,7 @@ const NOMBRE: Record<string, string> = {
   nubi_eval: "Evals de Nubi",
   resumen_semanal: "Resumen semanal",
   asistente: "Asistente",
+  fenotipado: "Resumen de Fenotipado",
   otra: "Otras",
 }
 

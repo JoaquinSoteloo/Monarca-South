@@ -5,6 +5,8 @@
  * esto solo marca lo que se sale de lo esperado para que alguien lo mire.
  */
 
+import { evaluarProductos, type ProductoRiego } from "@/lib/riego-productos"
+
 export type EtapaRiego = "esqueje" | "vegetativo" | "floracion" | "lavado"
 
 export interface LecturaRiego {
@@ -23,6 +25,8 @@ export interface LecturaRiego {
    * solo para el pH). Opcional: los riegos viejos no lo tienen.
    */
   pincho?: PinchoRiego | null
+  /** Productos de la mezcla (script 105). Opcional: los riegos viejos no los tienen. */
+  productos?: ProductoRiego[] | null
 }
 
 export interface PinchoRiego {
@@ -208,6 +212,8 @@ export function evaluarRiego(l: LecturaRiego): AlertaRiego[] {
       mensaje: `Las 2 testigo tienen humedad muy distinta (${fmt(p.t1_humedad)} % y ${fmt(p.t2_humedad)} %).`,
     })
   }
+
+  alertas.push(...evaluarProductos(l.etapa, l.semana, l.fecha, l.productos))
 
   return alertas
 }

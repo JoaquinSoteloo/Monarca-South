@@ -52,7 +52,7 @@ function pinchoDelSimulador(v: unknown): Record<string, number | null> {
 }
 
 /** Pantallas a las que el simulador puede mandar a quien lo usa. */
-const RUTAS_PERMITIDAS = ["/equipo", "/chat", "/riego", "/ciclos", "/monitoreo", "/procesos", "/sede/oficina"]
+const RUTAS_PERMITIDAS = ["/equipo", "/chat", "/riego", "/fenotipado", "/ciclos", "/monitoreo", "/procesos", "/sede/oficina"]
 
 interface Pedido {
   tipo: string

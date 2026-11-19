@@ -81,4 +81,28 @@ describe("herramientas del asistente", () => {
   it("herramienta desconocida no rompe", async () => {
     expect(await ejecutarHerramienta(db() as never, "borrar_todo", {}, AHORA)).toEqual({ error: "Herramienta desconocida" })
   })
+
+  it("fenotipado: alta de plantas con códigos seguidos, anotar y ver", async () => {
+    const d = db()
+    d.seed("fenotipado_plantas", [{ id: 1, codigo: "GEL-01", genetica: "Gelato", estado: "en_curso", sexo: "sin_definir", fecha_germinacion: "2026-11-01" }])
+    d.seed("fenotipado_observaciones", [])
+    const alta = (await ejecutarHerramienta(d as never, "fenotipado_alta_planta", { genetica: "Gelato", prefijo: "gel", cantidad: 2 }, AHORA)) as any
+    expect(alta.codigos).toEqual(["GEL-02", "GEL-03"])
+
+    const nota = (await ejecutarHerramienta(
+      d as never,
+      "fenotipado_anotar",
+      { codigo: "gel 3", etapa: "vege", altura_cm: 25, nudos: "cortos", olor: "lima", vigor: 4.4, sexo: "hembra", inventado: 1 },
+      AHORA,
+    )) as any
+    expect(nota).toMatchObject({ ok: true, codigo: "GEL-03", guardado: { fecha: "2026-11-13", altura_cm: 25, nudos: "cortos", vigor: 4 }, planta_actualizada: { sexo: "hembra" } })
+
+    const sinCodigo = (await ejecutarHerramienta(d as never, "fenotipado_anotar", { codigo: "TR-09", etapa: "vege" }, AHORA)) as any
+    expect(sinCodigo.error).toContain("TR-09")
+
+    const ver = (await ejecutarHerramienta(d as never, "fenotipado_ver", { codigo: "GEL-03" }, AHORA)) as any[]
+    expect(ver).toHaveLength(1)
+    expect(ver[0]).toMatchObject({ codigo: "GEL-03", altura_cm: 25, olor: "lima", revisiones: 1 })
+    expect(ver[0].observaciones).toHaveLength(1)
+  })
 })
